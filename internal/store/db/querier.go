@@ -19,6 +19,13 @@ type Querier interface {
 	BatchUpdateColor(ctx context.Context, arg BatchUpdateColorParams) error
 	BatchUpdateDisplayName(ctx context.Context, arg BatchUpdateDisplayNameParams) error
 	BatchUpdateRating(ctx context.Context, arg BatchUpdateRatingParams) error
+	// Removes only ai-layer annotations for the owner's assets. Manual and
+	// extracted layers are never touched.
+	ClearAIAnnotations(ctx context.Context, ownerID string) error
+	// Removes only AI-sourced tag links for the owner's assets. Manual links
+	// (source='manual') are left intact so the ai layer is separately clearable
+	// without touching user data (see docs/ai-and-3d.md).
+	ClearAIAssetTags(ctx context.Context, ownerID string) error
 	ColorCandidates(ctx context.Context, ownerID string) ([]ColorCandidatesRow, error)
 	CreateFolder(ctx context.Context, arg CreateFolderParams) error
 	CreateTag(ctx context.Context, arg CreateTagParams) error
@@ -27,6 +34,10 @@ type Querier interface {
 	DeleteTag(ctx context.Context, arg DeleteTagParams) error
 	EnsureOwner(ctx context.Context, arg EnsureOwnerParams) error
 	GetAsset(ctx context.Context, arg GetAssetParams) (Asset, error)
+	// Resolves an owner's tag id by name so the AI pipeline can reuse an existing
+	// (possibly manual) tag instead of creating a duplicate. Returns sql.ErrNoRows
+	// when absent, signalling the caller to create it.
+	GetTagIDByName(ctx context.Context, arg GetTagIDByNameParams) (string, error)
 	InsertAssetColor(ctx context.Context, arg InsertAssetColorParams) error
 	ListAssetTags(ctx context.Context, assetID string) ([]Tag, error)
 	ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset, error)
