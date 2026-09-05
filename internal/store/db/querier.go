@@ -9,8 +9,14 @@ import (
 )
 
 type Querier interface {
+	AssetIDByPath(ctx context.Context, arg AssetIDByPathParams) (string, error)
+	AssetsByIDs(ctx context.Context, arg AssetsByIDsParams) ([]Asset, error)
+	ColorCandidates(ctx context.Context, ownerID string) ([]ColorCandidatesRow, error)
+	DeleteAssetColors(ctx context.Context, assetID string) error
 	EnsureOwner(ctx context.Context, arg EnsureOwnerParams) error
+	InsertAssetColor(ctx context.Context, arg InsertAssetColorParams) error
 	ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset, error)
+	UpsertAnnotation(ctx context.Context, arg UpsertAnnotationParams) error
 	UpsertAsset(ctx context.Context, arg UpsertAssetParams) error
 }
 

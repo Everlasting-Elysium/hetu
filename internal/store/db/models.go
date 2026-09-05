@@ -4,6 +4,15 @@
 
 package db
 
+type Annotation struct {
+	AssetID   string
+	Layer     string
+	Key       string
+	Value     string
+	Model     string
+	CreatedAt int64
+}
+
 type Asset struct {
 	ID          string
 	OwnerID     string
@@ -19,6 +28,17 @@ type Asset struct {
 	Height      int64
 	CreatedAt   int64
 	IndexedAt   int64
+}
+
+type AssetColor struct {
+	AssetID string
+	OwnerID string
+	Ord     int64
+	Hex     string
+	L       float64
+	A       float64
+	B       float64
+	Weight  float64
 }
 
 type User struct {

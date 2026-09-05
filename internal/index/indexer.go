@@ -106,7 +106,7 @@ func (ix *Indexer) indexOne(ctx context.Context, p kernel.StorageProvider, e dom
 	if err != nil {
 		return err
 	}
-	return ix.k.Store.UpsertAsset(ctx, domain.Asset{
+	if err := ix.k.Store.UpsertAsset(ctx, domain.Asset{
 		ID:          assetID,
 		Owner:       ix.owner,
 		Kind:        handler.Kind(),
@@ -121,7 +121,13 @@ func (ix *Indexer) indexOne(ctx context.Context, p kernel.StorageProvider, e dom
 		Height:      meta.Height,
 		CreatedAt:   e.ModTime,
 		IndexedAt:   time.Now().UTC(),
-	})
+	}); err != nil {
+		return err
+	}
+	// Palette extraction runs after upsert so the asset row exists for the
+	// color index; it enhances the record and never fails the index.
+	ix.indexPalette(ctx, p, e.Path, handler)
+	return nil
 }
 
 func (ix *Indexer) extract(ctx context.Context, p kernel.StorageProvider, path string, h kernel.AssetHandler) (domain.Meta, error) {
