@@ -39,6 +39,7 @@ func (p *Plugin) Init(_ context.Context, k *kernel.Kernel) error {
 func (p *Plugin) Routes() []kernel.Route {
 	return []kernel.Route{
 		{Method: http.MethodGet, Pattern: "/assets", Handler: p.listAssets},
+		{Method: http.MethodGet, Pattern: "/search", Handler: p.searchByColor},
 	}
 }
 
@@ -69,18 +70,22 @@ type assetDTO struct {
 func toDTOs(assets []domain.Asset) []assetDTO {
 	out := make([]assetDTO, 0, len(assets))
 	for _, a := range assets {
-		out = append(out, assetDTO{
-			ID:        a.ID.String(),
-			Kind:      string(a.Kind),
-			Name:      a.Name,
-			Ext:       a.Ext,
-			Size:      a.Size,
-			Path:      a.StoragePath,
-			Thumb:     a.ThumbPath,
-			Width:     a.Width,
-			Height:    a.Height,
-			IndexedAt: a.IndexedAt.Format(time.RFC3339),
-		})
+		out = append(out, toDTO(a))
 	}
 	return out
+}
+
+func toDTO(a domain.Asset) assetDTO {
+	return assetDTO{
+		ID:        a.ID.String(),
+		Kind:      string(a.Kind),
+		Name:      a.Name,
+		Ext:       a.Ext,
+		Size:      a.Size,
+		Path:      a.StoragePath,
+		Thumb:     a.ThumbPath,
+		Width:     a.Width,
+		Height:    a.Height,
+		IndexedAt: a.IndexedAt.Format(time.RFC3339),
+	}
 }
