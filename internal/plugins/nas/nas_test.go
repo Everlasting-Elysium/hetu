@@ -387,6 +387,42 @@ func TestShareAccess_InvalidToken(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Path traversal prevention in folder shares
+// ---------------------------------------------------------------------------
+
+func TestShareAccess_FolderTraversalBlocked(t *testing.T) {
+	srv, _ := newTestServer(t)
+	// Test layout: hello.txt at root, subdir/nested.txt inside subdir.
+	// Share only "subdir". Attempting ?path=.. must NOT escape to root.
+	_, sr := createTestShare(t, srv.URL, map[string]any{
+		"target_type": "folder",
+		"target_path": "subdir",
+	})
+
+	// ?path=.. should stay within the shared folder (resolves back to subdir).
+	resp, err := http.Get(srv.URL + sr.URL + "?path=..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var entries []map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
+		t.Fatal(err)
+	}
+	// Must see subdir contents (nested.txt), NOT root contents (hello.txt).
+	for _, e := range entries {
+		name, _ := e["name"].(string)
+		if name == "hello.txt" {
+			t.Fatal("traversal escaped shared folder: saw root-level hello.txt")
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Token unpredictability
 // ---------------------------------------------------------------------------
 
