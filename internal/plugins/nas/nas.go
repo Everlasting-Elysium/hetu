@@ -1,5 +1,6 @@
-// Package nas is the NAS capability plugin: it exposes filesystem browsing over
-// the kernel's storage abstraction. Enabled via HETU_PLUGINS=nas.
+// Package nas is the NAS capability plugin: it exposes filesystem browsing,
+// file download, and share links over the kernel's storage abstraction.
+// Enabled via HETU_PLUGINS=nas.
 package nas
 
 import (
@@ -15,16 +16,22 @@ import (
 // Name is the plugin's config key (HETU_PLUGINS).
 const Name = "nas"
 
-// Plugin implements kernel.Plugin for NAS-style browsing.
+// Plugin implements kernel.Plugin for NAS-style browsing, download, and shares.
 type Plugin struct {
 	k        *kernel.Kernel
+	owner    domain.OwnerID
 	provider string
 }
 
-var _ kernel.Plugin = (*Plugin)(nil)
+var (
+	_ kernel.Plugin         = (*Plugin)(nil)
+	_ kernel.TopLevelRouter = (*Plugin)(nil)
+)
 
-// New returns a NAS plugin backed by the named storage provider.
-func New(provider string) *Plugin { return &Plugin{provider: provider} }
+// New returns a NAS plugin scoped to owner, backed by the named storage provider.
+func New(owner domain.OwnerID, provider string) *Plugin {
+	return &Plugin{owner: owner, provider: provider}
+}
 
 // Name returns the plugin config key.
 func (p *Plugin) Name() string { return Name }
@@ -39,6 +46,15 @@ func (p *Plugin) Init(_ context.Context, k *kernel.Kernel) error {
 func (p *Plugin) Routes() []kernel.Route {
 	return []kernel.Route{
 		{Method: http.MethodGet, Pattern: "/browse", Handler: p.browse},
+		{Method: http.MethodGet, Pattern: "/download", Handler: p.download},
+		{Method: http.MethodPost, Pattern: "/shares", Handler: p.createShare},
+	}
+}
+
+// TopLevelRoutes registers the public share endpoint at the router root.
+func (p *Plugin) TopLevelRoutes() []kernel.Route {
+	return []kernel.Route{
+		{Method: http.MethodGet, Pattern: "/s/{token}", Handler: p.accessShare},
 	}
 }
 

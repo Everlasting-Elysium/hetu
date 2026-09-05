@@ -235,6 +235,136 @@ func TestSQLite_SearchAssets_LegacyBackfill(t *testing.T) {
 	}
 }
 
+// TestSQLite_SearchAssets_Tags verifies that tags attached to assets are indexed
+// in assets_fts and searchable via the "tags" FTS5 column.
+func TestSQLite_SearchAssets_Tags(t *testing.T) {
+	ctx, st, owner, _ := openAt(t)
+	a1 := seedAsset(t, ctx, st, owner, "a1", "photos/sunset.jpg")
+	a2 := seedAsset(t, ctx, st, owner, "a2", "photos/mountain.jpg")
+
+	// Create tags once, then attach to assets (UNIQUE on owner_id+name).
+	tidLand, err := domain.NewTagID("t-landscape")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tidSun, err := domain.NewTagID("t-sunset")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.CreateTag(ctx, domain.Tag{ID: tidLand, Owner: owner, Name: "landscape"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.CreateTag(ctx, domain.Tag{ID: tidSun, Owner: owner, Name: "sunset"}); err != nil {
+		t.Fatal(err)
+	}
+	// a1 gets both tags; a2 gets only landscape.
+	if err := st.BatchAddTags(ctx, owner, []domain.AssetID{a1}, []domain.TagID{tidLand, tidSun}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.BatchAddTags(ctx, owner, []domain.AssetID{a2}, []domain.TagID{tidLand}); err != nil {
+		t.Fatal(err)
+	}
+
+	find := func(q string) []domain.Asset {
+		t.Helper()
+		got, err := st.SearchAssets(ctx, owner, q, 50, 0)
+		if err != nil {
+			t.Fatalf("search %q: %v", q, err)
+		}
+		return got
+	}
+
+	// Field-qualified tag search.
+	if n := len(find(`tags : "landscape"`)); n != 2 {
+		t.Errorf("search tags:landscape = %d, want 2", n)
+	}
+	if n := len(find(`tags : "sunset"`)); n != 1 {
+		t.Errorf("search tags:sunset = %d, want 1", n)
+	}
+	// Unqualified search matches tags too.
+	if n := len(find(`"landscape"`)); n != 2 {
+		t.Errorf("search landscape (unqualified) = %d, want 2", n)
+	}
+}
+
+// TestSQLite_SearchAssets_Description verifies that caption annotations are
+// indexed in assets_fts.description and searchable via the "description" column.
+func TestSQLite_SearchAssets_Description(t *testing.T) {
+	ctx, st, owner, _ := openAt(t)
+	aid := seedAsset(t, ctx, st, owner, "a1", "photos/cat.jpg")
+
+	// Persist AI caption — this writes to annotations(layer='ai', key='caption').
+	res := domain.NewAITagResult(nil, "a fluffy cat sleeping on a sunny windowsill", "test-model")
+	if err := st.PersistAITagResult(ctx, owner, aid, res); err != nil {
+		t.Fatalf("persist caption: %v", err)
+	}
+
+	find := func(q string) []domain.Asset {
+		t.Helper()
+		got, err := st.SearchAssets(ctx, owner, q, 50, 0)
+		if err != nil {
+			t.Fatalf("search %q: %v", q, err)
+		}
+		return got
+	}
+
+	// Field-qualified description search.
+	if n := len(find(`description : "fluffy"`)); n != 1 {
+		t.Errorf("search desc:fluffy = %d, want 1", n)
+	}
+	if n := len(find(`description : "windowsill"`)); n != 1 {
+		t.Errorf("search desc:windowsill = %d, want 1", n)
+	}
+	// Unqualified search matches description too.
+	if n := len(find(`"sunny"`)); n != 1 {
+		t.Errorf("search sunny (unqualified) = %d, want 1", n)
+	}
+	// No match.
+	if n := len(find(`description : "dog"`)); n != 0 {
+		t.Errorf("search desc:dog = %d, want 0", n)
+	}
+}
+
+// TestSQLite_SearchAssets_TagRemoval verifies that removing a tag from an asset
+// updates the FTS index so the term is no longer searchable via tags.
+func TestSQLite_SearchAssets_TagRemoval(t *testing.T) {
+	ctx, st, owner, _ := openAt(t)
+	a1 := seedAsset(t, ctx, st, owner, "a1", "photos/sunset.jpg")
+
+	tid, err := domain.NewTagID("t-temp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.CreateTag(ctx, domain.Tag{ID: tid, Owner: owner, Name: "temporary"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.BatchAddTags(ctx, owner, []domain.AssetID{a1}, []domain.TagID{tid}); err != nil {
+		t.Fatal(err)
+	}
+
+	find := func(q string) []domain.Asset {
+		t.Helper()
+		got, err := st.SearchAssets(ctx, owner, q, 50, 0)
+		if err != nil {
+			t.Fatalf("search %q: %v", q, err)
+		}
+		return got
+	}
+
+	// Tag is searchable after add.
+	if n := len(find(`tags : "temporary"`)); n != 1 {
+		t.Fatalf("after add, search tags:temporary = %d, want 1", n)
+	}
+	// Remove the tag.
+	if err := st.BatchRemoveTags(ctx, owner, []domain.AssetID{a1}, tid); err != nil {
+		t.Fatal(err)
+	}
+	// Tag is no longer searchable.
+	if n := len(find(`tags : "temporary"`)); n != 0 {
+		t.Errorf("after remove, search tags:temporary = %d, want 0", n)
+	}
+}
+
 // TestSQLite_SearchAssets_InvalidQuery verifies malformed FTS5 MATCH expressions
 // are reported as domain.ErrInvalidQuery (mapped to HTTP 400) rather than a
 // generic server error. The parser never emits these; this guards the store's

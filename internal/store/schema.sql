@@ -98,23 +98,27 @@ CREATE TABLE IF NOT EXISTS asset_tags (
 );
 
 -- ---------------------------------------------------------------------------
--- FTS5 full-text search index (contentless).
--- Columns: name (asset filename), tags (space-separated), description.
--- tags and description are empty until asset_tags/annotations sync is wired;
--- triggers below keep the index in sync with the assets table.
+-- FTS5 full-text search index.
+-- Columns: name (asset filename), tags (space-separated tag names),
+-- description (highest-priority caption annotation).
+-- Non-contentless so rows can be deleted by rowid without tracking originals.
+-- Six triggers keep the index in sync: three on assets (name changes), two on
+-- asset_tags (tag attach/detach), and three on annotations (caption upsert).
 -- ---------------------------------------------------------------------------
 
 CREATE VIRTUAL TABLE IF NOT EXISTS assets_fts USING fts5(
     name,
     tags,
     description,
-    content='',
     tokenize='unicode61'
 );
 
--- Sync triggers: mirror assets INSERT/UPDATE/DELETE into assets_fts.
--- Contentless FTS5 tables require the special delete command with original
--- values for removal (INSERT INTO ... VALUES('delete', rowid, ...)).
+-- Helper expressions used by multiple triggers (duplicated because SQLite
+-- triggers do not support shared functions or CTEs across trigger bodies):
+--   tags  = space-separated tag names via GROUP_CONCAT
+--   desc  = highest-priority caption (manual > ai > extracted), LIMIT 1
+
+-- ---- assets triggers ----
 
 CREATE TRIGGER IF NOT EXISTS trg_assets_ai AFTER INSERT ON assets BEGIN
     INSERT INTO assets_fts(rowid, name, tags, description)
@@ -122,15 +126,70 @@ CREATE TRIGGER IF NOT EXISTS trg_assets_ai AFTER INSERT ON assets BEGIN
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_assets_au AFTER UPDATE ON assets BEGIN
-    INSERT INTO assets_fts(assets_fts, rowid, name, tags, description)
-    VALUES ('delete', old.rowid, old.name, '', '');
+    DELETE FROM assets_fts WHERE rowid = old.rowid;
     INSERT INTO assets_fts(rowid, name, tags, description)
-    VALUES (new.rowid, new.name, '', '');
+    VALUES (
+        new.rowid,
+        new.name,
+        COALESCE((SELECT GROUP_CONCAT(t.name, ' ') FROM asset_tags at2 JOIN tags t ON t.id = at2.tag_id WHERE at2.asset_id = new.id), ''),
+        COALESCE((SELECT ann.value FROM annotations ann WHERE ann.asset_id = new.id AND ann."key" = 'caption' ORDER BY CASE ann.layer WHEN 'manual' THEN 1 WHEN 'ai' THEN 2 ELSE 3 END LIMIT 1), '')
+    );
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_assets_ad AFTER DELETE ON assets BEGIN
-    INSERT INTO assets_fts(assets_fts, rowid, name, tags, description)
-    VALUES ('delete', old.rowid, old.name, '', '');
+    DELETE FROM assets_fts WHERE rowid = old.rowid;
+END;
+
+-- ---- asset_tags triggers ----
+
+CREATE TRIGGER IF NOT EXISTS trg_asset_tags_ai AFTER INSERT ON asset_tags BEGIN
+    DELETE FROM assets_fts WHERE rowid = (SELECT rowid FROM assets WHERE id = new.asset_id);
+    INSERT INTO assets_fts(rowid, name, tags, description)
+    SELECT a.rowid, a.name,
+        COALESCE((SELECT GROUP_CONCAT(t.name, ' ') FROM asset_tags at2 JOIN tags t ON t.id = at2.tag_id WHERE at2.asset_id = a.id), ''),
+        COALESCE((SELECT ann.value FROM annotations ann WHERE ann.asset_id = a.id AND ann."key" = 'caption' ORDER BY CASE ann.layer WHEN 'manual' THEN 1 WHEN 'ai' THEN 2 ELSE 3 END LIMIT 1), '')
+    FROM assets a WHERE a.id = new.asset_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_asset_tags_ad AFTER DELETE ON asset_tags BEGIN
+    DELETE FROM assets_fts WHERE rowid = (SELECT rowid FROM assets WHERE id = old.asset_id);
+    INSERT INTO assets_fts(rowid, name, tags, description)
+    SELECT a.rowid, a.name,
+        COALESCE((SELECT GROUP_CONCAT(t.name, ' ') FROM asset_tags at2 JOIN tags t ON t.id = at2.tag_id WHERE at2.asset_id = a.id), ''),
+        COALESCE((SELECT ann.value FROM annotations ann WHERE ann.asset_id = a.id AND ann."key" = 'caption' ORDER BY CASE ann.layer WHEN 'manual' THEN 1 WHEN 'ai' THEN 2 ELSE 3 END LIMIT 1), '')
+    FROM assets a WHERE a.id = old.asset_id;
+END;
+
+-- ---- annotations triggers (caption only) ----
+
+CREATE TRIGGER IF NOT EXISTS trg_annotations_ai_caption AFTER INSERT ON annotations
+WHEN new."key" = 'caption' BEGIN
+    DELETE FROM assets_fts WHERE rowid = (SELECT rowid FROM assets WHERE id = new.asset_id);
+    INSERT INTO assets_fts(rowid, name, tags, description)
+    SELECT a.rowid, a.name,
+        COALESCE((SELECT GROUP_CONCAT(t.name, ' ') FROM asset_tags at2 JOIN tags t ON t.id = at2.tag_id WHERE at2.asset_id = a.id), ''),
+        COALESCE((SELECT ann.value FROM annotations ann WHERE ann.asset_id = a.id AND ann."key" = 'caption' ORDER BY CASE ann.layer WHEN 'manual' THEN 1 WHEN 'ai' THEN 2 ELSE 3 END LIMIT 1), '')
+    FROM assets a WHERE a.id = new.asset_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_annotations_au_caption AFTER UPDATE ON annotations
+WHEN new."key" = 'caption' BEGIN
+    DELETE FROM assets_fts WHERE rowid = (SELECT rowid FROM assets WHERE id = new.asset_id);
+    INSERT INTO assets_fts(rowid, name, tags, description)
+    SELECT a.rowid, a.name,
+        COALESCE((SELECT GROUP_CONCAT(t.name, ' ') FROM asset_tags at2 JOIN tags t ON t.id = at2.tag_id WHERE at2.asset_id = a.id), ''),
+        COALESCE((SELECT ann.value FROM annotations ann WHERE ann.asset_id = a.id AND ann."key" = 'caption' ORDER BY CASE ann.layer WHEN 'manual' THEN 1 WHEN 'ai' THEN 2 ELSE 3 END LIMIT 1), '')
+    FROM assets a WHERE a.id = new.asset_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_annotations_ad_caption AFTER DELETE ON annotations
+WHEN old."key" = 'caption' BEGIN
+    DELETE FROM assets_fts WHERE rowid = (SELECT rowid FROM assets WHERE id = old.asset_id);
+    INSERT INTO assets_fts(rowid, name, tags, description)
+    SELECT a.rowid, a.name,
+        COALESCE((SELECT GROUP_CONCAT(t.name, ' ') FROM asset_tags at2 JOIN tags t ON t.id = at2.tag_id WHERE at2.asset_id = a.id), ''),
+        COALESCE((SELECT ann.value FROM annotations ann WHERE ann.asset_id = a.id AND ann."key" = 'caption' ORDER BY CASE ann.layer WHEN 'manual' THEN 1 WHEN 'ai' THEN 2 ELSE 3 END LIMIT 1), '')
+    FROM assets a WHERE a.id = old.asset_id;
 END;
 
 -- shares are shareable links to an asset/folder/tag with optional expiry,
