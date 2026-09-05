@@ -1,0 +1,117 @@
+.top {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-5);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  max-width: 520px;
+}
+.search > svg {
+  position: absolute;
+  left: var(--sp-3);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.field {
+  width: 100%;
+  height: 34px;
+  padding: 0 34px;
+}
+.clear {
+  position: absolute;
+  right: var(--sp-2);
+  color: var(--text-muted);
+  padding: var(--sp-1);
+  border-radius: var(--r-sm);
+  line-height: 0;
+}
+.clear:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.modes {
+  display: flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.mode {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 26px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.mode:hover {
+  color: var(--text);
+}
+.modeOn {
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+}
+
+.colorPick {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.native {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-inset);
+  cursor: pointer;
+}
+.native::-webkit-color-swatch-wrapper {
+  padding: 3px;
+}
+.native::-webkit-color-swatch {
+  border: none;
+  border-radius: var(--r-sm);
+}
+.hex {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.spacer {
+  flex: 1;
+}
+.viewToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-full);
+  background: var(--danger);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  display: inline-grid;
+  place-items: center;
+}

@@ -1,0 +1,25 @@
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-6);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+.info {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+.info svg {
+  color: var(--text-muted);
+}
+.info b {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.spacer {
+  flex: 1;
+}

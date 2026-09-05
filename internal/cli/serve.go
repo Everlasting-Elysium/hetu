@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/Everlasting-Elysium/hetu/internal/api"
 	"github.com/Everlasting-Elysium/hetu/internal/app"
+	"github.com/Everlasting-Elysium/hetu/web"
 )
 
 func newServeCmd() *cobra.Command {
@@ -36,9 +38,13 @@ func runServe(ctx context.Context) error {
 	defer func() { _ = a.Close() }()
 
 	a.Kernel.Jobs.Start(ctx, 2)
+	distFS, err := fs.Sub(web.DistFS, "dist")
+	if err != nil {
+		return fmt.Errorf("web dist sub-fs: %w", err)
+	}
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           api.NewRouter(a.Kernel, a.Plugins),
+		Handler:           api.NewRouter(a.Kernel, a.Plugins, distFS),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	go func() {

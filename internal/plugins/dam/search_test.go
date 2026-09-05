@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/Everlasting-Elysium/hetu/internal/api"
@@ -101,5 +102,5 @@ func seedRouter(t *testing.T) (http.Handler, domain.OwnerID) {
 	if err := p.Init(ctx, k); err != nil {
 		t.Fatal(err)
 	}
-	return api.NewRouter(k, []kernel.Plugin{p}), owner
+	return api.NewRouter(k, []kernel.Plugin{p}, fstest.MapFS{}), owner
 }

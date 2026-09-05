@@ -1,0 +1,50 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--grid-min), 1fr));
+  gap: var(--sp-4);
+  padding: var(--sp-5) var(--sp-6);
+  align-content: start;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.state {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+}
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  text-align: center;
+}
+.empty h3 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text-dim);
+}
+.empty p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  max-width: 320px;
+}
+.error {
+  color: var(--danger);
+}
+.spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-full);
+  border: 2.5px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

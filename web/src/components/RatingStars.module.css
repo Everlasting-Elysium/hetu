@@ -1,0 +1,23 @@
+.stars {
+  display: inline-flex;
+  gap: 1px;
+  color: var(--text-muted);
+}
+.star {
+  color: inherit;
+  padding: 0;
+  line-height: 0;
+  transition: color var(--t-fast), transform var(--t-fast);
+}
+.star:hover {
+  transform: scale(1.18);
+}
+.on {
+  color: var(--star);
+}
+.on svg {
+  fill: var(--star);
+}
+.readonly .star {
+  pointer-events: none;
+}

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/Everlasting-Elysium/hetu/internal/api"
@@ -46,7 +47,7 @@ func newTestServer(t *testing.T) (*httptest.Server, domain.OwnerID, kernel.Store
 	if err := p.Init(ctx, k); err != nil {
 		t.Fatalf("init plugin: %v", err)
 	}
-	srv := httptest.NewServer(api.NewRouter(k, []kernel.Plugin{p}))
+	srv := httptest.NewServer(api.NewRouter(k, []kernel.Plugin{p}, fstest.MapFS{}))
 	t.Cleanup(srv.Close)
 	return srv, owner, st
 }

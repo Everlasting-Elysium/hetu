@@ -17,3 +17,7 @@ coverage.html
 # Secrets
 *.pem
 *.key
+
+# Frontend
+web/node_modules/
+*.tsbuildinfo
