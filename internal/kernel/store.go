@@ -13,6 +13,9 @@ type Store interface {
 	EnsureOwner(ctx context.Context, owner domain.OwnerID) error
 	UpsertAsset(ctx context.Context, a domain.Asset) error
 	ListAssets(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.Asset, error)
+	// ListAssetsFiltered narrows ListAssets by folder, tag, and minimum rating
+	// (see domain.AssetFilter); zero-value filter fields are ignored.
+	ListAssetsFiltered(ctx context.Context, owner domain.OwnerID, f domain.AssetFilter, limit, offset int) ([]domain.Asset, error)
 	GetAsset(ctx context.Context, owner domain.OwnerID, id domain.AssetID) (domain.Asset, error)
 
 	// SearchAssets performs FTS5 full-text search. ftsQuery is a pre-built
