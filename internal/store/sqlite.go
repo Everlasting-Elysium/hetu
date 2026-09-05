@@ -30,16 +30,20 @@ type SQLite struct {
 
 var _ kernel.Store = (*SQLite)(nil)
 
-// ftsSchemaVersion gates the one-time backfill of assets_fts. schema.sql is
-// re-applied on every Open (IF NOT EXISTS), so the backfill must run exactly
-// once — otherwise it would double-index rows already in the FTS table.
-const ftsSchemaVersion = 1
+// ftsSchemaVersion gates FTS migrations. Versions:
+//   - 1: initial contentless FTS5 (name only)
+//   - 2: non-contentless FTS5 with tags + description sync triggers
+const ftsSchemaVersion = 2
 
 // Open opens (creating if needed) the database at path and applies the schema.
 func Open(ctx context.Context, path string) (*SQLite, error) {
 	sqldb, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite %s: %w", path, err)
+	}
+	if err := migrateFTS(ctx, sqldb); err != nil {
+		_ = sqldb.Close()
+		return nil, err
 	}
 	if _, err := sqldb.ExecContext(ctx, schemaSQL); err != nil {
 		_ = sqldb.Close()
@@ -52,13 +56,37 @@ func Open(ctx context.Context, path string) (*SQLite, error) {
 	return &SQLite{sqldb: sqldb, q: db.New(sqldb)}, nil
 }
 
-// backfillFTS indexes assets rows that predate the assets_fts table. A database
-// created before FTS existed has the table+triggers added by schema.sql but no
-// indexed rows; the first upsert would then fire the UPDATE trigger's
-// contentless 'delete' against an unindexed row and corrupt the database. This
-// runs once (gated by PRAGMA user_version) to seed the index; for a fresh DB it
-// is a harmless no-op. content='' forfeits the FTS5 'rebuild' command, so the
-// backfill is a manual INSERT..SELECT.
+// migrateFTS handles schema transitions for the FTS index. When upgrading from
+// v1 (contentless, name-only) to v2 (non-contentless, tags+description), it
+// drops the old virtual table and triggers so schema.sql can recreate them with
+// the new definition. Must run BEFORE schema.sql is applied because
+// CREATE VIRTUAL TABLE IF NOT EXISTS would silently keep the old v1 table.
+func migrateFTS(ctx context.Context, sqldb *sql.DB) error {
+	var version int
+	if err := sqldb.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
+		return fmt.Errorf("read user_version: %w", err)
+	}
+	if version == 0 || version >= ftsSchemaVersion {
+		return nil // fresh DB or already current
+	}
+	// Drop old triggers and FTS table so schema.sql recreates them.
+	stmts := []string{
+		"DROP TRIGGER IF EXISTS trg_assets_ai",
+		"DROP TRIGGER IF EXISTS trg_assets_au",
+		"DROP TRIGGER IF EXISTS trg_assets_ad",
+		"DROP TABLE IF EXISTS assets_fts",
+	}
+	for _, s := range stmts {
+		if _, err := sqldb.ExecContext(ctx, s); err != nil {
+			return fmt.Errorf("migrate fts drop: %w", err)
+		}
+	}
+	return nil
+}
+
+// backfillFTS indexes all existing assets into assets_fts with their current
+// tags and description. Runs once per schema version (gated by PRAGMA
+// user_version). For a fresh database this is a harmless no-op.
 func backfillFTS(ctx context.Context, sqldb *sql.DB) error {
 	var version int
 	if err := sqldb.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
@@ -72,9 +100,12 @@ func backfillFTS(ctx context.Context, sqldb *sql.DB) error {
 		return fmt.Errorf("begin fts backfill: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO assets_fts(rowid, name, tags, description)
-		 SELECT rowid, name, '', '' FROM assets`); err != nil {
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO assets_fts(rowid, name, tags, description)
+		SELECT a.rowid, a.name,
+			COALESCE((SELECT GROUP_CONCAT(t.name, ' ') FROM asset_tags at2 JOIN tags t ON t.id = at2.tag_id WHERE at2.asset_id = a.id), ''),
+			COALESCE((SELECT ann.value FROM annotations ann WHERE ann.asset_id = a.id AND ann."key" = 'caption' ORDER BY CASE ann.layer WHEN 'manual' THEN 1 WHEN 'ai' THEN 2 ELSE 3 END LIMIT 1), '')
+		FROM assets a`); err != nil {
 		return fmt.Errorf("backfill assets_fts: %w", err)
 	}
 	// PRAGMA does not accept bound parameters; the value is a trusted constant.
