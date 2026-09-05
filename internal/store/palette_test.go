@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/Everlasting-Elysium/hetu/internal/color"
 	"github.com/Everlasting-Elysium/hetu/internal/domain"
@@ -91,22 +90,6 @@ func TestSQLite_IndexPaletteAndSearch(t *testing.T) {
 	}
 	if again := mustSearch(t, ctx, st, owner, red, 15, 50); len(again) != 0 {
 		t.Fatalf("after re-index to blue, red tol=15 = %+v, want none", again)
-	}
-}
-
-func seedAsset(t *testing.T, ctx context.Context, st *store.SQLite, owner domain.OwnerID, id, path string) {
-	t.Helper()
-	aid, err := domain.NewAssetID(id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	now := time.Now().UTC().Truncate(time.Second)
-	if err := st.UpsertAsset(ctx, domain.Asset{
-		ID: aid, Owner: owner, Kind: domain.KindImage, Provider: "local",
-		StoragePath: path, Name: path, Ext: "png", Size: 1, Hash: id,
-		CreatedAt: now, IndexedAt: now,
-	}); err != nil {
-		t.Fatalf("seed %s: %v", id, err)
 	}
 }
 

@@ -15,6 +15,7 @@ WHERE owner_id = ?;
 
 -- name: AssetsByIDs :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
-       thumb_path, width, height, created_at, indexed_at
+       thumb_path, width, height, created_at, indexed_at,
+       deleted_at, rating, color, display_name, folder_id
 FROM assets
 WHERE owner_id = ? AND id IN (sqlc.slice('ids'));

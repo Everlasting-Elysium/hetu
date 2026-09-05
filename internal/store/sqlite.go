@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	_ "embed"
+	"errors"
 	"fmt"
 	"time"
 
@@ -61,6 +62,9 @@ func (s *SQLite) EnsureOwner(ctx context.Context, owner domain.OwnerID) error {
 }
 
 // UpsertAsset inserts or updates a, keyed by (owner, provider, storage_path).
+// Re-indexing preserves user metadata (rating/color/display_name/folder_id and
+// trash state): those columns are written on first insert and left untouched
+// by the ON CONFLICT clause.
 func (s *SQLite) UpsertAsset(ctx context.Context, a domain.Asset) error {
 	if err := s.q.UpsertAsset(ctx, db.UpsertAssetParams{
 		ID:          a.ID.String(),
@@ -77,13 +81,30 @@ func (s *SQLite) UpsertAsset(ctx context.Context, a domain.Asset) error {
 		Height:      int64(a.Height),
 		CreatedAt:   a.CreatedAt.Unix(),
 		IndexedAt:   a.IndexedAt.Unix(),
+		DeletedAt:   timeToNullUnix(a.DeletedAt),
+		Rating:      int64(a.Rating),
+		Color:       a.Color,
+		DisplayName: a.DisplayName,
+		FolderID:    a.FolderID,
 	}); err != nil {
 		return fmt.Errorf("upsert asset %s: %w", a.StoragePath, err)
 	}
 	return nil
 }
 
-// ListAssets returns the owner's assets, newest first.
+// GetAsset returns the owner's asset by id, or domain.ErrNotFound.
+func (s *SQLite) GetAsset(ctx context.Context, owner domain.OwnerID, id domain.AssetID) (domain.Asset, error) {
+	row, err := s.q.GetAsset(ctx, db.GetAssetParams{ID: id.String(), OwnerID: owner.String()})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Asset{}, fmt.Errorf("get asset %s: %w", id, domain.ErrNotFound)
+		}
+		return domain.Asset{}, fmt.Errorf("get asset %s: %w", id, err)
+	}
+	return rowToAsset(row)
+}
+
+// ListAssets returns the owner's live (non-trashed) assets, newest first.
 func (s *SQLite) ListAssets(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.Asset, error) {
 	rows, err := s.q.ListAssets(ctx, db.ListAssetsParams{
 		OwnerID: owner.String(),
@@ -93,6 +114,10 @@ func (s *SQLite) ListAssets(ctx context.Context, owner domain.OwnerID, limit, of
 	if err != nil {
 		return nil, fmt.Errorf("list assets: %w", err)
 	}
+	return rowsToAssets(rows)
+}
+
+func rowsToAssets(rows []db.Asset) ([]domain.Asset, error) {
 	assets := make([]domain.Asset, 0, len(rows))
 	for _, r := range rows {
 		a, err := rowToAsset(r)
@@ -128,5 +153,34 @@ func rowToAsset(r db.Asset) (domain.Asset, error) {
 		Height:      int(r.Height),
 		CreatedAt:   time.Unix(r.CreatedAt, 0).UTC(),
 		IndexedAt:   time.Unix(r.IndexedAt, 0).UTC(),
+		DeletedAt:   nullUnixToTime(r.DeletedAt),
+		Rating:      int(r.Rating),
+		Color:       r.Color,
+		DisplayName: r.DisplayName,
+		FolderID:    r.FolderID,
 	}, nil
+}
+
+// idStrings maps a slice of stringer IDs to their raw string values.
+func idStrings[T interface{ String() string }](ids []T) []string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = id.String()
+	}
+	return out
+}
+
+func timeToNullUnix(t *time.Time) sql.NullInt64 {
+	if t == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: t.Unix(), Valid: true}
+}
+
+func nullUnixToTime(n sql.NullInt64) *time.Time {
+	if !n.Valid {
+		return nil
+	}
+	t := time.Unix(n.Int64, 0).UTC()
+	return &t
 }

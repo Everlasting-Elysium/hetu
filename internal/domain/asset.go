@@ -31,4 +31,11 @@ type Asset struct {
 	Height      int
 	CreatedAt   time.Time
 	IndexedAt   time.Time
+
+	// User-managed metadata (DAM batch operations).
+	DeletedAt   *time.Time // nil = live; set = soft-deleted (in trash)
+	Rating      int        // 0-5 stars
+	Color       string     // color label, e.g. "#FF5733"; empty = none
+	DisplayName string     // user-facing rename; empty = use Name
+	FolderID    string     // virtual folder; empty = root
 }

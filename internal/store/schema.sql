@@ -5,10 +5,10 @@
 --   * owner_id is reserved on every table so multi-user is additive later.
 --
 -- Tables are added here as features land. Implemented so far: users, assets,
--- annotations (layered metadata), and asset_colors (the color-search index).
--- The remaining target tables (folders, tags, asset_tags, shares, jobs, plus
--- Phase 1 FTS5 + vector tables) are described in docs/data-model.md and added
--- when implemented.
+-- annotations (layered metadata), asset_colors (color-search index), folders,
+-- tags, asset_tags. The remaining target tables (shares, jobs, plus Phase 1
+-- FTS5 + vector tables) are described in docs/data-model.md and added when
+-- implemented.
 
 CREATE TABLE IF NOT EXISTS users (
     id         TEXT PRIMARY KEY,
@@ -29,12 +29,18 @@ CREATE TABLE IF NOT EXISTS assets (
     width        INTEGER NOT NULL DEFAULT 0,
     height       INTEGER NOT NULL DEFAULT 0,
     created_at   INTEGER NOT NULL,
-    indexed_at   INTEGER NOT NULL
+    indexed_at   INTEGER NOT NULL,
+    deleted_at   INTEGER,                          -- NULL = live, unix ts = trashed
+    rating       INTEGER NOT NULL DEFAULT 0,       -- 0-5 stars
+    color        TEXT NOT NULL DEFAULT '',         -- color label, e.g. '#FF5733'
+    display_name TEXT NOT NULL DEFAULT '',         -- user rename; empty = use name
+    folder_id    TEXT NOT NULL DEFAULT ''          -- FK -> folders.id; empty = root
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_owner_path
     ON assets (owner_id, provider, storage_path);
 CREATE INDEX IF NOT EXISTS idx_assets_owner ON assets (owner_id);
+CREATE INDEX IF NOT EXISTS idx_assets_deleted ON assets (owner_id, deleted_at);
 
 -- annotations is the layered-metadata store (manual > ai > extracted). Value is a
 -- JSON payload; model is set only for the ai layer. Color extraction writes the
@@ -64,3 +70,28 @@ CREATE TABLE IF NOT EXISTS asset_colors (
     PRIMARY KEY (asset_id, ord)
 );
 CREATE INDEX IF NOT EXISTS idx_asset_colors_owner ON asset_colors (owner_id);
+
+CREATE TABLE IF NOT EXISTS folders (
+    id        TEXT PRIMARY KEY,
+    owner_id  TEXT NOT NULL,
+    parent_id TEXT NOT NULL DEFAULT '',
+    name      TEXT NOT NULL,
+    path      TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_folders_owner_path ON folders (owner_id, path);
+
+CREATE TABLE IF NOT EXISTS tags (
+    id        TEXT PRIMARY KEY,
+    owner_id  TEXT NOT NULL,
+    parent_id TEXT NOT NULL DEFAULT '',
+    name      TEXT NOT NULL,
+    color     TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_owner_name ON tags (owner_id, name);
+
+CREATE TABLE IF NOT EXISTS asset_tags (
+    asset_id TEXT NOT NULL,
+    tag_id   TEXT NOT NULL,
+    source   TEXT NOT NULL DEFAULT 'manual',
+    PRIMARY KEY (asset_id, tag_id)
+);
