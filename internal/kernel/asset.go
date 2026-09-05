@@ -30,6 +30,21 @@ type PaletteExtractor interface {
 	Palette(ctx context.Context, src io.ReadSeeker) (color.Palette, error)
 }
 
+// PHashExtractor is an optional AssetHandler capability. Handlers that can
+// compute a perceptual hash (currently images) implement it; the indexer uses
+// a type assertion so handlers without pHash support are simply skipped.
+type PHashExtractor interface {
+	PHash(ctx context.Context, src io.ReadSeeker) (uint64, error)
+}
+
+// MetadataExtractor is an optional AssetHandler capability. Handlers that can
+// extract embedded metadata (EXIF/IPTC/XMP for images) implement it; the
+// indexer uses a type assertion so handlers without metadata support are
+// simply skipped. Extracted values are stored as extracted-layer annotations.
+type MetadataExtractor interface {
+	ExtractMetadata(ctx context.Context, src io.ReadSeeker) (domain.ExtractedMetadata, error)
+}
+
 // AssetRegistry resolves an extension to the first matching handler.
 type AssetRegistry struct {
 	handlers []AssetHandler

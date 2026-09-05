@@ -9,8 +9,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Everlasting-Elysium/hetu/internal/ai"
 	"github.com/Everlasting-Elysium/hetu/internal/asset/document"
 	"github.com/Everlasting-Elysium/hetu/internal/asset/image"
+	"github.com/Everlasting-Elysium/hetu/internal/asset/model3d"
 	"github.com/Everlasting-Elysium/hetu/internal/asset/video"
 	"github.com/Everlasting-Elysium/hetu/internal/config"
 	"github.com/Everlasting-Elysium/hetu/internal/domain"
@@ -52,10 +54,11 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		return nil, err
 	}
 	k := kernel.New(kernel.Deps{
-		Log:       log,
-		Store:     st,
-		ThumbDir:  filepath.Join(cfg.DataDir, "thumbnails"),
-		JobBuffer: 64,
+		Log:         log,
+		Store:       st,
+		ThumbDir:    filepath.Join(cfg.DataDir, "thumbnails"),
+		JobBuffer:   64,
+		BlenderAddr: cfg.BlenderAddr,
 	})
 	k.Storage.Register(local.New(cfg.LibraryDir))
 	if cfg.RcloneAddr != "" {
@@ -63,6 +66,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		log.Info("registered rclone storage provider", slog.String("addr", cfg.RcloneAddr), slog.String("remote", cfg.RcloneRemote))
 	}
 	k.Assets.Register(image.New())
+	k.Assets.Register(model3d.New(cfg.BlenderAddr))
 	k.Assets.Register(video.New(log))
 	k.Assets.Register(document.New(log))
 
@@ -80,6 +84,12 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 			_ = st.Close()
 			return nil, fmt.Errorf("init plugin %q: %w", p.Name(), err)
 		}
+	}
+	// Wire AI orchestration: index → enqueue ai_tag job → sidecar client. An
+	// empty HETU_AI_ADDR disables it. Jobs run on the server's JobQueue workers.
+	if cfg.AIAddr != "" {
+		ai.Subscribe(k, ai.New(ai.Config{BaseURL: cfg.AIAddr, Logger: log}))
+		log.Info("registered AI orchestration", slog.String("addr", cfg.AIAddr))
 	}
 	return &App{Cfg: cfg, Kernel: k, Plugins: plugins, Owner: owner, store: st}, nil
 }

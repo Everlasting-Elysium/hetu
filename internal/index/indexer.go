@@ -106,7 +106,7 @@ func (ix *Indexer) indexOne(ctx context.Context, p kernel.StorageProvider, e dom
 	if err != nil {
 		return err
 	}
-	if err := ix.k.Store.UpsertAsset(ctx, domain.Asset{
+	asset := domain.Asset{
 		ID:          assetID,
 		Owner:       ix.owner,
 		Kind:        handler.Kind(),
@@ -121,12 +121,20 @@ func (ix *Indexer) indexOne(ctx context.Context, p kernel.StorageProvider, e dom
 		Height:      meta.Height,
 		CreatedAt:   e.ModTime,
 		IndexedAt:   time.Now().UTC(),
-	}); err != nil {
+	}
+	if err := ix.k.Store.UpsertAsset(ctx, asset); err != nil {
 		return err
 	}
-	// Palette extraction runs after upsert so the asset row exists for the
-	// color index; it enhances the record and never fails the index.
+	// Palette and pHash extraction run after upsert so the asset row exists;
+	// they enhance the record and never fail the index.
 	ix.indexPalette(ctx, p, e.Path, handler)
+	ix.indexPHash(ctx, p, e.Path, handler)
+	// Metadata extraction (EXIF/IPTC/XMP) runs after upsert for the same
+	// reason; embedded capture time may update asset.created_at.
+	ix.indexMetadata(ctx, p, e.Path, handler)
+	// Announce the indexed asset so subscribers (e.g. AI tagging) can react.
+	// The bus is synchronous; handlers must not block (see internal/ai).
+	ix.k.Events.Publish(ctx, kernel.Event{Type: kernel.EventAssetIndexed, Data: asset})
 	return nil
 }
 

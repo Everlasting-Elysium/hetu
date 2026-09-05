@@ -30,11 +30,23 @@ type Querier interface {
 	InsertAssetColor(ctx context.Context, arg InsertAssetColorParams) error
 	ListAssetTags(ctx context.Context, assetID string) ([]Tag, error)
 	ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset, error)
+	// Returns all live assets with the given hash for the owner.
+	ListAssetsByHash(ctx context.Context, arg ListAssetsByHashParams) ([]Asset, error)
+	// Returns hashes that appear more than once among the owner's live assets.
+	ListDuplicateHashes(ctx context.Context, arg ListDuplicateHashesParams) ([]ListDuplicateHashesRow, error)
 	ListFolders(ctx context.Context, ownerID string) ([]Folder, error)
+	// Returns all pHash annotations for the owner's live assets, joining through
+	// assets to filter by owner and exclude trashed items.
+	ListPHashAnnotations(ctx context.Context, ownerID string) ([]ListPHashAnnotationsRow, error)
 	ListTags(ctx context.Context, ownerID string) ([]Tag, error)
 	ListTrashedAssets(ctx context.Context, arg ListTrashedAssetsParams) ([]Asset, error)
 	PurgeTrash(ctx context.Context, arg PurgeTrashParams) error
 	SetDisplayName(ctx context.Context, arg SetDisplayNameParams) error
+	// Updates asset.created_at when embedded metadata (EXIF) provides a capture
+	// time that should take priority over the filesystem modification time.
+	// Uses the natural key (owner_id, provider, storage_path) so the canonical
+	// row is resolved even after a re-scan discarded a fresh id on upsert.
+	UpdateAssetCreatedAt(ctx context.Context, arg UpdateAssetCreatedAtParams) error
 	UpsertAnnotation(ctx context.Context, arg UpsertAnnotationParams) error
 	// Re-indexing preserves user metadata: the ON CONFLICT clause updates only
 	// index-derived fields, leaving rating/color/display_name/folder_id/deleted_at

@@ -20,6 +20,11 @@ type Config struct {
 	// Owner is the single-user owner id until multi-user lands.
 	Owner string `env:"HETU_OWNER" envDefault:"default"`
 
+	// AIAddr is the base URL of the Python AI sidecar (see internal/ai). When
+	// non-empty the indexer enqueues AI tagging jobs after an asset is indexed;
+	// set it empty to disable AI orchestration entirely. Local-first by default.
+	AIAddr string `env:"HETU_AI_ADDR" envDefault:"http://localhost:8091"`
+
 	// NASProvider selects which registered storage provider the NAS plugin
 	// browses ("local" or "rclone"). Defaults to the local filesystem.
 	NASProvider string `env:"HETU_NAS_PROVIDER" envDefault:"local"`
@@ -31,6 +36,11 @@ type Config struct {
 	RcloneRemote string `env:"HETU_RCLONE_REMOTE" envDefault:"remote:"`
 	RcloneUser   string `env:"HETU_RCLONE_USER"`
 	RclonePass   string `env:"HETU_RCLONE_PASS"`
+
+	// BlenderAddr is the host:port of the Blender headless sidecar used to
+	// render 3D-model thumbnails. Empty disables 3D thumbnailing: models are
+	// still indexed, they just have no thumbnail (graceful degradation).
+	BlenderAddr string `env:"HETU_BLENDER_ADDR"`
 }
 
 // Load parses the environment into a Config.

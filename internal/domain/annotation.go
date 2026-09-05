@@ -17,6 +17,28 @@ const (
 const (
 	KeyPalette  = "palette"  // JSON array of {hex,weight}, dominant-first
 	KeyDominant = "dominant" // JSON string of the dominant "#rrggbb"
+	KeyPHash    = "phash"    // JSON string of the perceptual hash (uint64 decimal)
+
+	// EXIF keys (layer=extracted, prefix "exif.").
+	KeyExifCameraMake   = "exif.camera_make"   // JSON string
+	KeyExifCameraModel  = "exif.camera_model"  // JSON string
+	KeyExifLensModel    = "exif.lens_model"    // JSON string
+	KeyExifISO          = "exif.iso"           // JSON int
+	KeyExifFNumber      = "exif.f_number"      // JSON string, e.g. "f/2.8"
+	KeyExifExposure     = "exif.exposure_time"  // JSON string, e.g. "1/125"
+	KeyExifFocalLength  = "exif.focal_length"  // JSON string, e.g. "50mm"
+	KeyExifGPSLatitude  = "exif.gps_latitude"  // JSON float64
+	KeyExifGPSLongitude = "exif.gps_longitude" // JSON float64
+	KeyExifDateTime     = "exif.date_time"     // JSON string (RFC 3339)
+
+	// IPTC keys (layer=extracted, prefix "iptc.").
+	KeyIPTCKeywords = "iptc.keywords" // JSON []string
+
+	// XMP keys (layer=extracted, prefix "xmp.").
+	KeyXMPCreator     = "xmp.creator"     // JSON string
+	KeyXMPDescription = "xmp.description" // JSON string
+	KeyXMPSubject     = "xmp.subject"     // JSON []string
+	KeyXMPCopyright   = "xmp.copyright"   // JSON string
 )
 
 // Annotation is one layered metadata key/value for an asset. Value is a
@@ -37,4 +59,25 @@ type ColorMatch struct {
 	Asset    Asset
 	Hex      string
 	Distance float64
+}
+
+// DuplicateGroup is a set of assets sharing the same content hash. The Hash
+// field is the SHA-256 that unites them; Assets contains every live member.
+type DuplicateGroup struct {
+	Hash   string  `json:"hash"`
+	Assets []Asset `json:"assets"`
+}
+
+// SimilarGroup is a set of assets whose perceptual hashes are within a hamming
+// distance threshold. Anchor is the reference asset; Members are the similar
+// ones, each annotated with its hamming distance.
+type SimilarGroup struct {
+	Anchor  Asset         `json:"anchor"`
+	Members []SimilarHit  `json:"members"`
+}
+
+// SimilarHit pairs an asset with its hamming distance to the group anchor.
+type SimilarHit struct {
+	Asset    Asset `json:"asset"`
+	Distance int   `json:"distance"`
 }
