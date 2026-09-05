@@ -19,7 +19,7 @@ func Execute(ctx context.Context) error {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.AddCommand(newServeCmd(), newScanCmd())
+	root.AddCommand(newServeCmd(), newScanCmd(), newAICmd())
 	return root.ExecuteContext(ctx)
 }
 
