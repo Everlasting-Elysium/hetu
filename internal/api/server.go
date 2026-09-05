@@ -29,6 +29,11 @@ func NewRouter(k *kernel.Kernel, plugins []kernel.Plugin, webFS fs.FS) http.Hand
 	})
 	for _, p := range plugins {
 		mount(r, p)
+		if tlr, ok := p.(kernel.TopLevelRouter); ok {
+			for _, route := range tlr.TopLevelRoutes() {
+				r.Method(route.Method, route.Pattern, route.Handler)
+			}
+		}
 	}
 	r.NotFound(spaHandler(webFS))
 	return r

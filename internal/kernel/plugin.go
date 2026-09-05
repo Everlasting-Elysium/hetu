@@ -21,6 +21,13 @@ type Plugin interface {
 	Routes() []Route
 }
 
+// TopLevelRouter is an optional interface a plugin can implement to register
+// routes at the router root (outside /api/<name>). The NAS plugin uses this
+// to expose public share links at /s/{token}.
+type TopLevelRouter interface {
+	TopLevelRoutes() []Route
+}
+
 // Route binds an HTTP method and pattern to a handler.
 type Route struct {
 	Method  string

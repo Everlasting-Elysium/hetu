@@ -109,7 +109,7 @@ func buildPlugins(names []string, owner domain.OwnerID, nasProvider string) ([]k
 		case dam.Name:
 			plugins = append(plugins, dam.New(owner))
 		case nas.Name:
-			plugins = append(plugins, nas.New(nasProvider))
+			plugins = append(plugins, nas.New(owner, nasProvider))
 		default:
 			return nil, fmt.Errorf("unknown plugin %q", name)
 		}
