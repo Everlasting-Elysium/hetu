@@ -19,6 +19,9 @@ services:
       HETU_DATA_DIR: "/data"
       HETU_DB_PATH: "/data/hetu.db"
       HETU_LIBRARY_DIR: "/library"
+      # Uncomment to enable rclone storage (requires --profile storage):
+      # HETU_RCLONE_ADDR: "rclone:5572"
+      # HETU_RCLONE_REMOTE: "remote:"
     volumes:
       - hetu-data:/data
       - ./library:/library
@@ -34,16 +37,19 @@ services:
       - "8091:8091"
     restart: unless-stopped
 
-  # Phase 1: expose 70+ cloud-drive backends as an S3 API (rclone serve s3).
-  # Put a remote in ./deploy/rclone/rclone.conf, then `--profile storage`.
+  # Expose 70+ cloud-drive backends via rclone RC daemon (--rc-serve).
+  # 1. Put a remote in ./deploy/rclone/rclone.conf
+  # 2. Start with: docker compose --profile storage up
+  # 3. Set HETU_RCLONE_ADDR=rclone:5572 on the hetu service
+  # RC JSON API (operations/list, operations/stat) + HTTP file server on same port.
   rclone:
     image: rclone/rclone:latest
     profiles: ["storage"]
-    command: ["serve", "s3", "--addr", ":8092", "remote:"]
+    command: ["rcd", "--rc-addr", ":5572", "--rc-serve", "--rc-no-auth"]
     volumes:
       - ./deploy/rclone:/config/rclone
     ports:
-      - "8092:8092"
+      - "5572:5572"
     restart: unless-stopped
 
   # Phase 1: headless Blender for 3D-model thumbnails / turntables.

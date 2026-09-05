@@ -19,6 +19,18 @@ type Config struct {
 	LogLevel   string   `env:"HETU_LOG_LEVEL" envDefault:"info"`
 	// Owner is the single-user owner id until multi-user lands.
 	Owner string `env:"HETU_OWNER" envDefault:"default"`
+
+	// NASProvider selects which registered storage provider the NAS plugin
+	// browses ("local" or "rclone"). Defaults to the local filesystem.
+	NASProvider string `env:"HETU_NAS_PROVIDER" envDefault:"local"`
+
+	// Rclone RC daemon configuration. When RcloneAddr is non-empty the rclone
+	// StorageProvider is registered. The daemon must run with --rc-serve so
+	// that file content is available via HTTP GET on the same address.
+	RcloneAddr   string `env:"HETU_RCLONE_ADDR"`
+	RcloneRemote string `env:"HETU_RCLONE_REMOTE" envDefault:"remote:"`
+	RcloneUser   string `env:"HETU_RCLONE_USER"`
+	RclonePass   string `env:"HETU_RCLONE_PASS"`
 }
 
 // Load parses the environment into a Config.
