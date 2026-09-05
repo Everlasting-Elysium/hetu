@@ -4,6 +4,19 @@
 
 package db
 
+import (
+	"database/sql"
+)
+
+type Annotation struct {
+	AssetID   string
+	Layer     string
+	Key       string
+	Value     string
+	Model     string
+	CreatedAt int64
+}
+
 type Asset struct {
 	ID          string
 	OwnerID     string
@@ -19,6 +32,50 @@ type Asset struct {
 	Height      int64
 	CreatedAt   int64
 	IndexedAt   int64
+	DeletedAt   sql.NullInt64
+	Rating      int64
+	Color       string
+	DisplayName string
+	FolderID    string
+}
+
+type AssetColor struct {
+	AssetID string
+	OwnerID string
+	Ord     int64
+	Hex     string
+	L       float64
+	A       float64
+	B       float64
+	Weight  float64
+}
+
+type AssetTag struct {
+	AssetID string
+	TagID   string
+	Source  string
+}
+
+type AssetsFt struct {
+	Name        string
+	Tags        string
+	Description string
+}
+
+type Folder struct {
+	ID       string
+	OwnerID  string
+	ParentID string
+	Name     string
+	Path     string
+}
+
+type Tag struct {
+	ID       string
+	OwnerID  string
+	ParentID string
+	Name     string
+	Color    string
 }
 
 type User struct {

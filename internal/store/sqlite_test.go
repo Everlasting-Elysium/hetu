@@ -163,8 +163,9 @@ func TestSQLite_SearchAssets(t *testing.T) {
 	}
 }
 
-// legacyAssetsSchema mirrors the pre-FTS Phase-0 schema (assets + users, no
-// assets_fts table or triggers) to simulate an in-place upgrade.
+// legacyAssetsSchema mirrors a database created before assets_fts existed: the
+// current assets/users columns but no assets_fts table or triggers, to simulate
+// an in-place upgrade onto the FTS index.
 const legacyAssetsSchema = `
 CREATE TABLE users (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL);
 CREATE TABLE assets (
@@ -173,7 +174,9 @@ CREATE TABLE assets (
     ext TEXT NOT NULL, size INTEGER NOT NULL, hash TEXT NOT NULL,
     thumb_path TEXT NOT NULL DEFAULT '', width INTEGER NOT NULL DEFAULT 0,
     height INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL,
-    indexed_at INTEGER NOT NULL);
+    indexed_at INTEGER NOT NULL, deleted_at INTEGER, rating INTEGER NOT NULL DEFAULT 0,
+    color TEXT NOT NULL DEFAULT '', display_name TEXT NOT NULL DEFAULT '',
+    folder_id TEXT NOT NULL DEFAULT '');
 INSERT INTO users(id, created_at) VALUES('tester', 0);
 INSERT INTO assets(id, owner_id, kind, provider, storage_path, name, ext, size, hash, created_at, indexed_at)
 VALUES('legacy-1', 'tester', 'image', 'local', 'legacy-1.png', 'legacy sunset', 'png', 1, 'h', 0, 0);`

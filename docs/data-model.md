@@ -86,18 +86,39 @@ v0 仅有一条系统用户记录。
 
 ### annotations
 
-分层元数据存储。每条记录是一个键值对，附带层标识和模型信息。
+分层元数据存储（已实现）。每条记录是一个键值对，附带层标识和模型信息。
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | asset_id | TEXT | 外键 → assets.id |
 | layer | TEXT | 层标识：`manual` / `ai` / `extracted`（规则见 [ai-and-3d.md](./ai-and-3d.md)） |
-| key | TEXT | 元数据键（如 `caption`、`rating`、`exif.iso`） |
+| key | TEXT | 元数据键（如 `caption`、`rating`、`exif.iso`）；SQLite 关键字，DDL 中以 `"key"` 引用 |
 | value | TEXT | 元数据值（JSON 序列化） |
-| model | TEXT | AI 模型标识，仅 `ai` 层有值，其余为 NULL |
-| created_at | DATETIME | 写入时间 |
+| model | TEXT | AI 模型标识，仅 `ai` 层有值；沿用 `NOT NULL DEFAULT ''` 约定，非 `ai` 层为空字符串 |
+| created_at | INTEGER | 写入时间（unix 秒） |
 
 联合主键：`(asset_id, layer, key)`。
+
+颜色提取（[internal/asset/image](../internal/asset/image/palette.go) → [internal/index](../internal/index/palette.go)）向 `extracted` 层写入两条记录：`key=palette`（`[{hex,weight},…]` 主色在前的 JSON 数组）与 `key=dominant`（主色 `"#rrggbb"` JSON 字符串）。
+
+---
+
+### asset_colors
+
+颜色搜索索引（已实现），由 `extracted` 层调色板派生。每条记录是一张图的一个色板色，预存 CIE-Lab 坐标，使查询只需对候选行计算 CIEDE2000 距离（无法在 SQL 内完成）。写入见 [internal/store/palette.go](../internal/store/palette.go)。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| asset_id | TEXT | 外键 → assets.id |
+| owner_id | TEXT | 外键 → users.id，按库主检索 |
+| ord | INTEGER | 色板序号，`0` 为主色，其余按权重降序 |
+| hex | TEXT | 颜色 `#rrggbb` |
+| l / a / b | REAL | CIE-Lab 坐标（D65），预计算用于距离排序 |
+| weight | REAL | 该色占图像像素的比例（0..1） |
+
+联合主键：`(asset_id, ord)`；`owner_id` 上有索引。重新索引时按 `asset_id` 整体删除后重写。
+
+检索接口：`GET /api/dam/search?color=<hex>&tol=<ΔE00>&limit=<n>`，按主色到查询色的 CIEDE2000 距离升序返回相近资产（`tol` 默认见 [search.go](../internal/plugins/dam/search.go) 的 `defaultColorTol`）。
 
 ---
 

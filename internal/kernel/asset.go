@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/Everlasting-Elysium/hetu/internal/color"
 	"github.com/Everlasting-Elysium/hetu/internal/domain"
 )
 
@@ -20,6 +21,13 @@ type AssetHandler interface {
 	// Thumbnail writes a thumbnail for src to w, or returns
 	// domain.ErrNoThumbnail if it cannot produce one.
 	Thumbnail(ctx context.Context, src io.ReadSeeker, w io.Writer) error
+}
+
+// PaletteExtractor is an optional AssetHandler capability. Handlers that can
+// derive a color palette (currently images) implement it; the indexer uses a
+// type assertion so handlers without color support are simply skipped.
+type PaletteExtractor interface {
+	Palette(ctx context.Context, src io.ReadSeeker) (color.Palette, error)
 }
 
 // AssetRegistry resolves an extension to the first matching handler.

@@ -9,8 +9,36 @@ import (
 )
 
 type Querier interface {
+	AddAssetTag(ctx context.Context, arg AddAssetTagParams) error
+	AssetIDByPath(ctx context.Context, arg AssetIDByPathParams) (string, error)
+	AssetsByIDs(ctx context.Context, arg AssetsByIDsParams) ([]Asset, error)
+	BatchMoveToFolder(ctx context.Context, arg BatchMoveToFolderParams) error
+	BatchRemoveTags(ctx context.Context, arg BatchRemoveTagsParams) error
+	BatchRestore(ctx context.Context, arg BatchRestoreParams) error
+	BatchTrash(ctx context.Context, arg BatchTrashParams) error
+	BatchUpdateColor(ctx context.Context, arg BatchUpdateColorParams) error
+	BatchUpdateDisplayName(ctx context.Context, arg BatchUpdateDisplayNameParams) error
+	BatchUpdateRating(ctx context.Context, arg BatchUpdateRatingParams) error
+	ColorCandidates(ctx context.Context, ownerID string) ([]ColorCandidatesRow, error)
+	CreateFolder(ctx context.Context, arg CreateFolderParams) error
+	CreateTag(ctx context.Context, arg CreateTagParams) error
+	DeleteAssetColors(ctx context.Context, assetID string) error
+	DeleteFolder(ctx context.Context, arg DeleteFolderParams) error
+	DeleteTag(ctx context.Context, arg DeleteTagParams) error
 	EnsureOwner(ctx context.Context, arg EnsureOwnerParams) error
+	GetAsset(ctx context.Context, arg GetAssetParams) (Asset, error)
+	InsertAssetColor(ctx context.Context, arg InsertAssetColorParams) error
+	ListAssetTags(ctx context.Context, assetID string) ([]Tag, error)
 	ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset, error)
+	ListFolders(ctx context.Context, ownerID string) ([]Folder, error)
+	ListTags(ctx context.Context, ownerID string) ([]Tag, error)
+	ListTrashedAssets(ctx context.Context, arg ListTrashedAssetsParams) ([]Asset, error)
+	PurgeTrash(ctx context.Context, arg PurgeTrashParams) error
+	SetDisplayName(ctx context.Context, arg SetDisplayNameParams) error
+	UpsertAnnotation(ctx context.Context, arg UpsertAnnotationParams) error
+	// Re-indexing preserves user metadata: the ON CONFLICT clause updates only
+	// index-derived fields, leaving rating/color/display_name/folder_id/deleted_at
+	// (and thus trash state) untouched.
 	UpsertAsset(ctx context.Context, arg UpsertAssetParams) error
 }
 

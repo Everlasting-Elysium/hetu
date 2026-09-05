@@ -7,13 +7,55 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
+
+const getAsset = `-- name: GetAsset :one
+SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
+       thumb_path, width, height, created_at, indexed_at,
+       deleted_at, rating, color, display_name, folder_id
+FROM assets
+WHERE id = ? AND owner_id = ?
+`
+
+type GetAssetParams struct {
+	ID      string
+	OwnerID string
+}
+
+func (q *Queries) GetAsset(ctx context.Context, arg GetAssetParams) (Asset, error) {
+	row := q.db.QueryRowContext(ctx, getAsset, arg.ID, arg.OwnerID)
+	var i Asset
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Kind,
+		&i.Provider,
+		&i.StoragePath,
+		&i.Name,
+		&i.Ext,
+		&i.Size,
+		&i.Hash,
+		&i.ThumbPath,
+		&i.Width,
+		&i.Height,
+		&i.CreatedAt,
+		&i.IndexedAt,
+		&i.DeletedAt,
+		&i.Rating,
+		&i.Color,
+		&i.DisplayName,
+		&i.FolderID,
+	)
+	return i, err
+}
 
 const listAssets = `-- name: ListAssets :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
-       thumb_path, width, height, created_at, indexed_at
+       thumb_path, width, height, created_at, indexed_at,
+       deleted_at, rating, color, display_name, folder_id
 FROM assets
-WHERE owner_id = ?
+WHERE owner_id = ? AND deleted_at IS NULL
 ORDER BY indexed_at DESC
 LIMIT ? OFFSET ?
 `
@@ -48,6 +90,11 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 			&i.Height,
 			&i.CreatedAt,
 			&i.IndexedAt,
+			&i.DeletedAt,
+			&i.Rating,
+			&i.Color,
+			&i.DisplayName,
+			&i.FolderID,
 		); err != nil {
 			return nil, err
 		}
@@ -65,8 +112,9 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 const upsertAsset = `-- name: UpsertAsset :exec
 INSERT INTO assets (
     id, owner_id, kind, provider, storage_path, name, ext, size, hash,
-    thumb_path, width, height, created_at, indexed_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    thumb_path, width, height, created_at, indexed_at,
+    deleted_at, rating, color, display_name, folder_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(owner_id, provider, storage_path) DO UPDATE SET
     kind       = excluded.kind,
     name       = excluded.name,
@@ -94,8 +142,16 @@ type UpsertAssetParams struct {
 	Height      int64
 	CreatedAt   int64
 	IndexedAt   int64
+	DeletedAt   sql.NullInt64
+	Rating      int64
+	Color       string
+	DisplayName string
+	FolderID    string
 }
 
+// Re-indexing preserves user metadata: the ON CONFLICT clause updates only
+// index-derived fields, leaving rating/color/display_name/folder_id/deleted_at
+// (and thus trash state) untouched.
 func (q *Queries) UpsertAsset(ctx context.Context, arg UpsertAssetParams) error {
 	_, err := q.db.ExecContext(ctx, upsertAsset,
 		arg.ID,
@@ -112,6 +168,11 @@ func (q *Queries) UpsertAsset(ctx context.Context, arg UpsertAssetParams) error 
 		arg.Height,
 		arg.CreatedAt,
 		arg.IndexedAt,
+		arg.DeletedAt,
+		arg.Rating,
+		arg.Color,
+		arg.DisplayName,
+		arg.FolderID,
 	)
 	return err
 }
