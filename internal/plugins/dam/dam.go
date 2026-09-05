@@ -75,10 +75,18 @@ func (p *Plugin) Routes() []kernel.Route {
 	}
 }
 
+// listAssets lists the owner's live assets, optionally narrowed by
+// ?folder=<id>, ?tag=<id>, and ?rating=<min> (0-5, keeps that many stars and
+// up). Paged by ?limit=/?offset=.
 func (p *Plugin) listAssets(w http.ResponseWriter, r *http.Request) {
 	limit := httpjson.QueryInt(r, "limit", 50)
 	offset := httpjson.QueryInt(r, "offset", 0)
-	assets, err := p.k.Store.ListAssets(r.Context(), p.owner, limit, offset)
+	filter := domain.AssetFilter{
+		FolderID:  r.URL.Query().Get("folder"),
+		TagID:     r.URL.Query().Get("tag"),
+		MinRating: httpjson.QueryInt(r, "rating", 0),
+	}
+	assets, err := p.k.Store.ListAssetsFiltered(r.Context(), p.owner, filter, limit, offset)
 	if err != nil {
 		httpjson.WriteError(w, http.StatusInternalServerError, err)
 		return
