@@ -81,6 +81,63 @@ func TestIndexer_Scan(t *testing.T) {
 	}
 }
 
+// TestIndexer_PublishesAssetIndexed proves the indexer announces every indexed
+// asset on EventAssetIndexed (the seam the AI tagging pipeline subscribes to).
+// The bus is synchronous, so the handler runs inside Scan on this goroutine.
+func TestIndexer_PublishesAssetIndexed(t *testing.T) {
+	ctx := context.Background()
+	tmp := t.TempDir()
+	lib := filepath.Join(tmp, "lib")
+	if err := os.MkdirAll(lib, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writePNG(t, filepath.Join(lib, "a.png"), 16, 16)
+	if err := os.WriteFile(filepath.Join(lib, "skip.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	st, err := store.Open(ctx, filepath.Join(tmp, "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	k := kernel.New(kernel.Deps{
+		Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Store:     st,
+		ThumbDir:  filepath.Join(tmp, "thumbs"),
+		JobBuffer: 1,
+	})
+	k.Storage.Register(local.New(lib))
+	k.Assets.Register(assetimage.New())
+
+	var indexed []domain.Asset
+	k.Events.Subscribe(kernel.EventAssetIndexed, func(_ context.Context, e kernel.Event) {
+		a, ok := e.Data.(domain.Asset)
+		if !ok {
+			t.Errorf("event data = %T, want domain.Asset", e.Data)
+			return
+		}
+		indexed = append(indexed, a)
+	})
+
+	owner, err := domain.NewOwnerID("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := index.New(k, owner).Scan(ctx, local.ProviderName, ""); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	// Exactly one event: the PNG is indexed, the .txt is skipped (no event).
+	if len(indexed) != 1 {
+		t.Fatalf("EventAssetIndexed count = %d, want 1", len(indexed))
+	}
+	if indexed[0].Kind != domain.KindImage || indexed[0].StoragePath == "" {
+		t.Errorf("published asset = %+v, want an image with a storage path", indexed[0])
+	}
+}
+
 // TestIndexer_ScanModel drives the chain with the 3D model handler and no
 // Blender sidecar (empty addr): the .obj is indexed as a model with no
 // dimensions and no thumbnail (graceful degradation), the .txt is skipped.

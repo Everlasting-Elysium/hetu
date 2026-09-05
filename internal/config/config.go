@@ -20,6 +20,11 @@ type Config struct {
 	// Owner is the single-user owner id until multi-user lands.
 	Owner string `env:"HETU_OWNER" envDefault:"default"`
 
+	// AIAddr is the base URL of the Python AI sidecar (see internal/ai). When
+	// non-empty the indexer enqueues AI tagging jobs after an asset is indexed;
+	// set it empty to disable AI orchestration entirely. Local-first by default.
+	AIAddr string `env:"HETU_AI_ADDR" envDefault:"http://localhost:8091"`
+
 	// NASProvider selects which registered storage provider the NAS plugin
 	// browses ("local" or "rclone"). Defaults to the local filesystem.
 	NASProvider string `env:"HETU_NAS_PROVIDER" envDefault:"local"`
