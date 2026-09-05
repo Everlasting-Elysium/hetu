@@ -3,6 +3,10 @@
 # The `hetu` core is self-contained (pure-Go SQLite, no CGO). The rclone /
 # blender / ai services are Phase 1 integration points, opt-in via compose
 # profiles: `docker compose --profile ai up`, etc.
+#
+# Video/PDF thumbnails need ffmpeg (+ffprobe) and a PDF tool (pdftoppm/mutool)
+# on PATH inside the hetu image; see deploy/Dockerfile. Absent those tools the
+# assets are still indexed, just without thumbnails.
 name: hetu
 
 services:
