@@ -62,6 +62,13 @@ type AssetsFt struct {
 	Description string
 }
 
+type Embedding struct {
+	AssetID   string
+	Embedding []byte
+	Model     string
+	CreatedAt int64
+}
+
 type Folder struct {
 	ID       string
 	OwnerID  string

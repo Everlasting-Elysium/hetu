@@ -222,3 +222,13 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_owner ON jobs (owner_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_owner_status ON jobs (owner_id, status);
+
+-- embeddings stores CLIP vector embeddings as float32 BLOB for semantic search
+-- and visual similarity. Vector similarity is computed in Go (brute-force
+-- cosine over L2-normalized vectors); no C extension required.
+CREATE TABLE IF NOT EXISTS embeddings (
+    asset_id   TEXT PRIMARY KEY,
+    embedding  BLOB NOT NULL,       -- float32 array, little-endian
+    model      TEXT NOT NULL,       -- producing model, e.g. "openai/clip-vit-base-patch32"
+    created_at INTEGER NOT NULL     -- unix seconds
+);

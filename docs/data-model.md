@@ -200,15 +200,21 @@ SQLite FTS5 全文检索虚拟表，为**工作区级**全文检索提供支撑�
 - **并发**：默认 journal 模式下 `hetu serve`（读）与 `hetu scan`（写，含 FTS 触发器）并发可能 `SQLITE_BUSY`；后续考虑 WAL + `busy_timeout`。
 - **多词字段值**：`name:日落 海滩` 中字段限定只作用于第一个词（`海滩` 退化为全列词），需要多词请用引号：`name:"日落 海滩"`。
 
-### embeddings（sqlite-vec）
+### embeddings（已实现）
 
 存储 CLIP 向量嵌入，用于语义搜索和视觉相似度。
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | asset_id | TEXT | 外键 → assets.id，主键 |
-| embedding | BLOB | 向量数据（float32 数组） |
-| model | TEXT | 生成该嵌入的模型标识 |
-| created_at | DATETIME | 写入时间 |
+| embedding | BLOB | 向量数据（float32 小端序数组，`internal/vecmath` 负责序列化） |
+| model | TEXT | 生成该嵌入的模型标识（如 `openai/clip-vit-base-patch32`） |
+| created_at | INTEGER | 写入时间（unix 秒） |
 
-**注意**：此表依赖 sqlite-vec C 扩展，存在 CGO 兼容性开放问题，详见 [tech-stack.md](./tech-stack.md)。
+**向量方案**：不使用 sqlite-vec C 扩展，改为普通 SQLite BLOB 存储 + Go 层暴力余弦相似度计算。CLIP 输出已 L2 归一化，余弦相似度退化为点积。个人 NAS 规模（< 100K 资产）下搜索耗时 < 50ms。决策详见 [tech-stack.md](./tech-stack.md)。
+
+**写入链路**：资产索引 → `EventAssetIndexed` → `ai_embed` 作业 → 调用 Python sidecar `POST /embed` → `Store.IndexEmbedding()` 持久化 BLOB。
+
+**查询链路**：
+- 语义搜索：`GET /api/dam/search?semantic=<文本>` → 文本经 sidecar 编码为 CLIP 向量 → `Store.SearchByEmbedding()` 暴力余弦排序 → 返回 top-K 结果
+- 视觉相似：`GET /api/dam/search?similar=<asset_id>` → 从 `embeddings` 表取已存向量 → 同上搜索
