@@ -65,5 +65,16 @@ type Store interface {
 	IndexPHash(ctx context.Context, owner domain.OwnerID, provider, path string, phash uint64) error
 	FindSimilarByPHash(ctx context.Context, owner domain.OwnerID, threshold int) ([]domain.SimilarGroup, error)
 
+	// Shares: create a share link and resolve one by its public token. The
+	// share-creation/serving API (issue #4) builds on these persistence methods.
+	CreateShare(ctx context.Context, sh domain.Share) error
+	GetShareByToken(ctx context.Context, token string) (domain.Share, error)
+
+	// Jobs: persisted background-task queue. Execution is owned by the job
+	// runtime (kernel.JobQueue and issues #8/#9); these methods only persist.
+	EnqueueJob(ctx context.Context, j domain.Job) error
+	UpdateJobStatus(ctx context.Context, owner domain.OwnerID, id domain.JobID, status domain.JobStatus) error
+	ListJobs(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.Job, error)
+
 	Close() error
 }
