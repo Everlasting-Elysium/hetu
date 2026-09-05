@@ -36,6 +36,11 @@ type Config struct {
 	RcloneRemote string `env:"HETU_RCLONE_REMOTE" envDefault:"remote:"`
 	RcloneUser   string `env:"HETU_RCLONE_USER"`
 	RclonePass   string `env:"HETU_RCLONE_PASS"`
+
+	// BlenderAddr is the host:port of the Blender headless sidecar used to
+	// render 3D-model thumbnails. Empty disables 3D thumbnailing: models are
+	// still indexed, they just have no thumbnail (graceful degradation).
+	BlenderAddr string `env:"HETU_BLENDER_ADDR"`
 }
 
 // Load parses the environment into a Config.
