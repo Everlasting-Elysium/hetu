@@ -85,11 +85,14 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 			return nil, fmt.Errorf("init plugin %q: %w", p.Name(), err)
 		}
 	}
-	// Wire AI orchestration: index → enqueue ai_tag job → sidecar client →
-	// persist to the ai layer (store). An empty HETU_AI_ADDR disables it. Jobs
-	// run on the server's JobQueue workers.
+	// Wire AI orchestration: index → enqueue ai_tag + ai_embed jobs → sidecar
+	// client → persist to the ai layer (store). An empty HETU_AI_ADDR disables
+	// it. Jobs run on the server's JobQueue workers.
 	if cfg.AIAddr != "" {
-		ai.Subscribe(k, ai.New(ai.Config{BaseURL: cfg.AIAddr, Logger: log}), st)
+		client := ai.New(ai.Config{BaseURL: cfg.AIAddr, Logger: log})
+		ai.Subscribe(k, client, st)
+		ai.SubscribeEmbedding(k, client, st)
+		k.Embedder = ai.NewEmbedder(client)
 		log.Info("registered AI orchestration", slog.String("addr", cfg.AIAddr))
 	}
 	return &App{Cfg: cfg, Kernel: k, Plugins: plugins, Owner: owner, store: st}, nil

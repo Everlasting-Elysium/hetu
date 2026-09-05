@@ -36,6 +36,7 @@ type Querier interface {
 	EnqueueJob(ctx context.Context, arg EnqueueJobParams) error
 	EnsureOwner(ctx context.Context, arg EnsureOwnerParams) error
 	GetAsset(ctx context.Context, arg GetAssetParams) (Asset, error)
+	GetEmbedding(ctx context.Context, assetID string) (Embedding, error)
 	GetShareByToken(ctx context.Context, token string) (Share, error)
 	// Resolves an owner's tag id by name so the AI pipeline can reuse an existing
 	// (possibly manual) tag instead of creating a duplicate. Returns sql.ErrNoRows
@@ -50,6 +51,7 @@ type Querier interface {
 	ListDuplicateHashes(ctx context.Context, arg ListDuplicateHashesParams) ([]ListDuplicateHashesRow, error)
 	ListFolders(ctx context.Context, ownerID string) ([]Folder, error)
 	ListJobs(ctx context.Context, arg ListJobsParams) ([]Job, error)
+	ListOwnerEmbeddings(ctx context.Context, ownerID string) ([]ListOwnerEmbeddingsRow, error)
 	// Returns all pHash annotations for the owner's live assets, joining through
 	// assets to filter by owner and exclude trashed items.
 	ListPHashAnnotations(ctx context.Context, ownerID string) ([]ListPHashAnnotationsRow, error)
@@ -68,6 +70,7 @@ type Querier interface {
 	// index-derived fields, leaving rating/color/display_name/folder_id/deleted_at
 	// (and thus trash state) untouched.
 	UpsertAsset(ctx context.Context, arg UpsertAssetParams) error
+	UpsertEmbedding(ctx context.Context, arg UpsertEmbeddingParams) error
 }
 
 var _ Querier = (*Queries)(nil)

@@ -1,6 +1,16 @@
 package kernel
 
-import "log/slog"
+import (
+	"context"
+	"log/slog"
+)
+
+// Embedder produces CLIP embeddings for text or image references. It is
+// optionally set on the kernel when an AI sidecar is configured; nil means
+// semantic search is unavailable.
+type Embedder interface {
+	Embed(ctx context.Context, ref string) ([]float32, error)
+}
 
 // Kernel holds the shared services every plugin consumes.
 type Kernel struct {
@@ -10,8 +20,9 @@ type Kernel struct {
 	Assets      *AssetRegistry
 	Events      *EventBus
 	Jobs        *JobQueue
-	ThumbDir    string // directory where generated thumbnails are written
-	BlenderAddr string // host:port of the Blender sidecar; empty = disabled
+	ThumbDir    string   // directory where generated thumbnails are written
+	BlenderAddr string   // host:port of the Blender sidecar; empty = disabled
+	Embedder    Embedder // optional CLIP embedder; nil = semantic search disabled
 }
 
 // Deps are the externally provided dependencies for New.

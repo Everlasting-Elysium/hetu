@@ -17,7 +17,7 @@ func newAICmd() *cobra.Command {
 		Use:   "ai",
 		Short: "Maintain the AI metadata layer (auto-tagging)",
 	}
-	cmd.AddCommand(newAIRetagCmd(), newAIClearCmd())
+	cmd.AddCommand(newAIRetagCmd(), newAIEmbedCmd(), newAIClearCmd())
 	return cmd
 }
 
@@ -27,6 +27,16 @@ func newAIRetagCmd() *cobra.Command {
 		Short: "Re-run AI tagging over the whole library, persisting to the ai layer",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runAIRetag(cmd.Context())
+		},
+	}
+}
+
+func newAIEmbedCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "embed",
+		Short: "Generate CLIP embeddings over the whole library for semantic/visual search",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runAIEmbed(cmd.Context())
 		},
 	}
 }
@@ -62,6 +72,30 @@ func runAIRetag(ctx context.Context) error {
 	}
 	log.InfoContext(ctx, "ai retag done",
 		slog.Int("tagged", tagged), slog.Int("skipped", skipped))
+	return nil
+}
+
+func runAIEmbed(ctx context.Context) error {
+	cfg, log, err := load()
+	if err != nil {
+		return err
+	}
+	if cfg.AIAddr == "" {
+		return fmt.Errorf("ai embed: sidecar not configured (set HETU_AI_ADDR)")
+	}
+	a, err := app.New(ctx, cfg, log)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = a.Close() }()
+
+	client := ai.New(ai.Config{BaseURL: cfg.AIAddr, Logger: log})
+	embedded, skipped, err := ai.EmbedAll(ctx, client, a.Store(), a.Owner, log)
+	if err != nil {
+		return fmt.Errorf("ai embed: %w", err)
+	}
+	log.InfoContext(ctx, "ai embed done",
+		slog.Int("embedded", embedded), slog.Int("skipped", skipped))
 	return nil
 }
 

@@ -76,5 +76,13 @@ type Store interface {
 	UpdateJobStatus(ctx context.Context, owner domain.OwnerID, id domain.JobID, status domain.JobStatus) error
 	ListJobs(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.Job, error)
 
+	// Embeddings: CLIP vector retrieval and brute-force similarity search.
+	// Write path (IndexEmbedding) lives on *store.SQLite only, accessed via the
+	// narrow ai.EmbedPersister interface — mirroring PersistAITagResult.
+	// excludeID (zero value = none) omits an asset from results, so visual-
+	// similar can drop the query asset that always scores 1.0 against itself.
+	GetEmbedding(ctx context.Context, assetID domain.AssetID) ([]float32, error)
+	SearchByEmbedding(ctx context.Context, owner domain.OwnerID, query []float32, excludeID domain.AssetID, limit int) ([]domain.SimilarityMatch, error)
+
 	Close() error
 }

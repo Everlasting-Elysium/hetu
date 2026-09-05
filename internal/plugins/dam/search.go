@@ -20,16 +20,22 @@ const (
 	defaultColorTol = 12
 )
 
-// errNoSearchParam is returned when /search is called without q or color.
-var errNoSearchParam = errors.New("search: provide 'q' (full-text) or 'color' (palette)")
+// errNoSearchParam is returned when /search is called without any recognized
+// search parameter.
+var errNoSearchParam = errors.New("search: provide 'q' (full-text), 'color' (palette), 'semantic' (CLIP text), or 'similar' (asset id)")
 
 // search handles GET /api/dam/search, dispatching by query parameter: ?color=
-// runs a palette (color) search, ?q= runs a full-text (FTS5) search. When both
-// are present color wins; when neither is present it is a 400.
+// runs a palette (color) search, ?semantic= runs CLIP embedding search,
+// ?similar= finds visually similar assets, ?q= runs a full-text (FTS5) search.
+// Priority: color > semantic > similar > q. When none is present it is a 400.
 func (p *Plugin) search(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.URL.Query().Get("color") != "":
 		p.searchByColor(w, r)
+	case r.URL.Query().Get("semantic") != "":
+		p.searchBySemantic(w, r)
+	case r.URL.Query().Get("similar") != "":
+		p.searchBySimilar(w, r)
 	case r.URL.Query().Get("q") != "":
 		p.searchByText(w, r)
 	default:

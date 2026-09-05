@@ -39,3 +39,10 @@ type Asset struct {
 	DisplayName string     // user-facing rename; empty = use Name
 	FolderID    string     // virtual folder; empty = root
 }
+
+// SimilarityMatch pairs an asset with its cosine similarity score to a query
+// vector. Similarity is in [-1, 1]; higher means more similar.
+type SimilarityMatch struct {
+	Asset      Asset
+	Similarity float64
+}
