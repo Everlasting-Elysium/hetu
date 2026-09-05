@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // Layer identifies the source tier of an annotation. Higher-priority layers are
 // never overwritten by lower ones: manual (user) > ai (model) > extracted (file
@@ -13,8 +16,12 @@ const (
 	LayerExtracted Layer = "extracted"
 )
 
-// AnnotationKey names well-known extracted annotations produced by hetu itself.
+// AnnotationKey names well-known annotations produced by hetu itself.
 const (
+	// KeyCaption is the ai-layer key holding the sidecar's caption/description
+	// (JSON string). Written by the AI tagging pipeline; see docs/ai-and-3d.md.
+	KeyCaption = "caption"
+
 	KeyPalette  = "palette"  // JSON array of {hex,weight}, dominant-first
 	KeyDominant = "dominant" // JSON string of the dominant "#rrggbb"
 	KeyPHash    = "phash"    // JSON string of the perceptual hash (uint64 decimal)
@@ -50,6 +57,37 @@ type Annotation struct {
 	Value     string
 	Model     string
 	CreatedAt time.Time
+}
+
+// AITagResult is a parsed AI tagging pass ready for non-destructive persistence
+// to the ai layer: TagNames are trimmed, de-duplicated, non-empty labels (order
+// preserved); Caption may be empty; Model names the producing model so the ai
+// layer can be cleared and re-run after a model upgrade. Build it with
+// [NewAITagResult] so callers never persist raw, unvalidated sidecar output.
+type AITagResult struct {
+	TagNames []string
+	Caption  string
+	Model    string
+}
+
+// NewAITagResult parses a sidecar tagging response into an [AITagResult]: it
+// trims each name and the caption, drops blank names, and de-duplicates while
+// preserving first-seen order (parse-don't-validate).
+func NewAITagResult(names []string, caption, model string) AITagResult {
+	seen := make(map[string]struct{}, len(names))
+	tags := make([]string, 0, len(names))
+	for _, n := range names {
+		n = strings.TrimSpace(n)
+		if n == "" {
+			continue
+		}
+		if _, dup := seen[n]; dup {
+			continue
+		}
+		seen[n] = struct{}{}
+		tags = append(tags, n)
+	}
+	return AITagResult{TagNames: tags, Caption: strings.TrimSpace(caption), Model: strings.TrimSpace(model)}
 }
 
 // ColorMatch is a color-search hit: the asset plus the palette swatch closest to

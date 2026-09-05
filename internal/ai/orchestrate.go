@@ -2,8 +2,6 @@ package ai
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -26,19 +24,21 @@ type Tagger interface {
 }
 
 // Subscribe wires the AI tagging pipeline onto the kernel: for every
-// kernel.EventAssetIndexed it enqueues a [JobName] job on k.Jobs that calls
-// tagger against the indexed asset. Enqueue is best-effort and detached so
-// publishing never blocks the indexer; the job runs on a JobQueue worker
-// (started by the server). A sidecar 501 (the Phase 1 stub) is a graceful skip,
-// not a job failure. Persisting results to the ai annotation layer is #9.
-func Subscribe(k *kernel.Kernel, tagger Tagger) {
-	o := &orchestrator{jobs: k.Jobs, tagger: tagger, log: k.Log}
+// kernel.EventAssetIndexed it enqueues a [JobName] job on k.Jobs that tags the
+// indexed asset via tagger and persists the result to the ai layer via store
+// (tags -> asset_tags source='ai', caption -> annotations layer='ai'),
+// non-destructively. Enqueue is best-effort and detached so publishing never
+// blocks the indexer; the job runs on a JobQueue worker (started by the server).
+// A sidecar 501 (the Phase 1 stub) is a graceful skip, not a job failure.
+func Subscribe(k *kernel.Kernel, tagger Tagger, store Persister) {
+	o := &orchestrator{jobs: k.Jobs, tagger: tagger, store: store, log: k.Log}
 	k.Events.Subscribe(kernel.EventAssetIndexed, o.onIndexed)
 }
 
 type orchestrator struct {
 	jobs   *kernel.JobQueue
 	tagger Tagger
+	store  Persister
 	log    *slog.Logger
 }
 
@@ -61,22 +61,11 @@ func (o *orchestrator) onIndexed(ctx context.Context, e kernel.Event) {
 	}()
 }
 
-// tagJob builds the closure that tags one asset via the sidecar.
+// tagJob builds the closure that tags one asset via the sidecar and persists the
+// result to the ai layer. A 501 from the stub sidecar is a graceful skip.
 func (o *orchestrator) tagJob(asset domain.Asset) func(context.Context) error {
-	ref := AssetRef{Ref: asset.StoragePath}
-	assetID := asset.ID.String()
 	return func(ctx context.Context) error {
-		res, err := o.tagger.Tag(ctx, ref)
-		if err != nil {
-			if errors.Is(err, ErrNotImplemented) {
-				o.log.InfoContext(ctx, "ai_tag skipped: sidecar capability not implemented",
-					slog.String("asset", assetID))
-				return nil
-			}
-			return fmt.Errorf("ai_tag %s: %w", assetID, err)
-		}
-		o.log.InfoContext(ctx, "ai_tag completed",
-			slog.String("asset", assetID), slog.Int("tags", len(res.Tags)))
-		return nil
+		_, err := tagAndPersist(ctx, o.tagger, o.store, asset, o.log)
+		return err
 	}
 }
