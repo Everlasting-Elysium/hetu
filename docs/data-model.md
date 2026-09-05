@@ -129,12 +129,16 @@ v0 仅有一条系统用户记录。
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | id | TEXT (UUID v7) | 主键 |
+| owner_id | TEXT | 外键 → users.id |
 | target_type | TEXT | 分享目标类型：`asset` / `folder` / `tag` |
 | target_id | TEXT | 分享目标的 ID |
-| token | TEXT | URL 中的分享令牌（唯一） |
-| expires_at | DATETIME | 过期时间，NULL 表示永不过期 |
-| password_hash | TEXT | 密码哈希，NULL 表示无密码 |
-| permission | TEXT | 权限：`read`（只读） |
+| token | TEXT | URL 中的分享令牌，唯一索引 `idx_shares_token` |
+| expires_at | INTEGER | 过期时间（unix 秒），NULL 表示永不过期 |
+| password_hash | TEXT | 密码哈希；沿用 `NOT NULL DEFAULT ''` 约定，空字符串表示无密码 |
+| permission | TEXT | 权限：`read`（只读），默认 `read` |
+| created_at | INTEGER | 创建时间（unix 秒） |
+
+分享 API（创建/校验令牌、密码、过期）属 [#4](https://github.com/Everlasting-Elysium/hetu/issues/4)，本表仅提供持久化：`CreateShare` / `GetShareByToken`。
 
 ---
 
@@ -145,10 +149,13 @@ v0 仅有一条系统用户记录。
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | id | TEXT (UUID v7) | 主键 |
+| owner_id | TEXT | 外键 → users.id |
 | type | TEXT | 任务类型（如 `thumbnail`、`ai_tag`、`3d_render`） |
-| status | TEXT | 状态：`pending` / `running` / `done` / `failed` |
+| status | TEXT | 状态：`pending` / `running` / `done` / `failed`，默认 `pending` |
 | payload | TEXT | JSON 序列化的任务参数 |
-| created_at | DATETIME | 入队时间 |
+| created_at | INTEGER | 入队时间（unix 秒） |
+
+任务的执行/消费由任务运行时负责（`kernel.JobQueue` 与 [#8](https://github.com/Everlasting-Elysium/hetu/issues/8)/[#9](https://github.com/Everlasting-Elysium/hetu/issues/9)），本表仅提供持久化：`EnqueueJob` / `UpdateJobStatus` / `ListJobs`。
 
 ---
 

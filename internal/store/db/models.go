@@ -70,6 +70,27 @@ type Folder struct {
 	Path     string
 }
 
+type Job struct {
+	ID        string
+	OwnerID   string
+	Type      string
+	Status    string
+	Payload   string
+	CreatedAt int64
+}
+
+type Share struct {
+	ID           string
+	OwnerID      string
+	TargetType   string
+	TargetID     string
+	Token        string
+	ExpiresAt    sql.NullInt64
+	PasswordHash string
+	Permission   string
+	CreatedAt    int64
+}
+
 type Tag struct {
 	ID       string
 	OwnerID  string
