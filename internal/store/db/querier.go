@@ -42,6 +42,11 @@ type Querier interface {
 	ListTrashedAssets(ctx context.Context, arg ListTrashedAssetsParams) ([]Asset, error)
 	PurgeTrash(ctx context.Context, arg PurgeTrashParams) error
 	SetDisplayName(ctx context.Context, arg SetDisplayNameParams) error
+	// Updates asset.created_at when embedded metadata (EXIF) provides a capture
+	// time that should take priority over the filesystem modification time.
+	// Uses the natural key (owner_id, provider, storage_path) so the canonical
+	// row is resolved even after a re-scan discarded a fresh id on upsert.
+	UpdateAssetCreatedAt(ctx context.Context, arg UpdateAssetCreatedAtParams) error
 	UpsertAnnotation(ctx context.Context, arg UpsertAnnotationParams) error
 	// Re-indexing preserves user metadata: the ON CONFLICT clause updates only
 	// index-derived fields, leaving rating/color/display_name/folder_id/deleted_at

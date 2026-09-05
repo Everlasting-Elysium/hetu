@@ -129,6 +129,9 @@ func (ix *Indexer) indexOne(ctx context.Context, p kernel.StorageProvider, e dom
 	// they enhance the record and never fail the index.
 	ix.indexPalette(ctx, p, e.Path, handler)
 	ix.indexPHash(ctx, p, e.Path, handler)
+	// Metadata extraction (EXIF/IPTC/XMP) runs after upsert for the same
+	// reason; embedded capture time may update asset.created_at.
+	ix.indexMetadata(ctx, p, e.Path, handler)
 	// Announce the indexed asset so subscribers (e.g. AI tagging) can react.
 	// The bus is synchronous; handlers must not block (see internal/ai).
 	ix.k.Events.Publish(ctx, kernel.Event{Type: kernel.EventAssetIndexed, Data: asset})
