@@ -1,0 +1,59 @@
+# hetu deployment.
+#
+# The `hetu` core is self-contained (pure-Go SQLite, no CGO). The rclone /
+# blender / ai services are Phase 1 integration points, opt-in via compose
+# profiles: `docker compose --profile ai up`, etc.
+name: hetu
+
+services:
+  hetu:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: hetu:dev
+    ports:
+      - "8080:8080"
+    environment:
+      HETU_ADDR: ":8080"
+      HETU_PLUGINS: "dam,nas"
+      HETU_DATA_DIR: "/data"
+      HETU_DB_PATH: "/data/hetu.db"
+      HETU_LIBRARY_DIR: "/library"
+    volumes:
+      - hetu-data:/data
+      - ./library:/library
+    restart: unless-stopped
+
+  # Phase 1: local AI sidecar (CLIP embeddings, tagger, captioner, OCR).
+  ai:
+    build:
+      context: ../ai
+    image: hetu-ai:dev
+    profiles: ["ai"]
+    ports:
+      - "8091:8091"
+    restart: unless-stopped
+
+  # Phase 1: expose 70+ cloud-drive backends as an S3 API (rclone serve s3).
+  # Put a remote in ./deploy/rclone/rclone.conf, then `--profile storage`.
+  rclone:
+    image: rclone/rclone:latest
+    profiles: ["storage"]
+    command: ["serve", "s3", "--addr", ":8092", "remote:"]
+    volumes:
+      - ./deploy/rclone:/config/rclone
+    ports:
+      - "8092:8092"
+    restart: unless-stopped
+
+  # Phase 1: headless Blender for 3D-model thumbnails / turntables.
+  blender:
+    image: linuxserver/blender:latest
+    profiles: ["media"]
+    volumes:
+      - ./library:/library
+      - hetu-data:/data
+    restart: "no"
+
+volumes:
+  hetu-data:

@@ -1,0 +1,46 @@
+version: '3'
+
+vars:
+  BINARY: hetu
+  PKG: ./cmd/hetu
+
+tasks:
+  default:
+    deps: [build]
+
+  fmt:
+    desc: Format Go files with gofumpt
+    cmds:
+      - gofumpt -w .
+
+  vet:
+    desc: go vet
+    cmds:
+      - go vet ./...
+
+  gen:
+    desc: Regenerate sqlc code from schema.sql + queries/
+    cmds:
+      - sqlc generate
+
+  build:
+    desc: Build the binary
+    cmds:
+      - go build -trimpath -ldflags="-s -w" -o bin/{{.BINARY}} {{.PKG}}
+
+  test:
+    desc: Run tests with the race detector
+    cmds:
+      - go test -race -shuffle=on -count=1 ./...
+
+  scan:
+    desc: Index assets under HETU_LIBRARY_DIR
+    deps: [build]
+    cmds:
+      - ./bin/{{.BINARY}} scan
+
+  run:
+    desc: Run the HTTP server
+    deps: [build]
+    cmds:
+      - ./bin/{{.BINARY}} serve

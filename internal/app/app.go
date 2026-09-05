@@ -1,0 +1,90 @@
+// Package app is the composition root: it wires config into a kernel with
+// storage providers, asset handlers, and the enabled capability plugins.
+package app
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+
+	"github.com/Everlasting-Elysium/hetu/internal/asset/image"
+	"github.com/Everlasting-Elysium/hetu/internal/config"
+	"github.com/Everlasting-Elysium/hetu/internal/domain"
+	"github.com/Everlasting-Elysium/hetu/internal/kernel"
+	"github.com/Everlasting-Elysium/hetu/internal/plugins/dam"
+	"github.com/Everlasting-Elysium/hetu/internal/plugins/nas"
+	"github.com/Everlasting-Elysium/hetu/internal/storage/local"
+	"github.com/Everlasting-Elysium/hetu/internal/store"
+)
+
+// App is the wired application: kernel, enabled plugins, and owning identity.
+type App struct {
+	Cfg     config.Config
+	Kernel  *kernel.Kernel
+	Plugins []kernel.Plugin
+	Owner   domain.OwnerID
+
+	store *store.SQLite
+}
+
+// New builds the App from cfg. The caller must call Close when done.
+func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error) {
+	owner, err := domain.NewOwnerID(cfg.Owner)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(cfg.DataDir, 0o755); err != nil {
+		return nil, fmt.Errorf("create data dir %q: %w", cfg.DataDir, err)
+	}
+	if dir := filepath.Dir(cfg.DBPath); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, fmt.Errorf("create db dir %q: %w", dir, err)
+		}
+	}
+
+	st, err := store.Open(ctx, cfg.DBPath)
+	if err != nil {
+		return nil, err
+	}
+	k := kernel.New(kernel.Deps{
+		Log:       log,
+		Store:     st,
+		ThumbDir:  filepath.Join(cfg.DataDir, "thumbnails"),
+		JobBuffer: 64,
+	})
+	k.Storage.Register(local.New(cfg.LibraryDir))
+	k.Assets.Register(image.New())
+
+	plugins, err := buildPlugins(cfg.Plugins, owner)
+	if err != nil {
+		_ = st.Close()
+		return nil, err
+	}
+	for _, p := range plugins {
+		if err := p.Init(ctx, k); err != nil {
+			_ = st.Close()
+			return nil, fmt.Errorf("init plugin %q: %w", p.Name(), err)
+		}
+	}
+	return &App{Cfg: cfg, Kernel: k, Plugins: plugins, Owner: owner, store: st}, nil
+}
+
+// Close releases resources (the database).
+func (a *App) Close() error { return a.store.Close() }
+
+func buildPlugins(names []string, owner domain.OwnerID) ([]kernel.Plugin, error) {
+	plugins := make([]kernel.Plugin, 0, len(names))
+	for _, name := range names {
+		switch name {
+		case dam.Name:
+			plugins = append(plugins, dam.New(owner))
+		case nas.Name:
+			plugins = append(plugins, nas.New(local.ProviderName))
+		default:
+			return nil, fmt.Errorf("unknown plugin %q", name)
+		}
+	}
+	return plugins, nil
+}
