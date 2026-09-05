@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	assetimage "github.com/Everlasting-Elysium/hetu/internal/asset/image"
+	"github.com/Everlasting-Elysium/hetu/internal/asset/model3d"
 	"github.com/Everlasting-Elysium/hetu/internal/domain"
 	"github.com/Everlasting-Elysium/hetu/internal/index"
 	"github.com/Everlasting-Elysium/hetu/internal/kernel"
@@ -77,6 +78,71 @@ func TestIndexer_Scan(t *testing.T) {
 	}
 	if _, err := os.Stat(a.ThumbPath); err != nil {
 		t.Fatalf("thumbnail not written: %v", err)
+	}
+}
+
+// TestIndexer_ScanModel drives the chain with the 3D model handler and no
+// Blender sidecar (empty addr): the .obj is indexed as a model with no
+// dimensions and no thumbnail (graceful degradation), the .txt is skipped.
+func TestIndexer_ScanModel(t *testing.T) {
+	ctx := context.Background()
+	tmp := t.TempDir()
+	lib := filepath.Join(tmp, "lib")
+	if err := os.MkdirAll(lib, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const obj = "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n"
+	if err := os.WriteFile(filepath.Join(lib, "tri.obj"), []byte(obj), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(lib, "skip.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	st, err := store.Open(ctx, filepath.Join(tmp, "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	k := kernel.New(kernel.Deps{
+		Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Store:     st,
+		ThumbDir:  filepath.Join(tmp, "thumbs"),
+		JobBuffer: 1,
+	})
+	k.Storage.Register(local.New(lib))
+	k.Assets.Register(assetimage.New())
+	k.Assets.Register(model3d.New(""))
+
+	owner, err := domain.NewOwnerID("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := index.New(k, owner).Scan(ctx, local.ProviderName, "")
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if res.Indexed != 1 || res.Skipped != 1 {
+		t.Fatalf("res = %+v, want {Indexed:1 Skipped:1}", res)
+	}
+
+	assets, err := st.ListAssets(ctx, owner, 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(assets) != 1 {
+		t.Fatalf("len = %d, want 1", len(assets))
+	}
+	a := assets[0]
+	if a.Kind != domain.KindModel {
+		t.Fatalf("kind = %q, want %q", a.Kind, domain.KindModel)
+	}
+	if a.ThumbPath != "" {
+		t.Fatalf("thumb path = %q, want empty (no blender)", a.ThumbPath)
+	}
+	if a.Width != 0 {
+		t.Fatalf("width = %d, want 0", a.Width)
 	}
 }
 

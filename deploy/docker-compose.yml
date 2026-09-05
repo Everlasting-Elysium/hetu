@@ -22,6 +22,8 @@ services:
       # Uncomment to enable rclone storage (requires --profile storage):
       # HETU_RCLONE_ADDR: "rclone:5572"
       # HETU_RCLONE_REMOTE: "remote:"
+      # Uncomment to enable 3D thumbnails via Blender (requires --profile media):
+      # HETU_BLENDER_ADDR: "blender:9090"
     volumes:
       - hetu-data:/data
       - ./library:/library
@@ -53,10 +55,18 @@ services:
     restart: unless-stopped
 
   # Phase 1: headless Blender for 3D-model thumbnails / turntables.
+  # server.py wraps `blender -b -P render.py` behind HTTP on :9090; the hetu
+  # core reaches it via HETU_BLENDER_ADDR=blender:9090 (inter-container only).
   blender:
     image: linuxserver/blender:latest
     profiles: ["media"]
+    command: ["python3", "/scripts/server.py"]
+    environment:
+      BLENDER_LISTEN: ":9090"
+    expose:
+      - "9090"
     volumes:
+      - ./deploy/blender:/scripts
       - ./library:/library
       - hetu-data:/data
     restart: "no"

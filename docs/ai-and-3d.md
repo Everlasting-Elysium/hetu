@@ -107,6 +107,35 @@ Blender headless 渲染转台帧
 
 ---
 
+## Blender Sidecar 部署
+
+标准 3D 格式的缩略图由 Blender headless sidecar 渲染，与内核解耦：内核通过 HTTP 调用 sidecar，sidecar 内部运行 `blender -b -P render.py`。3D 资产处理器实现见 [internal/asset/model3d](../internal/asset/model3d)，支持格式:OBJ、FBX、GLB、GLTF、STL、USD、PLY。
+
+### 启动
+
+Blender sidecar 属于 `media` compose profile，默认不启动:
+
+```
+docker compose --profile media up
+```
+
+启动后需在 hetu 服务上设置 `HETU_BLENDER_ADDR`(容器内指向 `blender:9090`,见 [docker-compose.yml](../deploy/docker-compose.yml) 中默认注释的一行),3D 缩略即开启。配置项定义见 [config.go](../internal/config/config.go) 的 `BlenderAddr` 字段。
+
+### 渲染脚本
+
+| 脚本 | 职责 |
+|------|------|
+| [render.py](../deploy/blender/render.py) | Blender 无头渲染:导入模型、按包围盒自动取景相机、三点布光、EEVEE 引擎渲染 512×512 透明背景 PNG。用法 `blender -b -P render.py -- <输入> <输出>`。 |
+| [server.py](../deploy/blender/server.py) | Flask HTTP 包装:`POST /render` 接收 multipart 模型文件,按魔数嗅探格式后调用 render.py,返回 PNG。监听地址由 `BLENDER_LISTEN`(默认 `:9090`)控制。 |
+
+> `linuxserver/blender` 镜像需具备 `python3` 与 `flask`;若缺失,在镜像内 `pip install flask` 或改用自建镜像。
+
+### 优雅降级
+
+3D 缩略是尽力而为的:当 `HETU_BLENDER_ADDR` 为空、sidecar 不可达或渲染失败时,模型资产照常入库(记录路径、大小、哈希、类型 `model`),仅 `ThumbPath` 为空——扫描永不因 3D 缩略失败而中断。
+
+---
+
 ## 本地优先，云端可选
 
 默认所有 AI 推理在本地运行，原因：
