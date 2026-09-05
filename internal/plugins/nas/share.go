@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -154,9 +156,17 @@ func (p *Plugin) accessShare(w http.ResponseWriter, r *http.Request) {
 		p.serveFile(w, r, path)
 	case "folder":
 		// Allow browsing into subdirectories via ?path= relative to the shared root.
+		// Clean the sub-path to prevent traversal outside the shared folder.
 		sub := r.URL.Query().Get("path")
 		if sub != "" {
-			path = path + "/" + sub
+			clean := filepath.Join("/", sub)
+			joined := filepath.Join(path, clean)
+			if !strings.HasPrefix(joined, path) {
+				httpjson.WriteError(w, http.StatusForbidden,
+					fmt.Errorf("path escapes shared folder"))
+				return
+			}
+			path = joined
 		}
 		p.serveDir(w, r, path)
 	default:
