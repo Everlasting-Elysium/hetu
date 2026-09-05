@@ -14,6 +14,15 @@ import (
 	"github.com/Everlasting-Elysium/hetu/internal/kernel"
 )
 
+// noopPersister is a stateless Persister for orchestration tests that assert on
+// the sidecar seam rather than on persistence (the real store is exercised in
+// persist_test.go). It is race-safe because it holds no mutable state.
+type noopPersister struct{}
+
+func (noopPersister) PersistAITagResult(context.Context, domain.OwnerID, domain.AssetID, domain.AITagResult) error {
+	return nil
+}
+
 func newTestKernel(t *testing.T) *kernel.Kernel {
 	t.Helper()
 	return kernel.New(kernel.Deps{
@@ -55,7 +64,7 @@ func TestSubscribe_TagsIndexedAsset(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	k := newTestKernel(t)
-	Subscribe(k, testClient(srv.URL))
+	Subscribe(k, testClient(srv.URL), noopPersister{})
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	k.Jobs.Start(ctx, 2)
@@ -85,7 +94,7 @@ func TestSubscribe_IgnoresNonAssetEvents(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	k := newTestKernel(t)
-	Subscribe(k, testClient(srv.URL))
+	Subscribe(k, testClient(srv.URL), noopPersister{})
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	k.Jobs.Start(ctx, 2)
@@ -114,7 +123,7 @@ func TestTagJob_SkipsOnNotImplemented(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	o := &orchestrator{tagger: testClient(srv.URL), log: discardLogger()}
+	o := &orchestrator{tagger: testClient(srv.URL), store: noopPersister{}, log: discardLogger()}
 	if err := o.tagJob(mustAsset(t, "a1", "cat.jpg"))(context.Background()); err != nil {
 		t.Fatalf("501 must be a graceful skip, got %v", err)
 	}
@@ -128,7 +137,7 @@ func TestTagJob_ReturnsErrorOnFailure(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	o := &orchestrator{tagger: testClient(srv.URL), log: discardLogger()}
+	o := &orchestrator{tagger: testClient(srv.URL), store: noopPersister{}, log: discardLogger()}
 	err := o.tagJob(mustAsset(t, "a1", "cat.jpg"))(context.Background())
 	if err == nil {
 		t.Fatal("expected an error for a 400 response")

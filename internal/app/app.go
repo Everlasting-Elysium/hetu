@@ -85,10 +85,11 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 			return nil, fmt.Errorf("init plugin %q: %w", p.Name(), err)
 		}
 	}
-	// Wire AI orchestration: index → enqueue ai_tag job → sidecar client. An
-	// empty HETU_AI_ADDR disables it. Jobs run on the server's JobQueue workers.
+	// Wire AI orchestration: index → enqueue ai_tag job → sidecar client →
+	// persist to the ai layer (store). An empty HETU_AI_ADDR disables it. Jobs
+	// run on the server's JobQueue workers.
 	if cfg.AIAddr != "" {
-		ai.Subscribe(k, ai.New(ai.Config{BaseURL: cfg.AIAddr, Logger: log}))
+		ai.Subscribe(k, ai.New(ai.Config{BaseURL: cfg.AIAddr, Logger: log}), st)
 		log.Info("registered AI orchestration", slog.String("addr", cfg.AIAddr))
 	}
 	return &App{Cfg: cfg, Kernel: k, Plugins: plugins, Owner: owner, store: st}, nil
@@ -96,6 +97,10 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 
 // Close releases resources (the database).
 func (a *App) Close() error { return a.store.Close() }
+
+// Store returns the underlying store for maintenance commands (e.g. the AI
+// retag/clear CLI, which needs ai-layer methods not on the kernel.Store contract).
+func (a *App) Store() *store.SQLite { return a.store }
 
 func buildPlugins(names []string, owner domain.OwnerID, nasProvider string) ([]kernel.Plugin, error) {
 	plugins := make([]kernel.Plugin, 0, len(names))
