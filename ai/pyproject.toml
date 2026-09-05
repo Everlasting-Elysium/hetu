@@ -1,0 +1,86 @@
+[project]
+name = "hetu-ai"
+version = "0.1.0"
+description = "hetu AI sidecar: local-first CLIP embeddings, image tagging, captioning, and OCR behind the versioned HTTP contract in internal/ai."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.8",
+    "pydantic-settings>=2.4",
+    "anyio>=4.4",
+    "httpx>=0.27",
+    "pillow>=10.4",
+    "numpy>=1.26",
+    # Local inference. CPU by default; GPU is opt-in via HETU_AI_DEVICE.
+    "torch>=2.2",
+    "transformers>=4.44",
+    "onnxruntime>=1.18",
+    "huggingface-hub>=0.24",
+    "rapidocr-onnxruntime>=1.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.6",
+    "basedpyright>=1.18",
+]
+
+# The sidecar is run in place (`uvicorn server:app`), not built as a wheel.
+[tool.uv]
+package = false
+
+# Pull torch from the CPU wheel index so the image stays lean and GPU-free by
+# default; a CUDA build is an operator choice, not a baked-in 2 GB dependency.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",           # trailing commas are the formatter's job
+    "D203",             # incompatible with D211 (no blank line before class docstring)
+    "D213",             # incompatible with D212 (multi-line summary on first line)
+    "EM101", "EM102",   # inline exception messages read fine at this size
+    "TRY003",           # explicit, local exception messages are intentional
+    "INP001",           # top-level app modules are run in-place, not a package
+    "CPY001",           # repo carries no copyright headers (matches the Go side)
+    "PLC0415",          # heavy ML libs are imported lazily inside loaders by design
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "D", "ANN", "PLR2004", "INP001"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+# ML libraries (torch/transformers/onnxruntime/rapidocr) ship without complete
+# type stubs. Keep strict checks (optional access, return types, arg counts) on
+# first-party code while relaxing the "unknown/any" diagnostics that only the
+# untyped third-party surface triggers.
+[tool.basedpyright]
+typeCheckingMode = "strict"
+pythonVersion = "3.12"
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownArgumentType = false
+reportUnknownVariableType = false
+reportUnknownParameterType = false
+reportUnknownLambdaType = false
+reportUntypedFunctionDecorator = false
+reportAny = false
+reportExplicitAny = false
