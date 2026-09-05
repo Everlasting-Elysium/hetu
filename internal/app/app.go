@@ -10,8 +10,10 @@ import (
 	"path/filepath"
 
 	"github.com/Everlasting-Elysium/hetu/internal/ai"
+	"github.com/Everlasting-Elysium/hetu/internal/asset/document"
 	"github.com/Everlasting-Elysium/hetu/internal/asset/image"
 	"github.com/Everlasting-Elysium/hetu/internal/asset/model3d"
+	"github.com/Everlasting-Elysium/hetu/internal/asset/video"
 	"github.com/Everlasting-Elysium/hetu/internal/config"
 	"github.com/Everlasting-Elysium/hetu/internal/domain"
 	"github.com/Everlasting-Elysium/hetu/internal/kernel"
@@ -65,6 +67,8 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 	}
 	k.Assets.Register(image.New())
 	k.Assets.Register(model3d.New(cfg.BlenderAddr))
+	k.Assets.Register(video.New(log))
+	k.Assets.Register(document.New(log))
 
 	if _, ok := k.Storage.Get(cfg.NASProvider); !ok {
 		_ = st.Close()

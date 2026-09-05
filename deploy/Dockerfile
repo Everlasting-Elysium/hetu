@@ -12,6 +12,11 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/hetu ./cmd/hetu
 # --- runtime stage ---
 FROM alpine:3.20
 RUN adduser -D -u 10001 hetu
+# Video (mp4/mov/...) and PDF thumbnails are produced by external tools invoked
+# as subprocesses, keeping the kernel CGO-free. They are OPTIONAL: without them
+# those assets are still indexed, just without a thumbnail/dimensions. Enable by
+# uncommenting (ffmpeg -> ffmpeg+ffprobe; poppler-utils -> pdftoppm):
+#   RUN apk add --no-cache ffmpeg poppler-utils
 COPY --from=build /out/hetu /usr/local/bin/hetu
 USER hetu
 ENV HETU_ADDR=":8080" \
