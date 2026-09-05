@@ -128,6 +128,9 @@ func (ix *Indexer) indexOne(ctx context.Context, p kernel.StorageProvider, e dom
 	// they enhance the record and never fail the index.
 	ix.indexPalette(ctx, p, e.Path, handler)
 	ix.indexPHash(ctx, p, e.Path, handler)
+	// Metadata extraction (EXIF/IPTC/XMP) runs after upsert for the same
+	// reason; embedded capture time may update asset.created_at.
+	ix.indexMetadata(ctx, p, e.Path, handler)
 	return nil
 }
 

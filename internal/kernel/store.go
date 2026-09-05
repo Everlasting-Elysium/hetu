@@ -28,6 +28,12 @@ type Store interface {
 	// (CIEDE2000) of target, nearest first, capped at limit.
 	SearchByColor(ctx context.Context, owner domain.OwnerID, target color.Lab, tol float64, limit int) ([]domain.ColorMatch, error)
 
+	// IndexMetadata stores extracted file-embedded metadata (EXIF/IPTC/XMP)
+	// as extracted-layer annotations, and updates asset.created_at when the
+	// metadata contains an embedded capture time that predates the filesystem
+	// timestamp. The asset is addressed by its natural key.
+	IndexMetadata(ctx context.Context, owner domain.OwnerID, provider, path string, md domain.ExtractedMetadata) error
+
 	// Batch metadata updates over a set of assets.
 	BatchUpdateRating(ctx context.Context, owner domain.OwnerID, ids []domain.AssetID, rating int) error
 	BatchUpdateColor(ctx context.Context, owner domain.OwnerID, ids []domain.AssetID, color string) error
