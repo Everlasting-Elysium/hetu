@@ -9,6 +9,44 @@ import (
 	"context"
 )
 
+const listPHashAnnotations = `-- name: ListPHashAnnotations :many
+SELECT an.asset_id, an.value
+FROM annotations an
+JOIN assets a ON a.id = an.asset_id
+WHERE a.owner_id = ? AND a.deleted_at IS NULL
+  AND an.layer = 'extracted' AND an."key" = 'phash'
+`
+
+type ListPHashAnnotationsRow struct {
+	AssetID string
+	Value   string
+}
+
+// Returns all pHash annotations for the owner's live assets, joining through
+// assets to filter by owner and exclude trashed items.
+func (q *Queries) ListPHashAnnotations(ctx context.Context, ownerID string) ([]ListPHashAnnotationsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPHashAnnotations, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPHashAnnotationsRow{}
+	for rows.Next() {
+		var i ListPHashAnnotationsRow
+		if err := rows.Scan(&i.AssetID, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertAnnotation = `-- name: UpsertAnnotation :exec
 INSERT INTO annotations (asset_id, layer, "key", value, model, created_at)
 VALUES (?, ?, ?, ?, ?, ?)

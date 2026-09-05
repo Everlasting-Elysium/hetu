@@ -68,6 +68,9 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodPost, Pattern: "/folders", Handler: p.createFolder},
 		{Method: http.MethodGet, Pattern: "/folders", Handler: p.listFolders},
 		{Method: http.MethodDelete, Pattern: "/folders/{id}", Handler: p.deleteFolder},
+
+		{Method: http.MethodGet, Pattern: "/duplicates", Handler: p.listDuplicates},
+		{Method: http.MethodGet, Pattern: "/duplicates/similar", Handler: p.listSimilar},
 	}
 }
 

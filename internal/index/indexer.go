@@ -124,9 +124,10 @@ func (ix *Indexer) indexOne(ctx context.Context, p kernel.StorageProvider, e dom
 	}); err != nil {
 		return err
 	}
-	// Palette extraction runs after upsert so the asset row exists for the
-	// color index; it enhances the record and never fails the index.
+	// Palette and pHash extraction run after upsert so the asset row exists;
+	// they enhance the record and never fail the index.
 	ix.indexPalette(ctx, p, e.Path, handler)
+	ix.indexPHash(ctx, p, e.Path, handler)
 	return nil
 }
 

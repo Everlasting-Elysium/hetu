@@ -54,5 +54,10 @@ type Store interface {
 	ListFolders(ctx context.Context, owner domain.OwnerID) ([]domain.Folder, error)
 	DeleteFolder(ctx context.Context, owner domain.OwnerID, id domain.FolderID) error
 
+	// Duplicates: exact (SHA-256) and perceptual (pHash) duplicate detection.
+	FindExactDuplicates(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.DuplicateGroup, error)
+	IndexPHash(ctx context.Context, owner domain.OwnerID, provider, path string, phash uint64) error
+	FindSimilarByPHash(ctx context.Context, owner domain.OwnerID, threshold int) ([]domain.SimilarGroup, error)
+
 	Close() error
 }

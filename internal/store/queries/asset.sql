@@ -33,3 +33,22 @@ FROM assets
 WHERE owner_id = ? AND deleted_at IS NULL
 ORDER BY indexed_at DESC
 LIMIT ? OFFSET ?;
+
+-- name: ListDuplicateHashes :many
+-- Returns hashes that appear more than once among the owner's live assets.
+SELECT hash, COUNT(*) AS cnt
+FROM assets
+WHERE owner_id = ? AND deleted_at IS NULL
+GROUP BY hash
+HAVING COUNT(*) > 1
+ORDER BY cnt DESC
+LIMIT ? OFFSET ?;
+
+-- name: ListAssetsByHash :many
+-- Returns all live assets with the given hash for the owner.
+SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
+       thumb_path, width, height, created_at, indexed_at,
+       deleted_at, rating, color, display_name, folder_id
+FROM assets
+WHERE owner_id = ? AND hash = ? AND deleted_at IS NULL
+ORDER BY indexed_at ASC;
