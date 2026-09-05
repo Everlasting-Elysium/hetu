@@ -41,6 +41,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_owner_path
     ON assets (owner_id, provider, storage_path);
 CREATE INDEX IF NOT EXISTS idx_assets_owner ON assets (owner_id);
 CREATE INDEX IF NOT EXISTS idx_assets_deleted ON assets (owner_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_assets_hash ON assets (owner_id, hash);
 
 -- annotations is the layered-metadata store (manual > ai > extracted). Value is a
 -- JSON payload; model is set only for the ai layer. Color extraction writes the

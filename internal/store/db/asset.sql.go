@@ -109,6 +109,109 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 	return items, nil
 }
 
+const listAssetsByHash = `-- name: ListAssetsByHash :many
+SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
+       thumb_path, width, height, created_at, indexed_at,
+       deleted_at, rating, color, display_name, folder_id
+FROM assets
+WHERE owner_id = ? AND hash = ? AND deleted_at IS NULL
+ORDER BY indexed_at ASC
+`
+
+type ListAssetsByHashParams struct {
+	OwnerID string
+	Hash    string
+}
+
+// Returns all live assets with the given hash for the owner.
+func (q *Queries) ListAssetsByHash(ctx context.Context, arg ListAssetsByHashParams) ([]Asset, error) {
+	rows, err := q.db.QueryContext(ctx, listAssetsByHash, arg.OwnerID, arg.Hash)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Asset{}
+	for rows.Next() {
+		var i Asset
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Kind,
+			&i.Provider,
+			&i.StoragePath,
+			&i.Name,
+			&i.Ext,
+			&i.Size,
+			&i.Hash,
+			&i.ThumbPath,
+			&i.Width,
+			&i.Height,
+			&i.CreatedAt,
+			&i.IndexedAt,
+			&i.DeletedAt,
+			&i.Rating,
+			&i.Color,
+			&i.DisplayName,
+			&i.FolderID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDuplicateHashes = `-- name: ListDuplicateHashes :many
+SELECT hash, COUNT(*) AS cnt
+FROM assets
+WHERE owner_id = ? AND deleted_at IS NULL
+GROUP BY hash
+HAVING COUNT(*) > 1
+ORDER BY cnt DESC
+LIMIT ? OFFSET ?
+`
+
+type ListDuplicateHashesParams struct {
+	OwnerID string
+	Limit   int64
+	Offset  int64
+}
+
+type ListDuplicateHashesRow struct {
+	Hash string
+	Cnt  int64
+}
+
+// Returns hashes that appear more than once among the owner's live assets.
+func (q *Queries) ListDuplicateHashes(ctx context.Context, arg ListDuplicateHashesParams) ([]ListDuplicateHashesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listDuplicateHashes, arg.OwnerID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDuplicateHashesRow{}
+	for rows.Next() {
+		var i ListDuplicateHashesRow
+		if err := rows.Scan(&i.Hash, &i.Cnt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertAsset = `-- name: UpsertAsset :exec
 INSERT INTO assets (
     id, owner_id, kind, provider, storage_path, name, ext, size, hash,

@@ -30,7 +30,14 @@ type Querier interface {
 	InsertAssetColor(ctx context.Context, arg InsertAssetColorParams) error
 	ListAssetTags(ctx context.Context, assetID string) ([]Tag, error)
 	ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset, error)
+	// Returns all live assets with the given hash for the owner.
+	ListAssetsByHash(ctx context.Context, arg ListAssetsByHashParams) ([]Asset, error)
+	// Returns hashes that appear more than once among the owner's live assets.
+	ListDuplicateHashes(ctx context.Context, arg ListDuplicateHashesParams) ([]ListDuplicateHashesRow, error)
 	ListFolders(ctx context.Context, ownerID string) ([]Folder, error)
+	// Returns all pHash annotations for the owner's live assets, joining through
+	// assets to filter by owner and exclude trashed items.
+	ListPHashAnnotations(ctx context.Context, ownerID string) ([]ListPHashAnnotationsRow, error)
 	ListTags(ctx context.Context, ownerID string) ([]Tag, error)
 	ListTrashedAssets(ctx context.Context, arg ListTrashedAssetsParams) ([]Asset, error)
 	PurgeTrash(ctx context.Context, arg PurgeTrashParams) error
