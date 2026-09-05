@@ -28,12 +28,15 @@ type Querier interface {
 	ClearAIAssetTags(ctx context.Context, ownerID string) error
 	ColorCandidates(ctx context.Context, ownerID string) ([]ColorCandidatesRow, error)
 	CreateFolder(ctx context.Context, arg CreateFolderParams) error
+	CreateShare(ctx context.Context, arg CreateShareParams) error
 	CreateTag(ctx context.Context, arg CreateTagParams) error
 	DeleteAssetColors(ctx context.Context, assetID string) error
 	DeleteFolder(ctx context.Context, arg DeleteFolderParams) error
 	DeleteTag(ctx context.Context, arg DeleteTagParams) error
+	EnqueueJob(ctx context.Context, arg EnqueueJobParams) error
 	EnsureOwner(ctx context.Context, arg EnsureOwnerParams) error
 	GetAsset(ctx context.Context, arg GetAssetParams) (Asset, error)
+	GetShareByToken(ctx context.Context, token string) (Share, error)
 	// Resolves an owner's tag id by name so the AI pipeline can reuse an existing
 	// (possibly manual) tag instead of creating a duplicate. Returns sql.ErrNoRows
 	// when absent, signalling the caller to create it.
@@ -46,6 +49,7 @@ type Querier interface {
 	// Returns hashes that appear more than once among the owner's live assets.
 	ListDuplicateHashes(ctx context.Context, arg ListDuplicateHashesParams) ([]ListDuplicateHashesRow, error)
 	ListFolders(ctx context.Context, ownerID string) ([]Folder, error)
+	ListJobs(ctx context.Context, arg ListJobsParams) ([]Job, error)
 	// Returns all pHash annotations for the owner's live assets, joining through
 	// assets to filter by owner and exclude trashed items.
 	ListPHashAnnotations(ctx context.Context, ownerID string) ([]ListPHashAnnotationsRow, error)
@@ -58,6 +62,7 @@ type Querier interface {
 	// Uses the natural key (owner_id, provider, storage_path) so the canonical
 	// row is resolved even after a re-scan discarded a fresh id on upsert.
 	UpdateAssetCreatedAt(ctx context.Context, arg UpdateAssetCreatedAtParams) error
+	UpdateJobStatus(ctx context.Context, arg UpdateJobStatusParams) error
 	UpsertAnnotation(ctx context.Context, arg UpsertAnnotationParams) error
 	// Re-indexing preserves user metadata: the ON CONFLICT clause updates only
 	// index-derived fields, leaving rating/color/display_name/folder_id/deleted_at

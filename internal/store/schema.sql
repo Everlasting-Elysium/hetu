@@ -6,8 +6,8 @@
 --
 -- Tables are added here as features land. Implemented so far: users, assets,
 -- annotations (layered metadata), asset_colors (color-search index), folders,
--- tags, asset_tags, plus the assets_fts FTS5 full-text index. The remaining
--- target tables (shares, jobs, plus the Phase 1 vector table) are described in
+-- tags, asset_tags, shares, jobs, plus the assets_fts FTS5 full-text index. The
+-- remaining target table (the Phase 1 vector table) is described in
 -- docs/data-model.md and added when implemented.
 
 CREATE TABLE IF NOT EXISTS users (
@@ -132,3 +132,34 @@ CREATE TRIGGER IF NOT EXISTS trg_assets_ad AFTER DELETE ON assets BEGIN
     INSERT INTO assets_fts(assets_fts, rowid, name, tags, description)
     VALUES ('delete', old.rowid, old.name, '', '');
 END;
+
+-- shares are shareable links to an asset/folder/tag with optional expiry,
+-- password protection, and permission. token is the URL-facing secret and is
+-- globally unique; expires_at NULL means the link never expires.
+CREATE TABLE IF NOT EXISTS shares (
+    id            TEXT PRIMARY KEY,
+    owner_id      TEXT NOT NULL,
+    target_type   TEXT NOT NULL,               -- 'asset' / 'folder' / 'tag'
+    target_id     TEXT NOT NULL,
+    token         TEXT NOT NULL,               -- URL token
+    expires_at    INTEGER,                     -- NULL = never expires
+    password_hash TEXT NOT NULL DEFAULT '',    -- empty = no password
+    permission    TEXT NOT NULL DEFAULT 'read',
+    created_at    INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_shares_token ON shares (token);
+CREATE INDEX IF NOT EXISTS idx_shares_owner ON shares (owner_id);
+
+-- jobs is the persisted background-task queue (thumbnail generation, AI
+-- tagging, 3D render, ...). This table is persistence only; execution is owned
+-- by the job runtime (kernel.JobQueue and issues #8/#9).
+CREATE TABLE IF NOT EXISTS jobs (
+    id         TEXT PRIMARY KEY,
+    owner_id   TEXT NOT NULL,
+    type       TEXT NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'pending', -- 'pending'/'running'/'done'/'failed'
+    payload    TEXT NOT NULL DEFAULT '',        -- JSON job parameters
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_jobs_owner ON jobs (owner_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_owner_status ON jobs (owner_id, status);
