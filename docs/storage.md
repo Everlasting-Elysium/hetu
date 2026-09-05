@@ -35,20 +35,47 @@ v0 唯一实现的 provider 是 `internal/storage/local`，对应本地文件系
 
 ---
 
-## rclone：统一存储抽象层（路线图）
+## rclone：统一存储抽象层（已实现）
 
 rclone 是 Go 实现的存储抽象工具，支持 70+ 后端（本地、S3、Google Drive、OneDrive、Dropbox、阿里云 OSS、腾讯 COS 等）。
 
-hetu 计划以两种方式之一集成 rclone：
+### 集成方式
 
-| 集成方式 | 描述 | 适用场景 |
-|----------|------|----------|
-| Go 库嵌入 | 将 rclone 作为 Go 库直接引入，在进程内调用 | 需要低延迟、紧密集成 |
-| sidecar 进程 | 运行 `rclone serve s3`，将任意后端暴露为 S3 API | 部署简单，隔离性好 |
+hetu 通过 rclone RC daemon（`rclone rcd --rc-serve`）的 HTTP API 集成：
 
-`rclone serve s3` 的关键能力：将 70+ 后端（包括大量中国网盘）统一暴露为 S3 兼容 API，hetu 只需实现一个 S3 StorageProvider，即可访问所有 rclone 支持的后端。
+- **List / Stat**：调用 RC JSON API（`POST /operations/list`、`POST /operations/stat`）
+- **Open**：通过 `--rc-serve` 暴露的 HTTP 文件服务器读取文件内容，支持 Range 请求（`io.ReadSeekCloser`）
 
-**v0 不实现 rclone 集成**，rclone provider 是 Phase 0 完成后的下一个 provider 实现目标。
+实现代码在 `internal/storage/rclone/`，provider 名称为 `rclone`。
+
+### 配置项
+
+所有配置通过环境变量，定义见 `internal/config/config.go`：
+
+| 环境变量 | 说明 | 默认值 |
+|----------|------|--------|
+| `HETU_RCLONE_ADDR` | rclone RC daemon 地址（如 `localhost:5572`）。为空则不注册 rclone provider | 空（禁用） |
+| `HETU_RCLONE_REMOTE` | rclone remote 名称 | `remote:` |
+| `HETU_RCLONE_USER` | Basic Auth 用户名（可选） | 空 |
+| `HETU_RCLONE_PASS` | Basic Auth 密码（可选） | 空 |
+| `HETU_NAS_PROVIDER` | NAS 插件浏览时使用的 provider（`local` 或 `rclone`） | `local` |
+
+`HETU_NAS_PROVIDER` 必须指向一个已注册的 provider：设为 `rclone` 时必须同时设置 `HETU_RCLONE_ADDR`，否则启动时 fail-fast 报错。
+
+### 部署
+
+Docker Compose 中已预配 rclone 服务（profile `storage`）：
+
+```bash
+# 1. 配置 remote
+#    编辑 deploy/rclone/rclone.conf（或用 rclone config 生成）
+# 2. 启动
+docker compose --profile storage up
+# 3. hetu 侧设置：启用 rclone provider 并让 NAS 插件使用它
+HETU_RCLONE_ADDR=rclone:5572 HETU_RCLONE_REMOTE=remote: HETU_NAS_PROVIDER=rclone ./bin/hetu serve
+```
+
+rclone daemon 以 `rcd --rc-addr :5572 --rc-serve --rc-no-auth` 启动，RC API 和文件服务共用同一端口。生产环境应配置 `--rc-user`/`--rc-pass` 并在 hetu 侧设置 `HETU_RCLONE_USER`/`HETU_RCLONE_PASS`。
 
 ---
 
@@ -65,7 +92,7 @@ hetu 计划以两种方式之一集成 rclone：
 | 阶段 | Provider | 状态 |
 |------|----------|------|
 | Phase 0 | 本地文件系统（`internal/storage/local`） | 已实现 |
-| Phase 0 后 | rclone（Go 库或 sidecar） | 路线图 |
+| Phase 0 后 | rclone（RC daemon sidecar，`internal/storage/rclone`） | **已实现** |
 | Phase 0 后 | AList/OpenList sidecar | 路线图 |
 
 新增 provider 只需实现 `StorageProvider` 接口并注册到 `StorageRegistry`，不影响任何上层代码。
