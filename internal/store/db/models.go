@@ -56,6 +56,12 @@ type AssetTag struct {
 	Source  string
 }
 
+type AssetsFt struct {
+	Name        string
+	Tags        string
+	Description string
+}
+
 type Folder struct {
 	ID       string
 	OwnerID  string

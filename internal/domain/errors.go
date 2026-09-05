@@ -13,4 +13,7 @@ var (
 	ErrUnsupported = errors.New("domain: unsupported asset type")
 	// ErrNoThumbnail is returned by a handler that cannot produce a thumbnail.
 	ErrNoThumbnail = errors.New("domain: no thumbnail available")
+	// ErrInvalidQuery is returned when a search query is malformed (e.g. it
+	// produces an invalid FTS5 MATCH expression). Callers map it to HTTP 400.
+	ErrInvalidQuery = errors.New("domain: invalid query")
 )

@@ -15,6 +15,10 @@ type Store interface {
 	ListAssets(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.Asset, error)
 	GetAsset(ctx context.Context, owner domain.OwnerID, id domain.AssetID) (domain.Asset, error)
 
+	// SearchAssets performs FTS5 full-text search. ftsQuery is a pre-built
+	// FTS5 MATCH expression (produced by the search package parser).
+	SearchAssets(ctx context.Context, owner domain.OwnerID, ftsQuery string, limit, offset int) ([]domain.Asset, error)
+
 	// IndexPalette stores an asset's extracted palette: the palette and dominant
 	// color as extracted-layer annotations, plus the searchable color index. The
 	// asset is addressed by its natural key so the canonical row id is resolved
