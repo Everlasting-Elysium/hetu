@@ -131,13 +131,33 @@ v0 仅有一条系统用户记录。
 
 ---
 
-## Phase 1 新增表
+## Phase 1 表
 
-以下两张表在 Phase 0 不存在，Phase 1 实施时通过数据库迁移添加。
+### assets_fts（FTS5 虚拟表，已实现）
 
-### assets_fts（FTS5 虚拟表）
+SQLite FTS5 全文检索虚拟表，为**工作区级**全文检索提供支撑（跨文件夹按文件名/标签/描述检索）。建表语句与同步触发器定义在 `internal/store/schema.sql`。
 
-SQLite FTS5 全文检索虚拟表，索引资产名称、标签、描述等文本字段。建表语句在 `internal/store/schema.sql` 中以条件注释标记。
+**表结构**（内容无关 / contentless，`content=''`，`tokenize='unicode61'` 支持中文）：
+
+| 列 | 说明 |
+|------|------|
+| name | 资产文件名，来自 `assets.name` |
+| tags | 空格分隔的标签文本；`tags`/`asset_tags` 表落地前恒为空 |
+| description | 资产描述；`annotations` 表落地前恒为空 |
+
+**同步机制**：`assets` 表的 `INSERT`/`UPDATE`/`DELETE` 由三个触发器（`trg_assets_ai`/`trg_assets_au`/`trg_assets_ad`）镜像到 `assets_fts`，`rowid` 与 `assets.rowid` 对齐。contentless 表的删除用 FTS5 专用命令 `INSERT INTO assets_fts(assets_fts, rowid, ...) VALUES('delete', ...)`。
+
+**查询链路**：
+- 解析器 `internal/search/parser.go` 把用户查询（`name:` `tag:` `desc:` 字段限定 + `AND`/`OR`/`NOT` 布尔 + 引号短语）转成参数化的 FTS5 `MATCH` 表达式，字段白名单 + 值全部加引号转义防注入；空/纯操作符查询返回 `ErrEmptyQuery`。
+- 存储层 `internal/store/sqlite.go` 的 `SearchAssets` 手写 SQL（sqlc 不支持 FTS5 虚拟表），`JOIN assets` 后按 `assets_fts.rank`（bm25）相关度升序返回；非法 MATCH 表达式映射为 `domain.ErrInvalidQuery`。
+- HTTP 接口 `GET /api/dam/search?q=`（`internal/plugins/dam/search.go`），空查询/非法查询返回 400，`limit` 限制在 `[1,200]`。
+
+**升级兼容**：`assets_fts` 与触发器由 `schema.sql` 每次 `Open` 幂等重建；旧库（FTS 之前创建的）通过 `PRAGMA user_version` 门控的一次性回填（`backfillFTS`）补索引，避免旧行在下次 upsert 时触发 contentless delete 导致 `SQLITE_CORRUPT`。变更 FTS 结构（如换 tokenizer）时递增 `ftsSchemaVersion` 并补迁移。
+
+**已知限制 / 后续（本 issue 范围外）**：
+- **CJK 分词**：`unicode61` 把连续中文当作单个 token，无法子串匹配（如「海滩」搜不到「日落海滩风景」）。待 `tags`/`description` 落地且有真实中文数据后，评估切换 `trigram`（支持子串，但需 ≥3 字符、改变英文为子串匹配与排序语义）或 ICU。切换需借 `user_version` 做 FTS 重建。
+- **并发**：默认 journal 模式下 `hetu serve`（读）与 `hetu scan`（写，含 FTS 触发器）并发可能 `SQLITE_BUSY`；后续考虑 WAL + `busy_timeout`。
+- **多词字段值**：`name:日落 海滩` 中字段限定只作用于第一个词（`海滩` 退化为全列词），需要多词请用引号：`name:"日落 海滩"`。
 
 ### embeddings（sqlite-vec）
 

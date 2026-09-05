@@ -39,6 +39,7 @@ func (p *Plugin) Init(_ context.Context, k *kernel.Kernel) error {
 func (p *Plugin) Routes() []kernel.Route {
 	return []kernel.Route{
 		{Method: http.MethodGet, Pattern: "/assets", Handler: p.listAssets},
+		{Method: http.MethodGet, Pattern: "/search", Handler: p.searchAssets},
 	}
 }
 

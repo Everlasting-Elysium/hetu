@@ -12,5 +12,8 @@ type Store interface {
 	EnsureOwner(ctx context.Context, owner domain.OwnerID) error
 	UpsertAsset(ctx context.Context, a domain.Asset) error
 	ListAssets(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.Asset, error)
+	// SearchAssets performs FTS5 full-text search. ftsQuery is a pre-built
+	// FTS5 MATCH expression (produced by the search package parser).
+	SearchAssets(ctx context.Context, owner domain.OwnerID, ftsQuery string, limit, offset int) ([]domain.Asset, error)
 	Close() error
 }

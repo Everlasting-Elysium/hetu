@@ -2,6 +2,8 @@ package store_test
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -66,5 +68,191 @@ func TestSQLite_UpsertAndList(t *testing.T) {
 	}
 	if got[0].Size != 999 {
 		t.Fatalf("size = %d, want 999 (updated)", got[0].Size)
+	}
+}
+
+func mkAsset(t *testing.T, owner domain.OwnerID, id, name string) domain.Asset {
+	t.Helper()
+	aid, err := domain.NewAssetID(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	return domain.Asset{
+		ID: aid, Owner: owner, Kind: domain.KindImage, Provider: "local",
+		StoragePath: id + ".png", Name: name, Ext: "png", Size: 1,
+		Hash: id, Width: 1, Height: 1, CreatedAt: now, IndexedAt: now,
+	}
+}
+
+func TestSQLite_SearchAssets(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "search.db")
+	st, err := store.Open(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	owner, err := domain.NewOwnerID("tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.EnsureOwner(ctx, owner); err != nil {
+		t.Fatalf("ensure owner: %v", err)
+	}
+	for _, a := range []domain.Asset{
+		mkAsset(t, owner, "asset-1", "sunset over the sea"),
+		mkAsset(t, owner, "asset-2", "sunset beach"),
+		mkAsset(t, owner, "asset-3", "mountain peak"),
+	} {
+		if err := st.UpsertAsset(ctx, a); err != nil {
+			t.Fatalf("upsert %s: %v", a.ID, err)
+		}
+	}
+
+	find := func(q string) []domain.Asset {
+		t.Helper()
+		got, err := st.SearchAssets(ctx, owner, q, 50, 0)
+		if err != nil {
+			t.Fatalf("search %q: %v", q, err)
+		}
+		return got
+	}
+
+	// Match by name across multiple assets, ordered by bm25 relevance:
+	// the shorter document ("sunset beach") ranks ahead of the longer one.
+	got := find("sunset")
+	if len(got) != 2 {
+		t.Fatalf("search sunset = %d results, want 2", len(got))
+	}
+	if got[0].Name != "sunset beach" {
+		t.Errorf("relevance order: first = %q, want %q", got[0].Name, "sunset beach")
+	}
+	if n := len(find("mountain")); n != 1 {
+		t.Errorf("search mountain = %d, want 1", n)
+	}
+	if n := len(find("nonexistent")); n != 0 {
+		t.Errorf("search nonexistent = %d, want 0", n)
+	}
+
+	// Update: renaming asset-3 removes the old term and adds the new one.
+	if err := st.UpsertAsset(ctx, mkAsset(t, owner, "asset-3", "sunset valley")); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if n := len(find("mountain")); n != 0 {
+		t.Errorf("after rename, search mountain = %d, want 0", n)
+	}
+	if n := len(find("sunset")); n != 3 {
+		t.Errorf("after rename, search sunset = %d, want 3", n)
+	}
+
+	// Delete: removing an asset row removes it from the FTS index. There is no
+	// DeleteAsset API yet, so issue the DELETE via a second raw connection to
+	// exercise the AFTER DELETE trigger.
+	raw, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(5000)")
+	if err != nil {
+		t.Fatalf("open raw: %v", err)
+	}
+	defer func() { _ = raw.Close() }()
+	if _, err := raw.ExecContext(ctx, "DELETE FROM assets WHERE id = ?", "asset-1"); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if n := len(find("sunset")); n != 2 {
+		t.Errorf("after delete, search sunset = %d, want 2", n)
+	}
+}
+
+// legacyAssetsSchema mirrors the pre-FTS Phase-0 schema (assets + users, no
+// assets_fts table or triggers) to simulate an in-place upgrade.
+const legacyAssetsSchema = `
+CREATE TABLE users (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL);
+CREATE TABLE assets (
+    id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, kind TEXT NOT NULL,
+    provider TEXT NOT NULL, storage_path TEXT NOT NULL, name TEXT NOT NULL,
+    ext TEXT NOT NULL, size INTEGER NOT NULL, hash TEXT NOT NULL,
+    thumb_path TEXT NOT NULL DEFAULT '', width INTEGER NOT NULL DEFAULT 0,
+    height INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL,
+    indexed_at INTEGER NOT NULL);
+INSERT INTO users(id, created_at) VALUES('tester', 0);
+INSERT INTO assets(id, owner_id, kind, provider, storage_path, name, ext, size, hash, created_at, indexed_at)
+VALUES('legacy-1', 'tester', 'image', 'local', 'legacy-1.png', 'legacy sunset', 'png', 1, 'h', 0, 0);`
+
+// TestSQLite_SearchAssets_LegacyBackfill verifies that a database created before
+// assets_fts existed is backfilled on Open, so pre-existing rows are searchable
+// and a subsequent upsert does not corrupt the DB via the UPDATE trigger's
+// contentless delete against an unindexed row.
+func TestSQLite_SearchAssets_LegacyBackfill(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "legacy.db")
+
+	raw, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.ExecContext(ctx, legacyAssetsSchema); err != nil {
+		t.Fatalf("legacy schema: %v", err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	st, err := store.Open(ctx, dbPath) // adds assets_fts + triggers + backfill
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	owner, err := domain.NewOwnerID("tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	find := func(q string) []domain.Asset {
+		t.Helper()
+		got, err := st.SearchAssets(ctx, owner, q, 50, 0)
+		if err != nil {
+			t.Fatalf("search %q: %v", q, err)
+		}
+		return got
+	}
+
+	// The legacy row is searchable thanks to the backfill.
+	if n := len(find("sunset")); n != 1 {
+		t.Fatalf("after backfill, search sunset = %d, want 1", n)
+	}
+	// Re-upsert (same storage_path) fires the UPDATE trigger; without the
+	// backfill this corrupts the DB. With it, the rename syncs cleanly.
+	if err := st.UpsertAsset(ctx, mkAsset(t, owner, "legacy-1", "legacy moon")); err != nil {
+		t.Fatalf("re-upsert legacy row: %v", err)
+	}
+	if n := len(find("sunset")); n != 0 {
+		t.Errorf("after rename, search sunset = %d, want 0", n)
+	}
+	if n := len(find("moon")); n != 1 {
+		t.Errorf("after rename, search moon = %d, want 1", n)
+	}
+}
+
+// TestSQLite_SearchAssets_InvalidQuery verifies malformed FTS5 MATCH expressions
+// are reported as domain.ErrInvalidQuery (mapped to HTTP 400) rather than a
+// generic server error. The parser never emits these; this guards the store's
+// defense-in-depth mapping directly.
+func TestSQLite_SearchAssets_InvalidQuery(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "invalid.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	owner, err := domain.NewOwnerID("tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.EnsureOwner(ctx, owner); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{`"a" AND`, `*`} {
+		if _, err := st.SearchAssets(ctx, owner, q, 10, 0); !errors.Is(err, domain.ErrInvalidQuery) {
+			t.Errorf("SearchAssets(%q) err = %v, want ErrInvalidQuery", q, err)
+		}
 	}
 }
