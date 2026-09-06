@@ -45,6 +45,11 @@ export const thumbUrl = (id: string): string => `${BASE}/assets/${id}/thumb`;
 export const fileUrl = (path: string): string =>
   `/api/nas/download?path=${encodeURIComponent(path)}`;
 
+// Serves a browser-loadable 3D model (#51): glTF/GLB stream as-is, other
+// supported formats are converted to GLB server-side and cached. Feeds the
+// <model-viewer> `src` in the asset detail modal.
+export const modelUrl = (id: string): string => `${BASE}/assets/${id}/model`;
+
 export const api = {
   listAssets: (limit = 200, offset = 0) =>
     req<Asset[]>(`/assets?limit=${limit}&offset=${offset}`),
