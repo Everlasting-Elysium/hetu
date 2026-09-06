@@ -41,7 +41,8 @@ function formatSize(bytes: number): string {
 // Kind-specific preview. Video uses the custom VideoPlayer; audio/image use
 // native elements. Media streams from the Range-enabled DAM /file endpoint
 // (by asset id) so scrubbing/seeking works.
-function AssetMedia({ asset }: { asset: Asset }) {
+// Exported so gallery + immersive views reuse the exact same media rendering.
+export function AssetMedia({ asset }: { asset: Asset }) {
   const label = asset.display_name || asset.name;
   switch (asset.kind) {
     case "image":

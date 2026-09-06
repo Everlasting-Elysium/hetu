@@ -14,11 +14,13 @@ interface Props {
   onRate: (rating: number) => void;
   onColor: (hex: string) => void;
   onDetail: () => void;
+  // When set (waterfall), the thumb renders at this natural ratio instead of 1:1.
+  aspectRatio?: number;
 }
 
 const isMatch = (a: Asset | ColorMatch): a is ColorMatch => "match_hex" in a;
 
-export function AssetCard({ asset, selected, onSelect, onToggleCheck, onRate, onColor, onDetail }: Props) {
+export function AssetCard({ asset, selected, onSelect, onToggleCheck, onRate, onColor, onDetail, aspectRatio }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
@@ -36,7 +38,10 @@ export function AssetCard({ asset, selected, onSelect, onToggleCheck, onRate, on
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div className={styles.thumb}>
+      <div
+        className={styles.thumb}
+        style={aspectRatio ? { aspectRatio: String(aspectRatio) } : undefined}
+      >
         {showThumb ? (
           <img
             src={thumbUrl(asset.id)}

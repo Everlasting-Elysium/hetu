@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ViewMode } from "../types";
+import { ViewSwitcher } from "./ViewSwitcher";
 import { IconAlert, IconClose, IconDroplet, IconSearch, IconTrash } from "./icons";
 import styles from "./SearchBar.module.css";
 
@@ -103,13 +104,9 @@ export function SearchBar({ view, trashCount, missingCount, onKeyword, onColor, 
 
       <div className={styles.spacer} />
 
+      <ViewSwitcher view={view} onChange={onViewChange} />
+
       <div className={styles.viewToggle}>
-        <button
-          className={`btn ${view === "library" ? "btn-primary" : "btn-ghost"}`}
-          onClick={() => onViewChange("library")}
-        >
-          素材库
-        </button>
         <button
           className={`btn ${view === "trash" ? "btn-primary" : "btn-ghost"}`}
           onClick={() => onViewChange("trash")}
