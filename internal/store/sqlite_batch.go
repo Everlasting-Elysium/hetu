@@ -10,6 +10,12 @@ import (
 	"github.com/Everlasting-Elysium/hetu/internal/store/db"
 )
 
+// purgeTrashedVersionsSQL cascades version rows for assets being purged from
+// trash. Args: owner_id, deleted_at cutoff (exclusive). Hand-written because
+// sqlc mis-parses the trailing "?)" of the IN (SELECT ...) subquery.
+const purgeTrashedVersionsSQL = `DELETE FROM asset_versions WHERE asset_id IN ` +
+	`(SELECT id FROM assets WHERE owner_id = ? AND deleted_at IS NOT NULL AND deleted_at < ?)`
+
 // BatchUpdateRating sets rating (0-5) on all live assets in ids owned by owner.
 func (s *SQLite) BatchUpdateRating(ctx context.Context, owner domain.OwnerID, ids []domain.AssetID, rating int) error {
 	if err := s.q.BatchUpdateRating(ctx, db.BatchUpdateRatingParams{
@@ -106,16 +112,34 @@ func (s *SQLite) BatchRestoreAssets(ctx context.Context, owner domain.OwnerID, i
 }
 
 // PurgeTrash permanently deletes trashed assets whose deleted_at is at or before
-// retentionDays ago. retentionDays == 0 empties the trash entirely.
+// retentionDays ago. retentionDays == 0 empties the trash entirely. Version rows
+// of the purged assets are cascaded in the same transaction (issue #58); their
+// physical files/thumbnails are left on disk, matching the existing DB-only
+// purge behavior for asset thumbnails.
 func (s *SQLite) PurgeTrash(ctx context.Context, owner domain.OwnerID, retentionDays int) error {
 	// deleted_at is whole seconds; the query uses "< cutoff", so boundary+1
 	// makes the comparison inclusive of the boundary second.
-	boundary := time.Now().AddDate(0, 0, -retentionDays).Unix()
-	if err := s.q.PurgeTrash(ctx, db.PurgeTrashParams{
-		OwnerID:   owner.String(),
-		DeletedAt: sql.NullInt64{Int64: boundary + 1, Valid: true},
+	boundary := sql.NullInt64{Int64: time.Now().AddDate(0, 0, -retentionDays).Unix() + 1, Valid: true}
+	tx, err := s.sqldb.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin purge tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	qtx := s.q.WithTx(tx)
+	// Cascade version rows first, while the assets still exist to identify them.
+	// Raw SQL (not sqlc): sqlc's SQLite parser mangles a trailing "?)" inside an
+	// IN (SELECT ...) subquery, so this delete is hand-written like the other
+	// dynamic asset queries (ListAssetsFiltered, SearchAssets).
+	if _, err := tx.ExecContext(ctx, purgeTrashedVersionsSQL, owner.String(), boundary); err != nil {
+		return fmt.Errorf("purge trashed versions: %w", err)
+	}
+	if err := qtx.PurgeTrash(ctx, db.PurgeTrashParams{
+		OwnerID: owner.String(), DeletedAt: boundary,
 	}); err != nil {
 		return fmt.Errorf("purge trash: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit purge: %w", err)
 	}
 	return nil
 }

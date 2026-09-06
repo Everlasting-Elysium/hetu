@@ -22,7 +22,10 @@ type Provider struct {
 	root string
 }
 
-var _ kernel.StorageProvider = (*Provider)(nil)
+var (
+	_ kernel.StorageProvider = (*Provider)(nil)
+	_ kernel.StorageWriter   = (*Provider)(nil)
+)
 
 // New returns a local provider rooted at root.
 func New(root string) *Provider { return &Provider{root: root} }
@@ -75,4 +78,37 @@ func (p *Provider) Stat(_ context.Context, path string) (domain.FileInfo, error)
 		return domain.FileInfo{}, fmt.Errorf("stat %q: %w", path, err)
 	}
 	return domain.FileInfo{Size: info.Size(), IsDir: info.IsDir(), ModTime: info.ModTime()}, nil
+}
+
+// Write copies r to path inside root, creating parent directories. It implements
+// kernel.StorageWriter for managed writes (asset version copies).
+func (p *Provider) Write(_ context.Context, path string, r io.Reader) (int64, error) {
+	abs := p.resolve(path)
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		return 0, fmt.Errorf("create dir for %q: %w", path, err)
+	}
+	f, err := os.Create(abs)
+	if err != nil {
+		return 0, fmt.Errorf("create %q: %w", path, err)
+	}
+	n, copyErr := io.Copy(f, r)
+	closeErr := f.Close()
+	if copyErr != nil {
+		_ = os.Remove(abs)
+		return 0, fmt.Errorf("write %q: %w", path, copyErr)
+	}
+	if closeErr != nil {
+		_ = os.Remove(abs)
+		return 0, fmt.Errorf("close %q: %w", path, closeErr)
+	}
+	return n, nil
+}
+
+// Remove deletes the file at path. A missing file is not an error so version
+// cleanup is idempotent. It implements kernel.StorageWriter.
+func (p *Provider) Remove(_ context.Context, path string) error {
+	if err := os.Remove(p.resolve(path)); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove %q: %w", path, err)
+	}
+	return nil
 }

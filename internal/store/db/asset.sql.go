@@ -11,11 +11,16 @@ import (
 )
 
 const getAsset = `-- name: GetAsset :one
-SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
-       thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at
-FROM assets
-WHERE id = ? AND owner_id = ?
+SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext, a.size, a.hash,
+       COALESCE(cv.thumb_path, a.thumb_path) AS thumb_path,
+       COALESCE(cv.width, a.width) AS width,
+       COALESCE(cv.height, a.height) AS height,
+       a.created_at, a.indexed_at,
+       a.deleted_at, a.rating, a.color, a.display_name, a.folder_id, a.missing_at,
+       a.current_version_id
+FROM assets a
+LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
+WHERE a.id = ? AND a.owner_id = ?
 `
 
 type GetAssetParams struct {
@@ -23,9 +28,37 @@ type GetAssetParams struct {
 	OwnerID string
 }
 
-func (q *Queries) GetAsset(ctx context.Context, arg GetAssetParams) (Asset, error) {
+type GetAssetRow struct {
+	ID               string
+	OwnerID          string
+	Kind             string
+	Provider         string
+	StoragePath      string
+	Name             string
+	Ext              string
+	Size             int64
+	Hash             string
+	ThumbPath        string
+	Width            int64
+	Height           int64
+	CreatedAt        int64
+	IndexedAt        int64
+	DeletedAt        sql.NullInt64
+	Rating           int64
+	Color            string
+	DisplayName      string
+	FolderID         string
+	MissingAt        sql.NullInt64
+	CurrentVersionID string
+}
+
+// thumb_path/width/height resolve to the current version (issue #58) via the
+// LEFT JOIN: current_version_id is ” for un-versioned assets so cv is NULL and
+// COALESCE falls back to the anchor's own values. storage_path/hash stay
+// anchored to the original indexed file (scan/dedup/relocate key off them).
+func (q *Queries) GetAsset(ctx context.Context, arg GetAssetParams) (GetAssetRow, error) {
 	row := q.db.QueryRowContext(ctx, getAsset, arg.ID, arg.OwnerID)
-	var i Asset
+	var i GetAssetRow
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerID,
@@ -47,16 +80,22 @@ func (q *Queries) GetAsset(ctx context.Context, arg GetAssetParams) (Asset, erro
 		&i.DisplayName,
 		&i.FolderID,
 		&i.MissingAt,
+		&i.CurrentVersionID,
 	)
 	return i, err
 }
 
 const getAssetByPath = `-- name: GetAssetByPath :one
-SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
-       thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at
-FROM assets
-WHERE owner_id = ? AND provider = ? AND storage_path = ?
+SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext, a.size, a.hash,
+       COALESCE(cv.thumb_path, a.thumb_path) AS thumb_path,
+       COALESCE(cv.width, a.width) AS width,
+       COALESCE(cv.height, a.height) AS height,
+       a.created_at, a.indexed_at,
+       a.deleted_at, a.rating, a.color, a.display_name, a.folder_id, a.missing_at,
+       a.current_version_id
+FROM assets a
+LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
+WHERE a.owner_id = ? AND a.provider = ? AND a.storage_path = ?
 `
 
 type GetAssetByPathParams struct {
@@ -65,13 +104,38 @@ type GetAssetByPathParams struct {
 	StoragePath string
 }
 
+type GetAssetByPathRow struct {
+	ID               string
+	OwnerID          string
+	Kind             string
+	Provider         string
+	StoragePath      string
+	Name             string
+	Ext              string
+	Size             int64
+	Hash             string
+	ThumbPath        string
+	Width            int64
+	Height           int64
+	CreatedAt        int64
+	IndexedAt        int64
+	DeletedAt        sql.NullInt64
+	Rating           int64
+	Color            string
+	DisplayName      string
+	FolderID         string
+	MissingAt        sql.NullInt64
+	CurrentVersionID string
+}
+
 // Resolves the canonical asset row by its natural key (owner, provider, path).
 // Needed after UpsertAsset because the ON CONFLICT clause keeps the existing
 // id and discards a freshly generated one, so callers that import/index a file
 // must re-resolve to attach tags/folders/ratings/annotations to the right row.
-func (q *Queries) GetAssetByPath(ctx context.Context, arg GetAssetByPathParams) (Asset, error) {
+// Mirrors GetAsset's version-aware projection (issue #58) so it returns db.Asset.
+func (q *Queries) GetAssetByPath(ctx context.Context, arg GetAssetByPathParams) (GetAssetByPathRow, error) {
 	row := q.db.QueryRowContext(ctx, getAssetByPath, arg.OwnerID, arg.Provider, arg.StoragePath)
-	var i Asset
+	var i GetAssetByPathRow
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerID,
@@ -93,17 +157,23 @@ func (q *Queries) GetAssetByPath(ctx context.Context, arg GetAssetByPathParams) 
 		&i.DisplayName,
 		&i.FolderID,
 		&i.MissingAt,
+		&i.CurrentVersionID,
 	)
 	return i, err
 }
 
 const listAssets = `-- name: ListAssets :many
-SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
-       thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at
-FROM assets
-WHERE owner_id = ? AND deleted_at IS NULL
-ORDER BY indexed_at DESC
+SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext, a.size, a.hash,
+       COALESCE(cv.thumb_path, a.thumb_path) AS thumb_path,
+       COALESCE(cv.width, a.width) AS width,
+       COALESCE(cv.height, a.height) AS height,
+       a.created_at, a.indexed_at,
+       a.deleted_at, a.rating, a.color, a.display_name, a.folder_id, a.missing_at,
+       a.current_version_id
+FROM assets a
+LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
+WHERE a.owner_id = ? AND a.deleted_at IS NULL
+ORDER BY a.indexed_at DESC
 LIMIT ? OFFSET ?
 `
 
@@ -113,15 +183,40 @@ type ListAssetsParams struct {
 	Offset  int64
 }
 
-func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset, error) {
+type ListAssetsRow struct {
+	ID               string
+	OwnerID          string
+	Kind             string
+	Provider         string
+	StoragePath      string
+	Name             string
+	Ext              string
+	Size             int64
+	Hash             string
+	ThumbPath        string
+	Width            int64
+	Height           int64
+	CreatedAt        int64
+	IndexedAt        int64
+	DeletedAt        sql.NullInt64
+	Rating           int64
+	Color            string
+	DisplayName      string
+	FolderID         string
+	MissingAt        sql.NullInt64
+	CurrentVersionID string
+}
+
+// thumb_path/width/height resolve to the current version (see GetAsset).
+func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]ListAssetsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAssets, arg.OwnerID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Asset{}
+	items := []ListAssetsRow{}
 	for rows.Next() {
-		var i Asset
+		var i ListAssetsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
@@ -143,6 +238,7 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 			&i.DisplayName,
 			&i.FolderID,
 			&i.MissingAt,
+			&i.CurrentVersionID,
 		); err != nil {
 			return nil, err
 		}
@@ -160,7 +256,8 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 const listAssetsByHash = `-- name: ListAssetsByHash :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at
+       deleted_at, rating, color, display_name, folder_id, missing_at,
+       current_version_id
 FROM assets
 WHERE owner_id = ? AND hash = ? AND deleted_at IS NULL
 ORDER BY indexed_at ASC
@@ -202,6 +299,7 @@ func (q *Queries) ListAssetsByHash(ctx context.Context, arg ListAssetsByHashPara
 			&i.DisplayName,
 			&i.FolderID,
 			&i.MissingAt,
+			&i.CurrentVersionID,
 		); err != nil {
 			return nil, err
 		}
@@ -264,7 +362,8 @@ func (q *Queries) ListDuplicateHashes(ctx context.Context, arg ListDuplicateHash
 const listLiveAssetsByProvider = `-- name: ListLiveAssetsByProvider :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at
+       deleted_at, rating, color, display_name, folder_id, missing_at,
+       current_version_id
 FROM assets
 WHERE owner_id = ? AND provider = ? AND deleted_at IS NULL AND missing_at IS NULL
 ORDER BY storage_path ASC
@@ -307,6 +406,7 @@ func (q *Queries) ListLiveAssetsByProvider(ctx context.Context, arg ListLiveAsse
 			&i.DisplayName,
 			&i.FolderID,
 			&i.MissingAt,
+			&i.CurrentVersionID,
 		); err != nil {
 			return nil, err
 		}
@@ -324,7 +424,8 @@ func (q *Queries) ListLiveAssetsByProvider(ctx context.Context, arg ListLiveAsse
 const listMissingAssets = `-- name: ListMissingAssets :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at
+       deleted_at, rating, color, display_name, folder_id, missing_at,
+       current_version_id
 FROM assets
 WHERE owner_id = ? AND missing_at IS NOT NULL AND deleted_at IS NULL
 ORDER BY missing_at DESC
@@ -367,6 +468,7 @@ func (q *Queries) ListMissingAssets(ctx context.Context, arg ListMissingAssetsPa
 			&i.DisplayName,
 			&i.FolderID,
 			&i.MissingAt,
+			&i.CurrentVersionID,
 		); err != nil {
 			return nil, err
 		}
@@ -384,7 +486,8 @@ func (q *Queries) ListMissingAssets(ctx context.Context, arg ListMissingAssetsPa
 const listMissingAssetsByHash = `-- name: ListMissingAssetsByHash :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at
+       deleted_at, rating, color, display_name, folder_id, missing_at,
+       current_version_id
 FROM assets
 WHERE owner_id = ? AND hash = ? AND missing_at IS NOT NULL AND deleted_at IS NULL
 ORDER BY created_at ASC
@@ -428,6 +531,7 @@ func (q *Queries) ListMissingAssetsByHash(ctx context.Context, arg ListMissingAs
 			&i.DisplayName,
 			&i.FolderID,
 			&i.MissingAt,
+			&i.CurrentVersionID,
 		); err != nil {
 			return nil, err
 		}

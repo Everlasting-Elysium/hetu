@@ -17,22 +17,19 @@ type StorageProvider interface {
 	Stat(ctx context.Context, path string) (domain.FileInfo, error)
 }
 
-// WritableProvider is an optional capability for providers that can accept
-// writes, discovered via type assertion (mirroring the AssetHandler optional
-// interfaces). Only the local provider implements it today; it backs the
-// import API's copy/move modes. Write must be atomic in its visibility (write
-// to a temp path then rename) so a partially written file is never observable.
-type WritableProvider interface {
-	StorageProvider
-	// Write streams r into path (creating parent dirs) and returns bytes
-	// written. It places the file atomically and MUST fail rather than
-	// overwrite an existing destination, so a concurrent same-path write is a
-	// loud error, not silent data loss.
+// StorageWriter is an optional StorageProvider capability for backends that can
+// accept managed writes (currently the local provider). Asset versioning copies
+// uploaded revisions into the library through it; callers type-assert and return
+// domain.ErrUnsupported when a provider does not implement it — the base
+// read-only StorageProvider contract stays unchanged. This mirrors the optional
+// AssetHandler capabilities (PaletteExtractor, PHashExtractor, MetadataExtractor).
+type StorageWriter interface {
+	// Write copies all bytes from r to path (creating parent directories),
+	// returning the number of bytes written.
 	Write(ctx context.Context, path string, r io.Reader) (int64, error)
-	// Remove deletes the object at path (used to roll back a failed import).
+	// Remove deletes the file at path. Removing a non-existent path is not an
+	// error, so cleanup is idempotent.
 	Remove(ctx context.Context, path string) error
-	// Rename moves oldPath to newPath within the provider.
-	Rename(ctx context.Context, oldPath, newPath string) error
 }
 
 // StorageRegistry holds the enabled storage providers by name.

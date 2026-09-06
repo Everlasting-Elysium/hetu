@@ -76,6 +76,40 @@ export const IconAlert = (p: P) => (
     <path d="M12 17h.01" />
   </svg>
 );
+// Masonry / waterfall — uneven columns of stacked blocks.
+export const IconMasonry = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3" y="3" width="7" height="10" rx="1" />
+    <rect x="3" y="16" width="7" height="5" rx="1" />
+    <rect x="14" y="3" width="7" height="5" rx="1" />
+    <rect x="14" y="11" width="7" height="10" rx="1" />
+  </svg>
+);
+// Gallery — a large preview above a filmstrip.
+export const IconGallery = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3" y="3" width="18" height="12" rx="1" />
+    <rect x="3" y="18" width="4" height="3" rx="1" />
+    <rect x="10" y="18" width="4" height="3" rx="1" />
+    <rect x="17" y="18" width="4" height="3" rx="1" />
+  </svg>
+);
+// Immersive — expand-to-fullscreen corner arrows.
+export const IconImmersive = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M8 3H4a1 1 0 0 0-1 1v4m0 8v4a1 1 0 0 0 1 1h4m8 0h4a1 1 0 0 0 1-1v-4m0-8V4a1 1 0 0 0-1-1h-4" />
+  </svg>
+);
+export const IconChevronLeft = (p: P) => (
+  <svg {...base(p)}>
+    <path d="m15 5-7 7 7 7" />
+  </svg>
+);
+export const IconChevronRight = (p: P) => (
+  <svg {...base(p)}>
+    <path d="m9 5 7 7-7 7" />
+  </svg>
+);
 
 // File-type placeholder glyphs, keyed by asset kind, for missing thumbnails.
 const KIND_PATHS: Record<AssetKind, string> = {

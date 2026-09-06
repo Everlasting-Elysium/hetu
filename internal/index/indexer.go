@@ -99,6 +99,12 @@ func (ix *Indexer) walk(ctx context.Context, p kernel.StorageProvider, path stri
 			return err
 		}
 		if e.IsDir {
+			// Never descend into the hetu-managed tree: version copies live
+			// under it (issue #58) and must not be indexed as new assets. This
+			// exclusion has no safety net downstream, so it is load-bearing.
+			if e.Name == domain.ManagedDirName {
+				continue
+			}
 			if err := ix.walk(ctx, p, e.Path, res); err != nil {
 				return err
 			}

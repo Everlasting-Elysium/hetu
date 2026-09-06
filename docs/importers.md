@@ -128,5 +128,5 @@ HTTP（见 [plugins/dam/import.go](../internal/plugins/dam/import.go)）：
 - `POST /api/dam/import/migrate`：迁移库（JSON `{source,path,mode,conflict,async}`）；
   `async=true` 走 JobQueue 返回 `job_id`，进度写入 jobs 表 payload。
 - `GET /api/dam/jobs`：查后台任务与迁移进度。
-- `GET /api/dam/assets/{id}/raw`：按资产自身 provider 取原文件（支持 Range），
-  故 `fs` 原地索引的资产也可下载。
+- `GET /api/dam/assets/{id}/file`：按资产自身 provider 取原文件（支持 Range），
+  故 `fs` 原地索引的资产也可下载（复用 #50 的 provider-aware 文件端点）。

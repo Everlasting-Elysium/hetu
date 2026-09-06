@@ -39,6 +39,13 @@ type Asset struct {
 	Color       string     // color label, e.g. "#FF5733"; empty = none
 	DisplayName string     // user-facing rename; empty = use Name
 	FolderID    string     // virtual folder; empty = root
+
+	// CurrentVersionID points at the active revision in asset_versions (issue
+	// #58); empty means the asset has no explicit versions and this anchor row
+	// is the single implicit version. Display fields (ThumbPath/Width/Height)
+	// returned by reads already reflect the current version; StoragePath/Hash
+	// stay anchored to the originally indexed file.
+	CurrentVersionID string
 }
 
 // SimilarityMatch pairs an asset with its cosine similarity score to a query

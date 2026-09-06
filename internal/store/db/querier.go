@@ -11,6 +11,9 @@ import (
 type Querier interface {
 	AddAssetTag(ctx context.Context, arg AddAssetTagParams) error
 	AssetIDByPath(ctx context.Context, arg AssetIDByPathParams) (string, error)
+	// Color-search / visual-similar results. thumb/dims stay the anchor's (not the
+	// current version): the color and pHash indexes are built from the anchor at
+	// scan time, so these discovery surfaces are anchor-scoped by construction.
 	AssetsByIDs(ctx context.Context, arg AssetsByIDsParams) ([]Asset, error)
 	BatchMoveToFolder(ctx context.Context, arg BatchMoveToFolderParams) error
 	BatchRemoveTags(ctx context.Context, arg BatchRemoveTagsParams) error
@@ -27,29 +30,49 @@ type Querier interface {
 	// without touching user data (see docs/ai-and-3d.md).
 	ClearAIAssetTags(ctx context.Context, ownerID string) error
 	ColorCandidates(ctx context.Context, ownerID string) ([]ColorCandidatesRow, error)
+	// Existence probe for a version by identity. Used inside SetCurrentVersion's
+	// transaction so a concurrent delete cannot leave current_version_id dangling.
+	CountVersion(ctx context.Context, arg CountVersionParams) (int64, error)
 	CreateFolder(ctx context.Context, arg CreateFolderParams) error
 	CreateShare(ctx context.Context, arg CreateShareParams) error
 	CreateTag(ctx context.Context, arg CreateTagParams) error
+	CreateVersion(ctx context.Context, arg CreateVersionParams) error
 	DeleteAssetColors(ctx context.Context, assetID string) error
 	DeleteFolder(ctx context.Context, arg DeleteFolderParams) error
 	DeleteTag(ctx context.Context, arg DeleteTagParams) error
+	DeleteVersion(ctx context.Context, arg DeleteVersionParams) error
 	EnqueueJob(ctx context.Context, arg EnqueueJobParams) error
 	EnsureOwner(ctx context.Context, arg EnsureOwnerParams) error
-	GetAsset(ctx context.Context, arg GetAssetParams) (Asset, error)
+	// thumb_path/width/height resolve to the current version (issue #58) via the
+	// LEFT JOIN: current_version_id is '' for un-versioned assets so cv is NULL and
+	// COALESCE falls back to the anchor's own values. storage_path/hash stay
+	// anchored to the original indexed file (scan/dedup/relocate key off them).
+	GetAsset(ctx context.Context, arg GetAssetParams) (GetAssetRow, error)
 	// Resolves the canonical asset row by its natural key (owner, provider, path).
 	// Needed after UpsertAsset because the ON CONFLICT clause keeps the existing
 	// id and discards a freshly generated one, so callers that import/index a file
 	// must re-resolve to attach tags/folders/ratings/annotations to the right row.
-	GetAssetByPath(ctx context.Context, arg GetAssetByPathParams) (Asset, error)
+	// Mirrors GetAsset's version-aware projection (issue #58) so it returns db.Asset.
+	GetAssetByPath(ctx context.Context, arg GetAssetByPathParams) (GetAssetByPathRow, error)
+	// The asset's current-version pointer ('' when the asset has no explicit
+	// versions yet; the anchor row itself is the implicit single version).
+	GetAssetCurrentVersion(ctx context.Context, arg GetAssetCurrentVersionParams) (string, error)
 	GetEmbedding(ctx context.Context, assetID string) (Embedding, error)
 	GetShareByToken(ctx context.Context, token string) (Share, error)
 	// Resolves an owner's tag id by name so the AI pipeline can reuse an existing
 	// (possibly manual) tag instead of creating a duplicate. Returns sql.ErrNoRows
 	// when absent, signalling the caller to create it.
 	GetTagIDByName(ctx context.Context, arg GetTagIDByNameParams) (string, error)
+	// One version addressed by its id (owner-scoped). Used by the /file endpoint to
+	// resolve the current version's bytes for playback/download.
+	GetVersionByID(ctx context.Context, arg GetVersionByIDParams) (AssetVersion, error)
+	// One version addressed by (asset, version number); enforces ownership and that
+	// the version belongs to the asset. Used by set-current and delete.
+	GetVersionByNo(ctx context.Context, arg GetVersionByNoParams) (AssetVersion, error)
 	InsertAssetColor(ctx context.Context, arg InsertAssetColorParams) error
 	ListAssetTags(ctx context.Context, assetID string) ([]Tag, error)
-	ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset, error)
+	// thumb_path/width/height resolve to the current version (see GetAsset).
+	ListAssets(ctx context.Context, arg ListAssetsParams) ([]ListAssetsRow, error)
 	// Returns all live assets with the given hash for the owner.
 	ListAssetsByHash(ctx context.Context, arg ListAssetsByHashParams) ([]Asset, error)
 	// Returns hashes that appear more than once among the owner's live assets.
@@ -69,8 +92,13 @@ type Querier interface {
 	ListPHashAnnotations(ctx context.Context, ownerID string) ([]ListPHashAnnotationsRow, error)
 	ListTags(ctx context.Context, ownerID string) ([]Tag, error)
 	ListTrashedAssets(ctx context.Context, arg ListTrashedAssetsParams) ([]Asset, error)
+	// All versions of an asset, newest version first.
+	ListVersions(ctx context.Context, arg ListVersionsParams) ([]AssetVersion, error)
 	MarkAssetsFound(ctx context.Context, arg MarkAssetsFoundParams) error
 	MarkAssetsMissing(ctx context.Context, arg MarkAssetsMissingParams) error
+	// Highest allocated version number for an asset (0 when none). CAST forces an
+	// int64 return so version-number allocation is MaxVersionNo + 1.
+	MaxVersionNo(ctx context.Context, assetID string) (int64, error)
 	PurgeTrash(ctx context.Context, arg PurgeTrashParams) error
 	// Batch-updates storage_path by replacing old_prefix with new_prefix for all
 	// assets whose path starts with old_prefix, and clears missing_at.
@@ -78,6 +106,7 @@ type Querier interface {
 	// Updates the storage path (and optionally provider) of a single asset and
 	// clears missing_at. Used for manual relocate and hash-based auto-reconnect.
 	RelocateAsset(ctx context.Context, arg RelocateAssetParams) error
+	SetAssetCurrentVersion(ctx context.Context, arg SetAssetCurrentVersionParams) error
 	SetDisplayName(ctx context.Context, arg SetDisplayNameParams) error
 	// Updates asset.created_at when embedded metadata (EXIF) provides a capture
 	// time that should take priority over the filesystem modification time.

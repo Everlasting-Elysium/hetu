@@ -72,7 +72,7 @@ func (s *Service) placeIntoLibrary(ctx context.Context, canonical string, item I
 	if !ok {
 		return "", domain.Entry{}, noopCleanup, fmt.Errorf("place: provider %q: %w", local.ProviderName, domain.ErrNotFound)
 	}
-	writable, ok := dstProv.(kernel.WritableProvider)
+	writable, ok := dstProv.(kernel.StorageWriter)
 	if !ok {
 		return "", domain.Entry{}, noopCleanup, fmt.Errorf("place: provider %q is not writable", local.ProviderName)
 	}

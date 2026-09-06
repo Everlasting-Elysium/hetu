@@ -30,6 +30,33 @@ func TestHandler_Kind(t *testing.T) {
 	}
 }
 
+func TestSupported(t *testing.T) {
+	for _, ext := range []string{"obj", "fbx", "glb", "gltf", "stl", "usd", "usdz", "ply"} {
+		if !Supported(ext) {
+			t.Errorf("Supported(%q) = false, want true", ext)
+		}
+	}
+	for _, ext := range []string{"ztl", "zpr", "txt", "png"} {
+		if Supported(ext) {
+			t.Errorf("Supported(%q) = true, want false", ext)
+		}
+	}
+}
+
+func TestWebFriendly(t *testing.T) {
+	// glTF/GLB load in the browser directly; everything else needs conversion.
+	for _, ext := range []string{"glb", "gltf"} {
+		if !WebFriendly(ext) {
+			t.Errorf("WebFriendly(%q) = false, want true", ext)
+		}
+	}
+	for _, ext := range []string{"obj", "fbx", "stl", "usd", "usdz", "ply", "ztl"} {
+		if WebFriendly(ext) {
+			t.Errorf("WebFriendly(%q) = true, want false", ext)
+		}
+	}
+}
+
 func TestHandler_Extract(t *testing.T) {
 	meta, err := New("").Extract(context.Background(), strings.NewReader(""))
 	if err != nil {

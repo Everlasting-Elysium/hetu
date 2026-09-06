@@ -22,6 +22,29 @@ var supported = map[string]struct{}{
 	"stl": {}, "usd": {}, "usdz": {}, "ply": {},
 }
 
+// webFriendly lists the formats the web viewer (<model-viewer>) loads directly,
+// with no server-side conversion. glTF/GLB are the browser-native 3D formats;
+// every other supported format is converted to GLB before viewing (see
+// ConvertToGLB). Note a .gltf with external buffers/textures only loads when
+// self-contained (embedded/base64); split .gltf assets fall back in the UI.
+var webFriendly = map[string]struct{}{
+	"glb": {}, "gltf": {},
+}
+
+// Supported reports whether ext (lowercase, no leading dot) is a 3D exchange
+// format hetu indexes. Used by the DAM viewer to reject opaque/native formats.
+func Supported(ext string) bool {
+	_, ok := supported[ext]
+	return ok
+}
+
+// WebFriendly reports whether ext can be served to the browser as-is (glTF/GLB).
+// Supported formats that are not web-friendly must be converted to GLB first.
+func WebFriendly(ext string) bool {
+	_, ok := webFriendly[ext]
+	return ok
+}
+
 // Handler processes standard 3D model formats.
 type Handler struct {
 	blenderAddr string
@@ -36,10 +59,7 @@ func New(blenderAddr string) *Handler {
 }
 
 // Match reports whether ext is a supported 3D model extension.
-func (h *Handler) Match(ext string) bool {
-	_, ok := supported[ext]
-	return ok
-}
+func (h *Handler) Match(ext string) bool { return Supported(ext) }
 
 // Kind returns domain.KindModel.
 func (h *Handler) Kind() domain.AssetKind { return domain.KindModel }

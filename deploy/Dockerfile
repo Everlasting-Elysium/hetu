@@ -11,11 +11,11 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/hetu ./cmd/hetu
 
 # --- runtime stage ---
 FROM alpine:3.20
-RUN adduser -D -u 10001 hetu
-# Own the volume mount points as the runtime user BEFORE declaring VOLUME, so a
-# fresh named/anonymous volume inherits hetu ownership. Without this the
-# non-root container cannot create /data/hetu.db on first start (SQLITE_CANTOPEN).
-RUN mkdir -p /data /library && chown hetu:hetu /data /library
+# Create the non-root user and pre-own the volume mountpoints. Docker seeds a
+# fresh named volume from the image path's ownership, so /data and /library must
+# belong to `hetu` (uid 10001) or the non-root process cannot create the SQLite
+# DB on a root-owned named volume (SQLITE_CANTOPEN).
+RUN adduser -D -u 10001 hetu && mkdir -p /data /library && chown hetu:hetu /data /library
 # Video (mp4/mov/...) and PDF thumbnails are produced by external tools invoked
 # as subprocesses, keeping the kernel CGO-free. They are OPTIONAL: without them
 # those assets are still indexed, just without a thumbnail/dimensions. Enable by

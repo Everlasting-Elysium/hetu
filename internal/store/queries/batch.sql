@@ -33,7 +33,8 @@ WHERE owner_id = ? AND deleted_at IS NOT NULL AND deleted_at < ?;
 -- name: ListTrashedAssets :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at
+       deleted_at, rating, color, display_name, folder_id, missing_at,
+       current_version_id
 FROM assets
 WHERE owner_id = ? AND deleted_at IS NOT NULL
 ORDER BY deleted_at DESC
