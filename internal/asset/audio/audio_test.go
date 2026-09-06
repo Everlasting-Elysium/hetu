@@ -40,14 +40,14 @@ func TestKind(t *testing.T) {
 
 func TestParseProbe(t *testing.T) {
 	tests := []struct {
-		name       string
-		in         string
-		wantDur    time.Duration
-		wantBR     int
-		wantSR     int
-		wantCh     int
-		wantCodec  string
-		wantErr    bool
+		name      string
+		in        string
+		wantDur   time.Duration
+		wantBR    int
+		wantSR    int
+		wantCh    int
+		wantCodec string
+		wantErr   bool
 	}{
 		{
 			name:      "full mp3",
@@ -68,8 +68,8 @@ func TestParseProbe(t *testing.T) {
 			wantCodec: "flac",
 		},
 		{
-			name: "empty streams",
-			in:   `{"streams":[],"format":{"duration":"10.0","bit_rate":"128000"}}`,
+			name:    "empty streams",
+			in:      `{"streams":[],"format":{"duration":"10.0","bit_rate":"128000"}}`,
 			wantDur: 10 * time.Second,
 		},
 		{
@@ -167,7 +167,7 @@ func TestWithFFmpeg(t *testing.T) {
 	}
 	defer f.Close()
 
-	// Thumbnail: expect valid PNG (starts with PNG magic bytes).
+	// Thumbnail: expect valid JPEG (starts with JPEG magic bytes).
 	var buf bytes.Buffer
 	if err := h.Thumbnail(context.Background(), f, &buf); err != nil {
 		t.Fatalf("Thumbnail: %v", err)

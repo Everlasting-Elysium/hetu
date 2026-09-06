@@ -42,7 +42,7 @@ type Handler struct {
 }
 
 var (
-	_ kernel.AssetHandler    = (*Handler)(nil)
+	_ kernel.AssetHandler      = (*Handler)(nil)
 	_ kernel.MetadataExtractor = (*Handler)(nil)
 )
 
@@ -63,8 +63,6 @@ func (h *Handler) Match(ext string) bool {
 
 func (h *Handler) Kind() domain.AssetKind { return domain.KindAudio }
 
-func (h *Handler) available() bool { return h.ffmpeg != "" && h.ffprobe != "" }
-
 func (h *Handler) warnMissing(ctx context.Context) {
 	h.warn.Do(func() {
 		h.log.WarnContext(ctx,
@@ -78,7 +76,7 @@ func (h *Handler) Extract(_ context.Context, _ io.ReadSeeker) (domain.Meta, erro
 	return domain.Meta{Kind: domain.KindAudio}, nil
 }
 
-// Thumbnail renders a waveform PNG into w using ffmpeg's showwavespic filter.
+// Thumbnail renders a waveform JPEG into w using ffmpeg's showwavespic filter.
 func (h *Handler) Thumbnail(ctx context.Context, src io.ReadSeeker, w io.Writer) error {
 	if h.ffmpeg == "" {
 		h.warnMissing(ctx)

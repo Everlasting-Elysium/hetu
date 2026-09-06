@@ -32,7 +32,7 @@ const (
 	KeyExifLensModel    = "exif.lens_model"    // JSON string
 	KeyExifISO          = "exif.iso"           // JSON int
 	KeyExifFNumber      = "exif.f_number"      // JSON string, e.g. "f/2.8"
-	KeyExifExposure     = "exif.exposure_time"  // JSON string, e.g. "1/125"
+	KeyExifExposure     = "exif.exposure_time" // JSON string, e.g. "1/125"
 	KeyExifFocalLength  = "exif.focal_length"  // JSON string, e.g. "50mm"
 	KeyExifGPSLatitude  = "exif.gps_latitude"  // JSON float64
 	KeyExifGPSLongitude = "exif.gps_longitude" // JSON float64
@@ -117,8 +117,8 @@ type DuplicateGroup struct {
 // distance threshold. Anchor is the reference asset; Members are the similar
 // ones, each annotated with its hamming distance.
 type SimilarGroup struct {
-	Anchor  Asset         `json:"anchor"`
-	Members []SimilarHit  `json:"members"`
+	Anchor  Asset        `json:"anchor"`
+	Members []SimilarHit `json:"members"`
 }
 
 // SimilarHit pairs an asset with its hamming distance to the group anchor.
