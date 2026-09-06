@@ -73,7 +73,7 @@ export function ImmersiveViewer({ assets, startIndex, onExit }: Props) {
         {asset.kind === "image" ? (
           <img
             className={styles.image}
-            src={failed || !asset.thumb ? thumbUrl(asset.id) : fileUrl(asset.path)}
+            src={failed || !asset.thumb ? thumbUrl(asset.id) : fileUrl(asset.id)}
             alt={label}
             onError={() => setFailed(true)}
           />
