@@ -28,6 +28,5 @@ func (h *Handler) Palette(_ context.Context, src io.ReadSeeker) (color.Palette, 
 	if err != nil {
 		return nil, fmt.Errorf("decode image: %w", err)
 	}
-	small := imaging.Fit(img, sampleMaxDim, sampleMaxDim, imaging.Box)
-	return color.Quantize(small, paletteSize), nil
+	return paletteFromImage(img), nil
 }

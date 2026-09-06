@@ -1,17 +1,22 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 
-// E2E tests run against a hetu server started externally (either `bin/hetu
-// serve` or docker compose). The base URL defaults to the docker-compose port.
+// E2E smoke config. Point BASE_URL (or E2E_BASE_URL) at a running hetu instance
+// (default :8080). Tests never start a server themselves so they can target a
+// real deploy — the model-viewer (#51), multi-view (#52), and moodboard (#43)
+// smokes live in ./e2e.
+const baseURL = process.env.BASE_URL ?? process.env.E2E_BASE_URL ?? "http://localhost:8080";
+
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 30_000,
-  retries: 0,
+  timeout: 60_000,
+  expect: { timeout: 15_000 },
+  fullyParallel: false,
+  reporter: [["list"]],
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? "http://localhost:8080",
+    baseURL,
     headless: true,
     screenshot: "only-on-failure",
+    trace: "retain-on-failure",
   },
-  projects: [
-    { name: "chromium", use: { browserName: "chromium" } },
-  ],
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });

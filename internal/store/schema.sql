@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS assets (
     color        TEXT NOT NULL DEFAULT '',         -- color label, e.g. '#FF5733'
     display_name TEXT NOT NULL DEFAULT '',         -- user rename; empty = use name
     folder_id    TEXT NOT NULL DEFAULT '',         -- FK -> folders.id; empty = root
-    missing_at   INTEGER                           -- NULL = found; unix ts = marked missing
+    missing_at   INTEGER,                          -- NULL = found; unix ts = marked missing
+    current_version_id TEXT NOT NULL DEFAULT ''    -- FK -> asset_versions.id; '' = single implicit version (the anchor row itself)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_owner_path
@@ -44,6 +45,33 @@ CREATE INDEX IF NOT EXISTS idx_assets_owner ON assets (owner_id);
 CREATE INDEX IF NOT EXISTS idx_assets_deleted ON assets (owner_id, deleted_at);
 CREATE INDEX IF NOT EXISTS idx_assets_hash ON assets (owner_id, hash);
 CREATE INDEX IF NOT EXISTS idx_assets_missing ON assets (owner_id, missing_at);
+
+-- asset_versions is the revision history of an asset (issue #58). Multiple
+-- iterations (design v1/v2...) are grouped under one asset_id; assets.current_
+-- version_id names the active one. version_no 1 is the original in-place indexed
+-- file (storage_path is the anchor path, outside ManagedDirName); versions 2+
+-- are copies uploaded through the API and stored under ManagedDirName. Each row
+-- carries thumb_path/width/height so a read can reflect the current version by
+-- LEFT JOIN without re-extracting. Dedup/missing-detection key off assets (the
+-- anchor) only, so version copies never appear as duplicate or missing assets.
+CREATE TABLE IF NOT EXISTS asset_versions (
+    id           TEXT PRIMARY KEY,
+    asset_id     TEXT NOT NULL,
+    owner_id     TEXT NOT NULL,
+    version_no   INTEGER NOT NULL,
+    provider     TEXT NOT NULL,
+    storage_path TEXT NOT NULL,
+    hash         TEXT NOT NULL,
+    size         INTEGER NOT NULL,
+    thumb_path   TEXT NOT NULL DEFAULT '',
+    width        INTEGER NOT NULL DEFAULT 0,
+    height       INTEGER NOT NULL DEFAULT 0,
+    note         TEXT NOT NULL DEFAULT '',
+    created_at   INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_versions_no ON asset_versions (asset_id, version_no);
+CREATE INDEX IF NOT EXISTS idx_asset_versions_asset ON asset_versions (asset_id);
+CREATE INDEX IF NOT EXISTS idx_asset_versions_owner ON asset_versions (owner_id);
 
 -- annotations is the layered-metadata store (manual > ai > extracted). Value is a
 -- JSON payload; model is set only for the ai layer. Color extraction writes the

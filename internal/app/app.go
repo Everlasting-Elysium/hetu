@@ -20,6 +20,7 @@ import (
 	"github.com/Everlasting-Elysium/hetu/internal/kernel"
 	"github.com/Everlasting-Elysium/hetu/internal/plugins/dam"
 	"github.com/Everlasting-Elysium/hetu/internal/plugins/nas"
+	"github.com/Everlasting-Elysium/hetu/internal/storage/fs"
 	"github.com/Everlasting-Elysium/hetu/internal/storage/local"
 	"github.com/Everlasting-Elysium/hetu/internal/storage/rclone"
 	"github.com/Everlasting-Elysium/hetu/internal/store"
@@ -55,18 +56,24 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		return nil, err
 	}
 	k := kernel.New(kernel.Deps{
-		Log:         log,
-		Store:       st,
-		ThumbDir:    filepath.Join(cfg.DataDir, "thumbnails"),
-		JobBuffer:   64,
-		BlenderAddr: cfg.BlenderAddr,
+		Log:           log,
+		Store:         st,
+		ThumbDir:      filepath.Join(cfg.DataDir, "thumbnails"),
+		ModelCacheDir: filepath.Join(cfg.DataDir, "models"),
+		JobBuffer:     64,
+		BlenderAddr:   cfg.BlenderAddr,
 	})
 	k.Storage.Register(local.New(cfg.LibraryDir))
+	// The fs provider addresses files by absolute path so assets migrated in
+	// place from an external library (Eagle/Billfish) resolve after a restart.
+	// It is never a NAS browse target; see internal/storage/fs.
+	k.Storage.Register(fs.New())
 	if cfg.RcloneAddr != "" {
 		k.Storage.Register(rclone.New(cfg.RcloneAddr, cfg.RcloneRemote, cfg.RcloneUser, cfg.RclonePass))
 		log.Info("registered rclone storage provider", slog.String("addr", cfg.RcloneAddr), slog.String("remote", cfg.RcloneRemote))
 	}
 	k.Assets.Register(image.New())
+	k.Assets.Register(image.NewPro(log))
 	k.Assets.Register(model3d.New(cfg.BlenderAddr))
 	k.Assets.Register(video.New(log))
 	k.Assets.Register(audio.New(log))

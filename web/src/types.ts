@@ -82,9 +82,30 @@ export interface BoardItem {
   z: number;
 }
 
-// Which dataset the main area is showing. "boards" lists moodboards; "board"
-// is the infinite-canvas editor for a single board. "missing" shows missing files.
-export type ViewMode = "library" | "trash" | "missing" | "boards" | "board";
+// The active view. Browse layouts (grid/waterfall/gallery/immersive) all show the
+// library dataset in different arrangements; trash/missing are distinct datasets.
+// "boards" lists moodboards; "board" is the infinite-canvas editor for one board.
+export type ViewMode =
+  | "grid"
+  | "waterfall"
+  | "gallery"
+  | "immersive"
+  | "trash"
+  | "missing"
+  | "boards"
+  | "board";
+
+// Layouts that browse the library dataset (as opposed to trash/missing).
+export const LIBRARY_LAYOUTS = ["grid", "waterfall", "gallery", "immersive"] as const;
+// Layouts persisted as the default browse preference — immersive is a transient
+// overlay entered on demand, so it is never stored as the startup view.
+export const BROWSE_LAYOUTS = ["grid", "waterfall", "gallery"] as const;
+export type BrowseLayout = (typeof BROWSE_LAYOUTS)[number];
+
+export const isLibraryView = (v: ViewMode): boolean =>
+  (LIBRARY_LAYOUTS as readonly string[]).includes(v);
+export const isBrowseLayout = (v: ViewMode): v is BrowseLayout =>
+  (BROWSE_LAYOUTS as readonly string[]).includes(v);
 
 // Active filter/search state driving the asset query.
 export interface Query {

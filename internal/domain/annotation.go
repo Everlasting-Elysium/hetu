@@ -26,6 +26,12 @@ const (
 	KeyDominant = "dominant" // JSON string of the dominant "#rrggbb"
 	KeyPHash    = "phash"    // JSON string of the perceptual hash (uint64 decimal)
 
+	// Color-management keys (layer=extracted, prefix "color."). Populated from
+	// the embedded ICC profile description and/or the EXIF ColorSpace tag so the
+	// UI can flag wide-gamut assets (Adobe RGB / Display P3 / ProPhoto).
+	KeyColorSpace      = "color.space"       // JSON string, e.g. "sRGB", "Adobe RGB", "Display P3"
+	KeyColorICCProfile = "color.icc_profile" // JSON string, raw ICC profile description
+
 	// EXIF keys (layer=extracted, prefix "exif.").
 	KeyExifCameraMake   = "exif.camera_make"   // JSON string
 	KeyExifCameraModel  = "exif.camera_model"  // JSON string

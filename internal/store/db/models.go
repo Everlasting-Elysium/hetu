@@ -18,26 +18,27 @@ type Annotation struct {
 }
 
 type Asset struct {
-	ID          string
-	OwnerID     string
-	Kind        string
-	Provider    string
-	StoragePath string
-	Name        string
-	Ext         string
-	Size        int64
-	Hash        string
-	ThumbPath   string
-	Width       int64
-	Height      int64
-	CreatedAt   int64
-	IndexedAt   int64
-	DeletedAt   sql.NullInt64
-	Rating      int64
-	Color       string
-	DisplayName string
-	FolderID    string
-	MissingAt   sql.NullInt64
+	ID               string
+	OwnerID          string
+	Kind             string
+	Provider         string
+	StoragePath      string
+	Name             string
+	Ext              string
+	Size             int64
+	Hash             string
+	ThumbPath        string
+	Width            int64
+	Height           int64
+	CreatedAt        int64
+	IndexedAt        int64
+	DeletedAt        sql.NullInt64
+	Rating           int64
+	Color            string
+	DisplayName      string
+	FolderID         string
+	MissingAt        sql.NullInt64
+	CurrentVersionID string
 }
 
 type AssetColor struct {
@@ -55,6 +56,22 @@ type AssetTag struct {
 	AssetID string
 	TagID   string
 	Source  string
+}
+
+type AssetVersion struct {
+	ID          string
+	AssetID     string
+	OwnerID     string
+	VersionNo   int64
+	Provider    string
+	StoragePath string
+	Hash        string
+	Size        int64
+	ThumbPath   string
+	Width       int64
+	Height      int64
+	Note        string
+	CreatedAt   int64
 }
 
 type AssetsFt struct {

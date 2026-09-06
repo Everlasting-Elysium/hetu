@@ -17,6 +17,10 @@ type Store interface {
 	// (see domain.AssetFilter); zero-value filter fields are ignored.
 	ListAssetsFiltered(ctx context.Context, owner domain.OwnerID, f domain.AssetFilter, limit, offset int) ([]domain.Asset, error)
 	GetAsset(ctx context.Context, owner domain.OwnerID, id domain.AssetID) (domain.Asset, error)
+	// GetAssetByPath resolves an asset by its natural key (owner, provider,
+	// storage_path). Callers that index a single file use it to obtain the
+	// canonical row id, which UpsertAsset's ON CONFLICT clause preserves.
+	GetAssetByPath(ctx context.Context, owner domain.OwnerID, provider, path string) (domain.Asset, error)
 
 	// SearchAssets performs FTS5 full-text search. ftsQuery is a pre-built
 	// FTS5 MATCH expression (produced by the search package parser).
@@ -36,6 +40,12 @@ type Store interface {
 	// metadata contains an embedded capture time that predates the filesystem
 	// timestamp. The asset is addressed by its natural key.
 	IndexMetadata(ctx context.Context, owner domain.OwnerID, provider, path string, md domain.ExtractedMetadata) error
+
+	// UpsertAnnotation writes a single layered annotation for an asset, keyed by
+	// (asset_id, layer, key). Used by the import/migration path to persist a
+	// source URL (extracted layer) or a migrated note (manual layer). Value is a
+	// JSON-serialized payload, matching the extracted/ai writers.
+	UpsertAnnotation(ctx context.Context, owner domain.OwnerID, a domain.Annotation) error
 
 	// Batch metadata updates over a set of assets.
 	BatchUpdateRating(ctx context.Context, owner domain.OwnerID, ids []domain.AssetID, rating int) error
@@ -72,8 +82,33 @@ type Store interface {
 	ListFolders(ctx context.Context, owner domain.OwnerID) ([]domain.Folder, error)
 	DeleteFolder(ctx context.Context, owner domain.OwnerID, id domain.FolderID) error
 
+	// Versions: revision history (issue #58). AddVersion appends newVersion and
+	// makes it current; when the asset has no explicit versions yet it first
+	// synthesizes base as version 1 from the asset's anchor state (lazy backfill).
+	// It returns newVersion with its allocated version_no. Reads reflect the
+	// current version via GetAsset/ListAssets/SearchAssets (LEFT JOIN); the
+	// anchor's storage_path/hash stay put so scan/dedup/relocate are unaffected.
+	AddVersion(ctx context.Context, owner domain.OwnerID, base, newVersion domain.AssetVersion) (domain.AssetVersion, error)
+	ListVersions(ctx context.Context, owner domain.OwnerID, assetID domain.AssetID) ([]domain.AssetVersion, error)
+	GetVersionByNo(ctx context.Context, owner domain.OwnerID, assetID domain.AssetID, versionNo int) (domain.AssetVersion, error)
+	// GetVersionByID resolves a version by its id (owner-scoped); the /file
+	// endpoint uses it to stream the current version's bytes.
+	GetVersionByID(ctx context.Context, owner domain.OwnerID, versionID domain.VersionID) (domain.AssetVersion, error)
+	CurrentVersionID(ctx context.Context, owner domain.OwnerID, assetID domain.AssetID) (string, error)
+	// SetCurrentVersion repoints the asset at versionID, verifying the version
+	// still exists in the same transaction so a concurrent delete cannot leave a
+	// dangling pointer; returns domain.ErrNotFound if it no longer exists.
+	SetCurrentVersion(ctx context.Context, owner domain.OwnerID, assetID domain.AssetID, versionID domain.VersionID) error
+	// DeleteVersion removes a version unless it is the asset's current version,
+	// atomically. It returns deleted=false (without error) when the version is
+	// current, so callers can reject the request without a separate racy check.
+	DeleteVersion(ctx context.Context, owner domain.OwnerID, assetID domain.AssetID, versionID domain.VersionID) (deleted bool, err error)
+
 	// Duplicates: exact (SHA-256) and perceptual (pHash) duplicate detection.
 	FindExactDuplicates(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.DuplicateGroup, error)
+	// ListAssetsByHash returns the owner's live assets with the given content
+	// hash (oldest first); the import service uses it to skip content dupes.
+	ListAssetsByHash(ctx context.Context, owner domain.OwnerID, hash string) ([]domain.Asset, error)
 	IndexPHash(ctx context.Context, owner domain.OwnerID, provider, path string, phash uint64) error
 	FindSimilarByPHash(ctx context.Context, owner domain.OwnerID, threshold int) ([]domain.SimilarGroup, error)
 
@@ -86,6 +121,9 @@ type Store interface {
 	// runtime (kernel.JobQueue and issues #8/#9); these methods only persist.
 	EnqueueJob(ctx context.Context, j domain.Job) error
 	UpdateJobStatus(ctx context.Context, owner domain.OwnerID, id domain.JobID, status domain.JobStatus) error
+	// UpdateJob transitions a job's status and replaces its payload together, so
+	// a long-running import can persist progress counts (JSON) as it advances.
+	UpdateJob(ctx context.Context, owner domain.OwnerID, id domain.JobID, status domain.JobStatus, payload string) error
 	ListJobs(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.Job, error)
 
 	// Embeddings: CLIP vector retrieval and brute-force similarity search.

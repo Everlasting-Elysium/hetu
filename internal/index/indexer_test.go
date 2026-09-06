@@ -341,6 +341,57 @@ func TestIndexer_AutoReconnect(t *testing.T) {
 	}
 }
 
+// TestIndexer_SkipsManagedDir proves the scan walk never descends into the
+// hetu-managed tree (.hetu/), so version copies (issue #58) are not indexed as
+// new assets. A PNG placed under .hetu/versions/... must be ignored while a
+// sibling PNG at the library root is indexed normally.
+func TestIndexer_SkipsManagedDir(t *testing.T) {
+	ctx := context.Background()
+	tmp := t.TempDir()
+	lib := filepath.Join(tmp, "lib")
+	managed := filepath.Join(lib, domain.ManagedDirName, "versions", "asset1", "v2")
+	if err := os.MkdirAll(managed, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writePNG(t, filepath.Join(lib, "a.png"), 32, 32)
+	writePNG(t, filepath.Join(managed, "copy.png"), 64, 64)
+
+	st, err := store.Open(ctx, filepath.Join(tmp, "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	k := kernel.New(kernel.Deps{
+		Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Store:     st,
+		ThumbDir:  filepath.Join(tmp, "thumbs"),
+		JobBuffer: 1,
+	})
+	k.Storage.Register(local.New(lib))
+	k.Assets.Register(assetimage.New())
+
+	owner, err := domain.NewOwnerID("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := index.New(k, owner).Scan(ctx, local.ProviderName, "")
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	// Only a.png is indexed; the managed copy.png is never walked.
+	if res.Indexed != 1 {
+		t.Fatalf("res.Indexed = %d, want 1 (managed tree excluded)", res.Indexed)
+	}
+	assets, err := st.ListAssets(ctx, owner, 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(assets) != 1 || assets[0].StoragePath != "a.png" {
+		t.Fatalf("assets = %+v, want only a.png", assets)
+	}
+}
+
 func writePNG(t *testing.T, path string, w, h int) {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, w, h))

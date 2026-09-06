@@ -1,13 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api/client";
-import { type Asset, EMPTY_QUERY, type Query, type ViewMode } from "./types";
+import {
+  type Asset,
+  type BrowseLayout,
+  EMPTY_QUERY,
+  isBrowseLayout,
+  isLibraryView,
+  type Query,
+  type ViewMode,
+} from "./types";
 import { useAssets } from "./hooks/useAssets";
 import { useLibrary } from "./hooks/useLibrary";
 import { useBoards } from "./hooks/useBoards";
 import { useSelection } from "./hooks/useSelection";
+import { useViewMode } from "./hooks/useViewMode";
 import { Sidebar } from "./components/Sidebar";
 import { SearchBar } from "./components/SearchBar";
 import { AssetGrid } from "./components/AssetGrid";
+import { WaterfallGrid } from "./components/WaterfallGrid";
+import { GalleryView } from "./components/GalleryView";
+import { ImmersiveViewer } from "./components/ImmersiveViewer";
 import { AssetDetail } from "./components/AssetDetail";
 import { BatchBar } from "./components/BatchBar";
 import { TrashView } from "./components/TrashView";
@@ -17,12 +29,13 @@ import brand from "./components/Sidebar.module.css";
 import styles from "./App.module.css";
 
 export default function App() {
-  const [view, setView] = useState<ViewMode>("library");
+  const [view, setView] = useViewMode();
   const [query, setQuery] = useState<Query>(EMPTY_QUERY);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Asset | null>(null);
+  const [immersiveIndex, setImmersiveIndex] = useState(0);
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
   const lib = useLibrary(setError);
@@ -31,9 +44,15 @@ export default function App() {
   const ids = useMemo(() => assets.map((a) => a.id), [assets]);
   const sel = useSelection(ids);
 
-  // Asset views drive the grid, search bar, and batch bar; board views own
-  // their full-area chrome instead.
-  const isAssetView = view === "library" || view === "trash" || view === "missing";
+  // Board views (list + canvas) own their full-area chrome, so the search and
+  // batch bars hide there; every other view keeps the asset chrome.
+  const isAssetView = view !== "boards" && view !== "board";
+
+  // Remember the last browse layout so exiting immersive/trash/missing returns to it.
+  const prevBrowse = useRef<BrowseLayout>(isBrowseLayout(view) ? view : "grid");
+  useEffect(() => {
+    if (isBrowseLayout(view)) prevBrowse.current = view;
+  }, [view]);
 
   useEffect(() => {
     if (error) {
@@ -61,20 +80,34 @@ export default function App() {
     [sel, bump, lib],
   );
 
-  const setFolder = (folderId: string | null) => {
-    setView("library");
+  // Filtering keeps the current browse layout (or restores it from a special view).
+  const applyFilter = (patch: Partial<Query>) => {
+    setView(isBrowseLayout(view) ? view : prevBrowse.current);
     sel.clear();
-    setQuery({ ...EMPTY_QUERY, folderId });
+    setQuery({ ...EMPTY_QUERY, ...patch });
   };
-  const setTag = (tagId: string | null) => {
-    setView("library");
-    sel.clear();
-    setQuery({ ...EMPTY_QUERY, tagId });
-  };
+  const setFolder = (folderId: string | null) => applyFilter({ folderId });
+  const setTag = (tagId: string | null) => applyFilter({ tagId });
+
   const changeView = (v: ViewMode) => {
+    if (v === "immersive") {
+      // Only derive the start index from the selection when the current dataset is
+      // the library — a trash/missing selection index is meaningless once immersive
+      // swaps to the library dataset.
+      const firstSel = isLibraryView(view)
+        ? assets.findIndex((a) => sel.selected.has(a.id))
+        : -1;
+      setImmersiveIndex(firstSel >= 0 ? firstSel : 0);
+      setView("immersive");
+      return;
+    }
+    // Trash/missing are distinct datasets — reset filters + selection. Switching
+    // between grid/waterfall/gallery keeps the current library filter intact.
+    if (v === "trash" || v === "missing") {
+      sel.clear();
+      setQuery(EMPTY_QUERY);
+    }
     setView(v);
-    sel.clear();
-    setQuery(EMPTY_QUERY);
   };
   const openBoard = (id: string) => {
     sel.clear();
@@ -95,6 +128,10 @@ export default function App() {
         : query.keyword || query.colorHex
           ? "没有匹配的素材，换个条件试试。"
           : "运行 `bin/hetu scan` 索引素材目录后即可浏览。";
+
+  const rate = (id: string, rating: number) => void run((t) => api.rate(t, rating), [id])();
+  const color = (id: string, hex: string) => void run((t) => api.colorLabel(t, hex), [id])();
+  const openDetail = (id: string) => setDetail(assets.find((a) => a.id === id) ?? null);
 
   return (
     <div className="app" onClick={() => sel.clear()}>
@@ -148,22 +185,41 @@ export default function App() {
         ) : (
           <>
             {view === "trash" && (
-              <TrashView
-                count={lib.trashCount}
-                onEmpty={() => void run(() => api.purgeTrash(0))()}
-              />
+              <TrashView count={lib.trashCount} onEmpty={() => void run(() => api.purgeTrash(0))()} />
             )}
             <div className={styles.gridWrap}>
-              <AssetGrid
-                assets={assets}
-                loading={loading}
-                error={loadErr}
-                selection={sel}
-                emptyHint={emptyHint}
-                onRate={(id, rating) => void run((t) => api.rate(t, rating), [id])()}
-                onColor={(id, hex) => void run((t) => api.colorLabel(t, hex), [id])()}
-                onDetail={(id) => setDetail(assets.find((a) => a.id === id) ?? null)}
-              />
+              {view === "gallery" ? (
+                <GalleryView
+                  assets={assets}
+                  loading={loading}
+                  error={loadErr}
+                  emptyHint={emptyHint}
+                  onRate={rate}
+                  onColor={color}
+                />
+              ) : view === "waterfall" ? (
+                <WaterfallGrid
+                  assets={assets}
+                  loading={loading}
+                  error={loadErr}
+                  selection={sel}
+                  emptyHint={emptyHint}
+                  onRate={rate}
+                  onColor={color}
+                  onDetail={openDetail}
+                />
+              ) : (
+                <AssetGrid
+                  assets={assets}
+                  loading={loading}
+                  error={loadErr}
+                  selection={sel}
+                  emptyHint={emptyHint}
+                  onRate={rate}
+                  onColor={color}
+                  onDetail={openDetail}
+                />
+              )}
             </div>
           </>
         )}
@@ -182,6 +238,14 @@ export default function App() {
           onMove={(folderId) => void run((t) => api.move(t, folderId))()}
           onTrash={() => void run((t) => api.trash(t))()}
           onRestore={() => void run((t) => api.restore(t))()}
+        />
+      )}
+
+      {view === "immersive" && (
+        <ImmersiveViewer
+          assets={assets}
+          startIndex={immersiveIndex}
+          onExit={() => setView(prevBrowse.current)}
         />
       )}
 

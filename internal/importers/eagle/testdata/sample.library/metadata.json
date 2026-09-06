@@ -1,0 +1,27 @@
+{
+  "folders": [
+    {
+      "id": "LFOLDER_ILLUS",
+      "name": "Illustrations",
+      "children": [
+        {
+          "id": "LFOLDER_CHARS",
+          "name": "Characters",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "LFOLDER_PHOTOS",
+      "name": "Photos",
+      "children": []
+    }
+  ],
+  "smartFolders": [],
+  "quickAccess": [],
+  "tagsGroups": [
+    { "id": "TG1", "name": "Themes", "tags": ["nature", "design"] }
+  ],
+  "modificationTime": 1700000100000,
+  "applicationVersion": "4.0.0"
+}

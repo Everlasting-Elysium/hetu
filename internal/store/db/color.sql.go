@@ -31,7 +31,8 @@ func (q *Queries) AssetIDByPath(ctx context.Context, arg AssetIDByPathParams) (s
 const assetsByIDs = `-- name: AssetsByIDs :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at
+       deleted_at, rating, color, display_name, folder_id, missing_at,
+       current_version_id
 FROM assets
 WHERE owner_id = ? AND id IN (/*SLICE:ids*/?)
 `
@@ -41,6 +42,9 @@ type AssetsByIDsParams struct {
 	Ids     []string
 }
 
+// Color-search / visual-similar results. thumb/dims stay the anchor's (not the
+// current version): the color and pHash indexes are built from the anchor at
+// scan time, so these discovery surfaces are anchor-scoped by construction.
 func (q *Queries) AssetsByIDs(ctx context.Context, arg AssetsByIDsParams) ([]Asset, error) {
 	query := assetsByIDs
 	var queryParams []interface{}
@@ -82,6 +86,7 @@ func (q *Queries) AssetsByIDs(ctx context.Context, arg AssetsByIDsParams) ([]Ass
 			&i.DisplayName,
 			&i.FolderID,
 			&i.MissingAt,
+			&i.CurrentVersionID,
 		); err != nil {
 			return nil, err
 		}

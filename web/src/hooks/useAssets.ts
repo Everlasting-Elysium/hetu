@@ -26,6 +26,10 @@ export function useAssets(view: ViewMode, query: Query, version: number): Assets
   const [error, setError] = useState<string | null>(null);
   const reqId = useRef(0);
 
+  // Collapse the browse layouts (grid/waterfall/gallery/immersive) to one dataset
+  // key so switching layout does not refetch — only a real dataset change does.
+  const dataset = view === "trash" ? "trash" : view === "missing" ? "missing" : "library";
+
   useEffect(() => {
     const id = ++reqId.current;
     setLoading(true);
@@ -33,8 +37,8 @@ export function useAssets(view: ViewMode, query: Query, version: number): Assets
 
     (async (): Promise<Asset[]> => {
       if (view === "boards" || view === "board") return [];
-      if (view === "trash") return api.listTrash();
-      if (view === "missing") return api.listMissing();
+      if (dataset === "trash") return api.listTrash();
+      if (dataset === "missing") return api.listMissing();
       if (query.colorHex) return api.searchColor(query.colorHex);
       if (query.keyword.trim()) return api.searchKeyword(query.keyword.trim());
 
@@ -55,7 +59,7 @@ export function useAssets(view: ViewMode, query: Query, version: number): Assets
       .finally(() => {
         if (id === reqId.current) setLoading(false);
       });
-  }, [view, query, version]);
+  }, [dataset, query, version]);
 
   return { assets, loading, error };
 }

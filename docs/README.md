@@ -16,6 +16,7 @@ docs/
 ├── data-model.md      数据库表清单与字段说明、owner_id 预留、FTS/向量属于 Phase 1
 ├── storage.md         存储抽象层、StorageProvider 契约、rclone/AList 路线图
 ├── nas-api.md         NAS 插件 API（浏览、下载、分享链接）
+├── importers.md       Eagle/Billfish 迁移导入器：数据流、放置模式、字段映射
 └── roadmap.md         Phase 0/1/2/3 详细任务清单
 ```
 
@@ -32,6 +33,7 @@ docs/
 | [data-model.md](./data-model.md) | 列出所有数据库表及字段，说明 `owner_id` 预留多用户的设计意图，标注 FTS5 和 embeddings 表属于 Phase 1。 |
 | [storage.md](./storage.md) | 说明索引不搬运原则、`StorageProvider` 契约接口、v0 本地文件系统实现、rclone 和 AList/OpenList 的路线图集成方案。 |
 | [nas-api.md](./nas-api.md) | NAS 插件 API 端点说明：文件浏览、下载（Range 支持）、分享链接创建与公开访问。 |
+| [importers.md](./importers.md) | Eagle/Billfish 迁移导入器：数据流、index/copy/move 放置模式、冲突策略、逐来源字段映射表、只读保证与已知限制、CLI/HTTP 用法。 |
 | [roadmap.md](./roadmap.md) | 按 Phase 0/1/2/3 列出具体任务清单，每条任务对应一个可交付的工程单元。 |
 
 ---
