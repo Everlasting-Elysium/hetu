@@ -72,6 +72,9 @@ func (p *Plugin) Routes() []kernel.Route {
 
 		{Method: http.MethodGet, Pattern: "/duplicates", Handler: p.listDuplicates},
 		{Method: http.MethodGet, Pattern: "/duplicates/similar", Handler: p.listSimilar},
+
+		{Method: http.MethodPut, Pattern: "/assets/{id}/note", Handler: p.updateNote},
+		{Method: http.MethodDelete, Pattern: "/assets/{id}/note", Handler: p.deleteNote},
 	}
 }
 
@@ -91,7 +94,12 @@ func (p *Plugin) listAssets(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
-	httpjson.WriteJSON(w, http.StatusOK, toDTOs(assets))
+	notes, err := p.fetchNotes(r.Context(), assetIDs(assets))
+	if err != nil {
+		httpjson.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+	httpjson.WriteJSON(w, http.StatusOK, toDTOs(assets, notes))
 }
 
 type assetDTO struct {
@@ -110,12 +118,17 @@ type assetDTO struct {
 	DisplayName string `json:"display_name"`
 	FolderID    string `json:"folder_id"`
 	DeletedAt   string `json:"deleted_at,omitempty"`
+	Note        string `json:"note"`
 }
 
-func toDTOs(assets []domain.Asset) []assetDTO {
+func toDTOs(assets []domain.Asset, notes map[string]string) []assetDTO {
 	out := make([]assetDTO, 0, len(assets))
 	for _, a := range assets {
-		out = append(out, toDTO(a))
+		dto := toDTO(a)
+		if notes != nil {
+			dto.Note = notes[a.ID.String()]
+		}
+		out = append(out, dto)
 	}
 	return out
 }
@@ -141,6 +154,24 @@ func toDTO(a domain.Asset) assetDTO {
 		dto.DeletedAt = a.DeletedAt.Format(time.RFC3339)
 	}
 	return dto
+}
+
+// fetchNotes batch-loads manual-layer captions for the given asset IDs. The
+// returned map is keyed by asset id string; assets without a note are absent.
+func (p *Plugin) fetchNotes(ctx context.Context, ids []domain.AssetID) (map[string]string, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return p.k.Store.ListManualCaptions(ctx, p.owner, ids)
+}
+
+// assetIDs extracts IDs from a slice of assets.
+func assetIDs(assets []domain.Asset) []domain.AssetID {
+	ids := make([]domain.AssetID, len(assets))
+	for i, a := range assets {
+		ids[i] = a.ID
+	}
+	return ids
 }
 
 // decodeJSON decodes the request body into dst, writing a 400 on failure.

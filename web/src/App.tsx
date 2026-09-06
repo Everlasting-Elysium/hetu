@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api/client";
-import { EMPTY_QUERY, type Query, type ViewMode } from "./types";
+import { EMPTY_QUERY, type Query, type Tag, type ViewMode } from "./types";
 import { useAssets } from "./hooks/useAssets";
 import { useLibrary } from "./hooks/useLibrary";
 import { useSelection } from "./hooks/useSelection";
@@ -9,6 +9,7 @@ import { SearchBar } from "./components/SearchBar";
 import { AssetGrid } from "./components/AssetGrid";
 import { BatchBar } from "./components/BatchBar";
 import { TrashView } from "./components/TrashView";
+import { InspectorPanel } from "./components/InspectorPanel";
 import brand from "./components/Sidebar.module.css";
 import styles from "./App.module.css";
 
@@ -17,6 +18,7 @@ export default function App() {
   const [query, setQuery] = useState<Query>(EMPTY_QUERY);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [inspectorTags, setInspectorTags] = useState<Tag[]>([]);
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
   const lib = useLibrary(setError);
@@ -24,12 +26,38 @@ export default function App() {
   const ids = useMemo(() => assets.map((a) => a.id), [assets]);
   const sel = useSelection(ids);
 
+  // The inspector shows for a single selection; resolve it from the loaded list.
+  const inspectedId = sel.count === 1 ? ([...sel.selected][0] ?? null) : null;
+  const inspectedAsset = inspectedId
+    ? assets.find((a) => a.id === inspectedId)
+    : undefined;
+
   useEffect(() => {
     if (error) {
       const t = setTimeout(() => setError(null), 4000);
       return () => clearTimeout(t);
     }
   }, [error]);
+
+  // Load the inspected asset's tags; `version` refetches after batch mutations.
+  useEffect(() => {
+    if (!inspectedId) {
+      setInspectorTags([]);
+      return;
+    }
+    let alive = true;
+    api
+      .assetTags(inspectedId)
+      .then((t) => {
+        if (alive) setInspectorTags(t);
+      })
+      .catch(() => {
+        if (alive) setInspectorTags([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [inspectedId, version]);
 
   // Wraps a batch call: run over the selection, clear it, then refresh assets
   // and the trash badge. `ids` overrides the selection for single-card actions.
@@ -73,7 +101,7 @@ export default function App() {
         : "运行 `bin/hetu scan` 索引素材目录后即可浏览。";
 
   return (
-    <div className="app" onClick={() => sel.clear()}>
+    <div className={`app ${inspectedAsset ? "inspect" : ""}`} onClick={() => sel.clear()}>
       <div className={brand.brand}>
         <span className={brand.logo}>河</span>
         <span className={brand.brandName}>
@@ -121,6 +149,21 @@ export default function App() {
           />
         </div>
       </div>
+
+      {inspectedAsset && (
+        <InspectorPanel
+          asset={inspectedAsset}
+          tags={inspectorTags}
+          onRate={(rating) => void run((t) => api.rate(t, rating), [inspectedAsset.id])()}
+          onColor={(hex) => void run((t) => api.colorLabel(t, hex), [inspectedAsset.id])()}
+          onNoteChange={(text) =>
+            void run(() => api.updateNote(inspectedAsset.id, text), [inspectedAsset.id])()
+          }
+          onNoteDelete={() =>
+            void run(() => api.deleteNote(inspectedAsset.id), [inspectedAsset.id])()
+          }
+        />
+      )}
 
       <BatchBar
         count={sel.count}

@@ -30,6 +30,7 @@ type Querier interface {
 	CreateFolder(ctx context.Context, arg CreateFolderParams) error
 	CreateShare(ctx context.Context, arg CreateShareParams) error
 	CreateTag(ctx context.Context, arg CreateTagParams) error
+	DeleteAnnotation(ctx context.Context, arg DeleteAnnotationParams) error
 	DeleteAssetColors(ctx context.Context, assetID string) error
 	DeleteFolder(ctx context.Context, arg DeleteFolderParams) error
 	DeleteTag(ctx context.Context, arg DeleteTagParams) error
@@ -51,6 +52,9 @@ type Querier interface {
 	ListDuplicateHashes(ctx context.Context, arg ListDuplicateHashesParams) ([]ListDuplicateHashesRow, error)
 	ListFolders(ctx context.Context, ownerID string) ([]Folder, error)
 	ListJobs(ctx context.Context, arg ListJobsParams) ([]Job, error)
+	// Returns the manual-layer caption for each of the given owner's assets that
+	// has one. Joins assets to enforce owner scoping.
+	ListManualCaptions(ctx context.Context, arg ListManualCaptionsParams) ([]ListManualCaptionsRow, error)
 	ListOwnerEmbeddings(ctx context.Context, ownerID string) ([]ListOwnerEmbeddingsRow, error)
 	// Returns all pHash annotations for the owner's live assets, joining through
 	// assets to filter by owner and exclude trashed items.

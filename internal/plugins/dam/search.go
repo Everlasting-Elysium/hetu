@@ -73,7 +73,12 @@ func (p *Plugin) searchByText(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
-	httpjson.WriteJSON(w, http.StatusOK, toDTOs(assets))
+	notes, err := p.fetchNotes(r.Context(), assetIDs(assets))
+	if err != nil {
+		httpjson.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+	httpjson.WriteJSON(w, http.StatusOK, toDTOs(assets, notes))
 }
 
 // searchByColor handles the ?color= branch: it returns assets whose palette
@@ -91,7 +96,16 @@ func (p *Plugin) searchByColor(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
-	httpjson.WriteJSON(w, http.StatusOK, toColorMatchDTOs(matches))
+	ids := make([]domain.AssetID, len(matches))
+	for i, m := range matches {
+		ids[i] = m.Asset.ID
+	}
+	notes, err := p.fetchNotes(r.Context(), ids)
+	if err != nil {
+		httpjson.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+	httpjson.WriteJSON(w, http.StatusOK, toColorMatchDTOs(matches, notes))
 }
 
 // colorMatchDTO is an asset plus which palette swatch matched and how close it
@@ -102,14 +116,18 @@ type colorMatchDTO struct {
 	Distance float64 `json:"color_distance"`
 }
 
-func toColorMatchDTOs(matches []domain.ColorMatch) []colorMatchDTO {
+func toColorMatchDTOs(matches []domain.ColorMatch, notes map[string]string) []colorMatchDTO {
 	out := make([]colorMatchDTO, 0, len(matches))
 	for _, m := range matches {
-		out = append(out, colorMatchDTO{
+		dto := colorMatchDTO{
 			assetDTO: toDTO(m.Asset),
 			MatchHex: m.Hex,
 			Distance: math.Round(m.Distance*100) / 100,
-		})
+		}
+		if notes != nil {
+			dto.Note = notes[m.Asset.ID.String()]
+		}
+		out = append(out, dto)
 	}
 	return out
 }

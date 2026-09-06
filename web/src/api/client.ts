@@ -65,6 +65,14 @@ export const api = {
     req<{ deleted: boolean }>(`/tags/${id}`, { method: "DELETE" }),
   assetTags: (id: string) => req<Tag[]>(`/assets/${id}/tags`),
 
+  updateNote: (id: string, text: string) =>
+    req<{ note: string }>(`/assets/${id}/note`, {
+      method: "PUT",
+      body: JSON.stringify({ text }),
+    }),
+  deleteNote: (id: string) =>
+    req<{ deleted: boolean }>(`/assets/${id}/note`, { method: "DELETE" }),
+
   rate: (asset_ids: string[], rating: number) =>
     req<{ updated: number }>("/batch/rate", body({ asset_ids, rating })),
   colorLabel: (asset_ids: string[], color: string) =>

@@ -45,7 +45,16 @@ func (p *Plugin) searchBySemantic(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
-	httpjson.WriteJSON(w, http.StatusOK, toSimilarityDTOs(matches))
+	ids := make([]domain.AssetID, len(matches))
+	for i, m := range matches {
+		ids[i] = m.Asset.ID
+	}
+	notes, err := p.fetchNotes(r.Context(), ids)
+	if err != nil {
+		httpjson.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+	httpjson.WriteJSON(w, http.StatusOK, toSimilarityDTOs(matches, notes))
 }
 
 // searchBySimilar handles GET /api/dam/search?similar=<asset_id>: look up the
@@ -79,7 +88,16 @@ func (p *Plugin) searchBySimilar(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
-	httpjson.WriteJSON(w, http.StatusOK, toSimilarityDTOs(matches))
+	simIDs := make([]domain.AssetID, len(matches))
+	for i, m := range matches {
+		simIDs[i] = m.Asset.ID
+	}
+	notes, err := p.fetchNotes(r.Context(), simIDs)
+	if err != nil {
+		httpjson.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+	httpjson.WriteJSON(w, http.StatusOK, toSimilarityDTOs(matches, notes))
 }
 
 // similarityDTO is an asset with its cosine similarity score.
@@ -88,13 +106,17 @@ type similarityDTO struct {
 	Similarity float64 `json:"similarity"`
 }
 
-func toSimilarityDTOs(matches []domain.SimilarityMatch) []similarityDTO {
+func toSimilarityDTOs(matches []domain.SimilarityMatch, notes map[string]string) []similarityDTO {
 	out := make([]similarityDTO, 0, len(matches))
 	for _, m := range matches {
-		out = append(out, similarityDTO{
+		dto := similarityDTO{
 			assetDTO:   toDTO(m.Asset),
 			Similarity: math.Round(m.Similarity*10000) / 10000,
-		})
+		}
+		if notes != nil {
+			dto.Note = notes[m.Asset.ID.String()]
+		}
+		out = append(out, dto)
 	}
 	return out
 }
