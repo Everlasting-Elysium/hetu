@@ -35,8 +35,10 @@ func New(k *kernel.Kernel, owner domain.OwnerID) *Indexer {
 
 // ScanResult summarises a scan.
 type ScanResult struct {
-	Indexed int `json:"indexed"`
-	Skipped int `json:"skipped"`
+	Indexed     int `json:"indexed"`
+	Skipped     int `json:"skipped"`
+	Missing     int `json:"missing"`
+	Reconnected int `json:"reconnected"`
 }
 
 // Scan walks providerName from root, indexing every supported file.
@@ -49,11 +51,42 @@ func (ix *Indexer) Scan(ctx context.Context, providerName, root string) (ScanRes
 		return ScanResult{}, err
 	}
 	var res ScanResult
+	// Detect missing files before walking: a file moved to a new path then
+	// reconnects (by content hash) to its now-missing record in this same scan
+	// instead of being indexed as a duplicate (see detectMissing, indexOne).
+	ix.detectMissing(ctx, provider, &res)
 	if err := ix.walk(ctx, provider, root, &res); err != nil {
 		return res, err
 	}
 	ix.k.Events.Publish(ctx, kernel.Event{Type: kernel.EventScanFinished, Data: res})
 	return res, nil
+}
+
+// detectMissing marks every live asset for provider p whose backing file is no
+// longer present in storage. It runs before the walk so a moved file can
+// reconnect by hash to its now-missing record in the same scan (see indexOne);
+// a file that reappears at its old path is likewise cleared by that reconnect.
+func (ix *Indexer) detectMissing(ctx context.Context, p kernel.StorageProvider, res *ScanResult) {
+	assets, err := ix.k.Store.ListLiveAssetsByProvider(ctx, ix.owner, p.Name())
+	if err != nil {
+		ix.k.Log.WarnContext(ctx, "detect missing: list assets", slog.Any("err", err))
+		return
+	}
+	var missingIDs []domain.AssetID
+	for _, a := range assets {
+		if _, err := p.Stat(ctx, a.StoragePath); err != nil {
+			missingIDs = append(missingIDs, a.ID)
+		}
+	}
+	if len(missingIDs) == 0 {
+		return
+	}
+	if err := ix.k.Store.MarkAssetsMissing(ctx, ix.owner, missingIDs); err != nil {
+		ix.k.Log.WarnContext(ctx, "detect missing: mark", slog.Any("err", err))
+		return
+	}
+	res.Missing = len(missingIDs)
+	ix.k.Log.InfoContext(ctx, "marked assets missing", slog.Int("count", len(missingIDs)))
 }
 
 func (ix *Indexer) walk(ctx context.Context, p kernel.StorageProvider, path string, res *ScanResult) error {
@@ -71,10 +104,15 @@ func (ix *Indexer) walk(ctx context.Context, p kernel.StorageProvider, path stri
 			}
 			continue
 		}
-		if err := ix.indexOne(ctx, p, e); err != nil {
+		reconnected, err := ix.indexOne(ctx, p, e)
+		if err != nil {
 			ix.k.Log.WarnContext(ctx, "index skip",
 				slog.String("path", e.Path), slog.Any("err", err))
 			res.Skipped++
+			continue
+		}
+		if reconnected {
+			res.Reconnected++
 			continue
 		}
 		res.Indexed++
@@ -82,29 +120,50 @@ func (ix *Indexer) walk(ctx context.Context, p kernel.StorageProvider, path stri
 	return nil
 }
 
-func (ix *Indexer) indexOne(ctx context.Context, p kernel.StorageProvider, e domain.Entry) error {
+// indexOne indexes a single file. It returns reconnected=true when the file's
+// content hash matched a missing asset and that asset was repointed to this
+// path (no new record created); reconnected=false for a normal index/upsert.
+func (ix *Indexer) indexOne(ctx context.Context, p kernel.StorageProvider, e domain.Entry) (bool, error) {
 	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(e.Name), "."))
 	handler, ok := ix.k.Assets.HandlerFor(ext)
 	if !ok {
-		return domain.ErrUnsupported
+		return false, domain.ErrUnsupported
 	}
 
 	meta, err := ix.extract(ctx, p, e.Path, handler)
 	if err != nil {
-		return err
+		return false, err
 	}
 	hash, err := ix.hash(ctx, p, e.Path)
 	if err != nil {
-		return err
+		return false, err
+	}
+	// Hash-based auto-reconnect: if a missing asset has this content hash, reuse
+	// its identity (repoint its path, clear missing_at) instead of creating a
+	// new record — this is a moved or remounted file, not a new one.
+	candidates, err := ix.k.Store.ListMissingAssetsByHash(ctx, ix.owner, hash)
+	if err != nil {
+		ix.k.Log.WarnContext(ctx, "auto-reconnect lookup", slog.Any("err", err))
+	}
+	if len(candidates) > 0 {
+		old := candidates[0]
+		if err := ix.k.Store.RelocateAsset(ctx, ix.owner, old.ID, p.Name(), e.Path); err != nil {
+			return false, fmt.Errorf("auto-reconnect relocate: %w", err)
+		}
+		ix.k.Log.InfoContext(ctx, "auto-reconnected",
+			slog.String("asset", old.ID.String()),
+			slog.String("old_path", old.StoragePath),
+			slog.String("new_path", e.Path))
+		return true, nil
 	}
 	id := uuid.Must(uuid.NewV7()).String()
 	thumbPath, err := ix.thumbnail(ctx, p, e.Path, handler, id)
 	if err != nil {
-		return err
+		return false, err
 	}
 	assetID, err := domain.NewAssetID(id)
 	if err != nil {
-		return err
+		return false, err
 	}
 	asset := domain.Asset{
 		ID:          assetID,
@@ -123,7 +182,7 @@ func (ix *Indexer) indexOne(ctx context.Context, p kernel.StorageProvider, e dom
 		IndexedAt:   time.Now().UTC(),
 	}
 	if err := ix.k.Store.UpsertAsset(ctx, asset); err != nil {
-		return err
+		return false, err
 	}
 	// Palette and pHash extraction run after upsert so the asset row exists;
 	// they enhance the record and never fail the index.
@@ -135,7 +194,7 @@ func (ix *Indexer) indexOne(ctx context.Context, p kernel.StorageProvider, e dom
 	// Announce the indexed asset so subscribers (e.g. AI tagging) can react.
 	// The bus is synchronous; handlers must not block (see internal/ai).
 	ix.k.Events.Publish(ctx, kernel.Event{Type: kernel.EventAssetIndexed, Data: asset})
-	return nil
+	return false, nil
 }
 
 func (ix *Indexer) extract(ctx context.Context, p kernel.StorageProvider, path string, h kernel.AssetHandler) (domain.Meta, error) {

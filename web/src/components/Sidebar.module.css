@@ -134,3 +134,15 @@
   flex: 1;
   height: 28px;
 }
+.badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-full);
+  background: var(--danger);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  display: inline-grid;
+  place-items: center;
+}

@@ -50,6 +50,15 @@ type Store interface {
 	ListTrashedAssets(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.Asset, error)
 	PurgeTrash(ctx context.Context, owner domain.OwnerID, retentionDays int) error
 
+	// Missing-file detection and relocate (issue #45).
+	ListMissingAssets(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.Asset, error)
+	ListLiveAssetsByProvider(ctx context.Context, owner domain.OwnerID, provider string) ([]domain.Asset, error)
+	ListMissingAssetsByHash(ctx context.Context, owner domain.OwnerID, hash string) ([]domain.Asset, error)
+	MarkAssetsMissing(ctx context.Context, owner domain.OwnerID, ids []domain.AssetID) error
+	MarkAssetsFound(ctx context.Context, owner domain.OwnerID, ids []domain.AssetID) error
+	RelocateAsset(ctx context.Context, owner domain.OwnerID, id domain.AssetID, provider, newPath string) error
+	RebaseAssets(ctx context.Context, owner domain.OwnerID, provider, oldPrefix, newPrefix string) error
+
 	// Tags: CRUD plus batch (un)tagging of assets.
 	CreateTag(ctx context.Context, t domain.Tag) error
 	ListTags(ctx context.Context, owner domain.OwnerID) ([]domain.Tag, error)

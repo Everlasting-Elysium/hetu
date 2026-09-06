@@ -44,6 +44,7 @@ export default function App() {
         if (!override) sel.clear();
         bump();
         lib.refreshTrash();
+        lib.refreshMissing();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       }
@@ -66,13 +67,16 @@ export default function App() {
     sel.clear();
     setQuery(EMPTY_QUERY);
   };
+  const setMissing = () => changeView("missing");
 
   const emptyHint =
     view === "trash"
       ? "回收站是空的。"
-      : query.keyword || query.colorHex
-        ? "没有匹配的素材，换个条件试试。"
-        : "运行 `bin/hetu scan` 索引素材目录后即可浏览。";
+      : view === "missing"
+        ? "没有丢失文件，所有索引文件均可访问。"
+        : query.keyword || query.colorHex
+          ? "没有匹配的素材，换个条件试试。"
+          : "运行 `bin/hetu scan` 索引素材目录后即可浏览。";
 
   return (
     <div className="app" onClick={() => sel.clear()}>
@@ -94,11 +98,15 @@ export default function App() {
         onDeleteFolder={(id) => void lib.deleteFolder(id)}
         onCreateTag={(n) => void lib.createTag(n)}
         onDeleteTag={(id) => void lib.deleteTag(id)}
+        missingCount={lib.missingCount}
+        onPickMissing={setMissing}
+        activeMissing={view === "missing"}
       />
 
       <SearchBar
         view={view}
         trashCount={lib.trashCount}
+        missingCount={lib.missingCount}
         onKeyword={(q) => setQuery((p) => ({ ...EMPTY_QUERY, folderId: p.folderId, tagId: p.tagId, keyword: q }))}
         onColor={(hex) => setQuery((p) => ({ ...EMPTY_QUERY, folderId: p.folderId, tagId: p.tagId, colorHex: hex }))}
         onViewChange={changeView}

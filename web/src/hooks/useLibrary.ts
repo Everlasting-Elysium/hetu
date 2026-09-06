@@ -7,6 +7,8 @@ export interface Library {
   tags: Tag[];
   trashCount: number;
   refreshTrash: () => void;
+  missingCount: number;
+  refreshMissing: () => void;
   createFolder: (name: string) => Promise<void>;
   deleteFolder: (id: string) => Promise<void>;
   createTag: (name: string) => Promise<void>;
@@ -19,6 +21,7 @@ export function useLibrary(onError: (msg: string) => void): Library {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [trashCount, setTrashCount] = useState(0);
+  const [missingCount, setMissingCount] = useState(0);
 
   const guard = useCallback(
     async (fn: () => Promise<void>) => {
@@ -37,18 +40,25 @@ export function useLibrary(onError: (msg: string) => void): Library {
     () => guard(async () => setTrashCount((await api.listTrash()).length)),
     [guard],
   );
+  const refreshMissing = useCallback(
+    () => guard(async () => setMissingCount((await api.listMissing()).length)),
+    [guard],
+  );
 
   useEffect(() => {
     void loadFolders();
     void loadTags();
     void refreshTrash();
-  }, [loadFolders, loadTags, refreshTrash]);
+    void refreshMissing();
+  }, [loadFolders, loadTags, refreshTrash, refreshMissing]);
 
   return {
     folders,
     tags,
     trashCount,
     refreshTrash,
+    missingCount,
+    refreshMissing,
     createFolder: (name) => guard(async () => { await api.createFolder({ name, path: name }); await loadFolders(); }),
     deleteFolder: (id) => guard(async () => { await api.deleteFolder(id); await loadFolders(); }),
     createTag: (name) => guard(async () => { await api.createTag({ name }); await loadTags(); }),

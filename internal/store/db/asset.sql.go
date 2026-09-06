@@ -13,7 +13,7 @@ import (
 const getAsset = `-- name: GetAsset :one
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id
+       deleted_at, rating, color, display_name, folder_id, missing_at
 FROM assets
 WHERE id = ? AND owner_id = ?
 `
@@ -46,6 +46,7 @@ func (q *Queries) GetAsset(ctx context.Context, arg GetAssetParams) (Asset, erro
 		&i.Color,
 		&i.DisplayName,
 		&i.FolderID,
+		&i.MissingAt,
 	)
 	return i, err
 }
@@ -53,7 +54,7 @@ func (q *Queries) GetAsset(ctx context.Context, arg GetAssetParams) (Asset, erro
 const listAssets = `-- name: ListAssets :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id
+       deleted_at, rating, color, display_name, folder_id, missing_at
 FROM assets
 WHERE owner_id = ? AND deleted_at IS NULL
 ORDER BY indexed_at DESC
@@ -95,6 +96,7 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 			&i.Color,
 			&i.DisplayName,
 			&i.FolderID,
+			&i.MissingAt,
 		); err != nil {
 			return nil, err
 		}
@@ -112,7 +114,7 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 const listAssetsByHash = `-- name: ListAssetsByHash :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id
+       deleted_at, rating, color, display_name, folder_id, missing_at
 FROM assets
 WHERE owner_id = ? AND hash = ? AND deleted_at IS NULL
 ORDER BY indexed_at ASC
@@ -153,6 +155,7 @@ func (q *Queries) ListAssetsByHash(ctx context.Context, arg ListAssetsByHashPara
 			&i.Color,
 			&i.DisplayName,
 			&i.FolderID,
+			&i.MissingAt,
 		); err != nil {
 			return nil, err
 		}
@@ -212,12 +215,247 @@ func (q *Queries) ListDuplicateHashes(ctx context.Context, arg ListDuplicateHash
 	return items, nil
 }
 
+const listLiveAssetsByProvider = `-- name: ListLiveAssetsByProvider :many
+SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
+       thumb_path, width, height, created_at, indexed_at,
+       deleted_at, rating, color, display_name, folder_id, missing_at
+FROM assets
+WHERE owner_id = ? AND provider = ? AND deleted_at IS NULL AND missing_at IS NULL
+ORDER BY storage_path ASC
+`
+
+type ListLiveAssetsByProviderParams struct {
+	OwnerID  string
+	Provider string
+}
+
+// Returns all live (non-trashed, non-missing) assets for a provider, used by
+// the missing-file detector to check which indexed paths still exist on disk.
+func (q *Queries) ListLiveAssetsByProvider(ctx context.Context, arg ListLiveAssetsByProviderParams) ([]Asset, error) {
+	rows, err := q.db.QueryContext(ctx, listLiveAssetsByProvider, arg.OwnerID, arg.Provider)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Asset{}
+	for rows.Next() {
+		var i Asset
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Kind,
+			&i.Provider,
+			&i.StoragePath,
+			&i.Name,
+			&i.Ext,
+			&i.Size,
+			&i.Hash,
+			&i.ThumbPath,
+			&i.Width,
+			&i.Height,
+			&i.CreatedAt,
+			&i.IndexedAt,
+			&i.DeletedAt,
+			&i.Rating,
+			&i.Color,
+			&i.DisplayName,
+			&i.FolderID,
+			&i.MissingAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMissingAssets = `-- name: ListMissingAssets :many
+SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
+       thumb_path, width, height, created_at, indexed_at,
+       deleted_at, rating, color, display_name, folder_id, missing_at
+FROM assets
+WHERE owner_id = ? AND missing_at IS NOT NULL AND deleted_at IS NULL
+ORDER BY missing_at DESC
+LIMIT ? OFFSET ?
+`
+
+type ListMissingAssetsParams struct {
+	OwnerID string
+	Limit   int64
+	Offset  int64
+}
+
+func (q *Queries) ListMissingAssets(ctx context.Context, arg ListMissingAssetsParams) ([]Asset, error) {
+	rows, err := q.db.QueryContext(ctx, listMissingAssets, arg.OwnerID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Asset{}
+	for rows.Next() {
+		var i Asset
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Kind,
+			&i.Provider,
+			&i.StoragePath,
+			&i.Name,
+			&i.Ext,
+			&i.Size,
+			&i.Hash,
+			&i.ThumbPath,
+			&i.Width,
+			&i.Height,
+			&i.CreatedAt,
+			&i.IndexedAt,
+			&i.DeletedAt,
+			&i.Rating,
+			&i.Color,
+			&i.DisplayName,
+			&i.FolderID,
+			&i.MissingAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMissingAssetsByHash = `-- name: ListMissingAssetsByHash :many
+SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
+       thumb_path, width, height, created_at, indexed_at,
+       deleted_at, rating, color, display_name, folder_id, missing_at
+FROM assets
+WHERE owner_id = ? AND hash = ? AND missing_at IS NOT NULL AND deleted_at IS NULL
+ORDER BY created_at ASC
+LIMIT 1
+`
+
+type ListMissingAssetsByHashParams struct {
+	OwnerID string
+	Hash    string
+}
+
+// Returns missing assets matching a given hash, oldest first (by created_at).
+// Used by hash-based auto-reconnect during scan.
+func (q *Queries) ListMissingAssetsByHash(ctx context.Context, arg ListMissingAssetsByHashParams) ([]Asset, error) {
+	rows, err := q.db.QueryContext(ctx, listMissingAssetsByHash, arg.OwnerID, arg.Hash)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Asset{}
+	for rows.Next() {
+		var i Asset
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Kind,
+			&i.Provider,
+			&i.StoragePath,
+			&i.Name,
+			&i.Ext,
+			&i.Size,
+			&i.Hash,
+			&i.ThumbPath,
+			&i.Width,
+			&i.Height,
+			&i.CreatedAt,
+			&i.IndexedAt,
+			&i.DeletedAt,
+			&i.Rating,
+			&i.Color,
+			&i.DisplayName,
+			&i.FolderID,
+			&i.MissingAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const rebaseAssets = `-- name: RebaseAssets :exec
+UPDATE assets
+SET storage_path = ? || SUBSTR(storage_path, LENGTH(?) + 1),
+    missing_at = NULL
+WHERE owner_id = ? AND provider = ? AND storage_path LIKE ? || '%'
+    AND deleted_at IS NULL
+`
+
+type RebaseAssetsParams struct {
+	StoragePath string
+	LENGTH      interface{}
+	OwnerID     string
+	Provider    string
+	Column5     sql.NullString
+}
+
+// Batch-updates storage_path by replacing old_prefix with new_prefix for all
+// assets whose path starts with old_prefix, and clears missing_at.
+func (q *Queries) RebaseAssets(ctx context.Context, arg RebaseAssetsParams) error {
+	_, err := q.db.ExecContext(ctx, rebaseAssets,
+		arg.StoragePath,
+		arg.LENGTH,
+		arg.OwnerID,
+		arg.Provider,
+		arg.Column5,
+	)
+	return err
+}
+
+const relocateAsset = `-- name: RelocateAsset :exec
+UPDATE assets
+SET storage_path = ?, provider = ?, missing_at = NULL
+WHERE id = ? AND owner_id = ?
+`
+
+type RelocateAssetParams struct {
+	StoragePath string
+	Provider    string
+	ID          string
+	OwnerID     string
+}
+
+// Updates the storage path (and optionally provider) of a single asset and
+// clears missing_at. Used for manual relocate and hash-based auto-reconnect.
+func (q *Queries) RelocateAsset(ctx context.Context, arg RelocateAssetParams) error {
+	_, err := q.db.ExecContext(ctx, relocateAsset,
+		arg.StoragePath,
+		arg.Provider,
+		arg.ID,
+		arg.OwnerID,
+	)
+	return err
+}
+
 const upsertAsset = `-- name: UpsertAsset :exec
 INSERT INTO assets (
     id, owner_id, kind, provider, storage_path, name, ext, size, hash,
     thumb_path, width, height, created_at, indexed_at,
-    deleted_at, rating, color, display_name, folder_id
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    deleted_at, rating, color, display_name, folder_id, missing_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(owner_id, provider, storage_path) DO UPDATE SET
     kind       = excluded.kind,
     name       = excluded.name,
@@ -250,11 +488,12 @@ type UpsertAssetParams struct {
 	Color       string
 	DisplayName string
 	FolderID    string
+	MissingAt   sql.NullInt64
 }
 
 // Re-indexing preserves user metadata: the ON CONFLICT clause updates only
 // index-derived fields, leaving rating/color/display_name/folder_id/deleted_at
-// (and thus trash state) untouched.
+// (and thus trash state) and missing_at untouched.
 func (q *Queries) UpsertAsset(ctx context.Context, arg UpsertAssetParams) error {
 	_, err := q.db.ExecContext(ctx, upsertAsset,
 		arg.ID,
@@ -276,6 +515,7 @@ func (q *Queries) UpsertAsset(ctx context.Context, arg UpsertAssetParams) error 
 		arg.Color,
 		arg.DisplayName,
 		arg.FolderID,
+		arg.MissingAt,
 	)
 	return err
 }
