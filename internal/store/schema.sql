@@ -262,3 +262,30 @@ CREATE TABLE IF NOT EXISTS embeddings (
     model      TEXT NOT NULL,       -- producing model, e.g. "openai/clip-vit-base-patch32"
     created_at INTEGER NOT NULL     -- unix seconds
 );
+
+-- boards is a moodboard / infinite canvas where users arrange asset references
+-- for inspiration, layout planning, or reference boards.
+CREATE TABLE IF NOT EXISTS boards (
+    id         TEXT PRIMARY KEY,
+    owner_id   TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_boards_owner ON boards (owner_id);
+
+-- board_items places an asset onto a board at a specific position, size,
+-- rotation, and z-order. All spatial values are floating-point canvas units.
+CREATE TABLE IF NOT EXISTS board_items (
+    id         TEXT PRIMARY KEY,
+    board_id   TEXT NOT NULL,
+    asset_id   TEXT NOT NULL,
+    x          REAL NOT NULL DEFAULT 0,
+    y          REAL NOT NULL DEFAULT 0,
+    w          REAL NOT NULL DEFAULT 200,
+    h          REAL NOT NULL DEFAULT 200,
+    rotation   REAL NOT NULL DEFAULT 0,
+    z          INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_board_items_board ON board_items (board_id);

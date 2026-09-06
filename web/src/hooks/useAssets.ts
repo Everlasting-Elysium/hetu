@@ -36,6 +36,7 @@ export function useAssets(view: ViewMode, query: Query, version: number): Assets
     setError(null);
 
     (async (): Promise<Asset[]> => {
+      if (view === "boards" || view === "board") return [];
       if (dataset === "trash") return api.listTrash();
       if (dataset === "missing") return api.listMissing();
       if (query.colorHex) return api.searchColor(query.colorHex);

@@ -33,11 +33,16 @@ type Querier interface {
 	// Existence probe for a version by identity. Used inside SetCurrentVersion's
 	// transaction so a concurrent delete cannot leave current_version_id dangling.
 	CountVersion(ctx context.Context, arg CountVersionParams) (int64, error)
+	CreateBoard(ctx context.Context, arg CreateBoardParams) error
+	CreateBoardItem(ctx context.Context, arg CreateBoardItemParams) (BoardItem, error)
 	CreateFolder(ctx context.Context, arg CreateFolderParams) error
 	CreateShare(ctx context.Context, arg CreateShareParams) error
 	CreateTag(ctx context.Context, arg CreateTagParams) error
 	CreateVersion(ctx context.Context, arg CreateVersionParams) error
 	DeleteAssetColors(ctx context.Context, assetID string) error
+	DeleteBoard(ctx context.Context, arg DeleteBoardParams) error
+	DeleteBoardItem(ctx context.Context, arg DeleteBoardItemParams) error
+	DeleteBoardItemsByBoard(ctx context.Context, boardID string) error
 	DeleteFolder(ctx context.Context, arg DeleteFolderParams) error
 	DeleteTag(ctx context.Context, arg DeleteTagParams) error
 	DeleteVersion(ctx context.Context, arg DeleteVersionParams) error
@@ -57,6 +62,7 @@ type Querier interface {
 	// The asset's current-version pointer ('' when the asset has no explicit
 	// versions yet; the anchor row itself is the implicit single version).
 	GetAssetCurrentVersion(ctx context.Context, arg GetAssetCurrentVersionParams) (string, error)
+	GetBoard(ctx context.Context, arg GetBoardParams) (Board, error)
 	GetEmbedding(ctx context.Context, assetID string) (Embedding, error)
 	GetShareByToken(ctx context.Context, token string) (Share, error)
 	// Resolves an owner's tag id by name so the AI pipeline can reuse an existing
@@ -75,6 +81,8 @@ type Querier interface {
 	ListAssets(ctx context.Context, arg ListAssetsParams) ([]ListAssetsRow, error)
 	// Returns all live assets with the given hash for the owner.
 	ListAssetsByHash(ctx context.Context, arg ListAssetsByHashParams) ([]Asset, error)
+	ListBoardItems(ctx context.Context, boardID string) ([]BoardItem, error)
+	ListBoards(ctx context.Context, ownerID string) ([]Board, error)
 	// Returns hashes that appear more than once among the owner's live assets.
 	ListDuplicateHashes(ctx context.Context, arg ListDuplicateHashesParams) ([]ListDuplicateHashesRow, error)
 	ListFolders(ctx context.Context, ownerID string) ([]Folder, error)
@@ -108,11 +116,13 @@ type Querier interface {
 	RelocateAsset(ctx context.Context, arg RelocateAssetParams) error
 	SetAssetCurrentVersion(ctx context.Context, arg SetAssetCurrentVersionParams) error
 	SetDisplayName(ctx context.Context, arg SetDisplayNameParams) error
+	TouchBoard(ctx context.Context, arg TouchBoardParams) error
 	// Updates asset.created_at when embedded metadata (EXIF) provides a capture
 	// time that should take priority over the filesystem modification time.
 	// Uses the natural key (owner_id, provider, storage_path) so the canonical
 	// row is resolved even after a re-scan discarded a fresh id on upsert.
 	UpdateAssetCreatedAt(ctx context.Context, arg UpdateAssetCreatedAtParams) error
+	UpdateBoardName(ctx context.Context, arg UpdateBoardNameParams) error
 	// Updates status and payload together so a long-running job (e.g. a migration
 	// import) can persist progress counts in the payload JSON without a schema
 	// change. See internal/importers batch progress.

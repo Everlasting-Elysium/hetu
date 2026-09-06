@@ -104,6 +104,15 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodGet, Pattern: "/duplicates", Handler: p.listDuplicates},
 		{Method: http.MethodGet, Pattern: "/duplicates/similar", Handler: p.listSimilar},
 
+		{Method: http.MethodPost, Pattern: "/boards", Handler: p.createBoard},
+		{Method: http.MethodGet, Pattern: "/boards", Handler: p.listBoards},
+		{Method: http.MethodGet, Pattern: "/boards/{id}", Handler: p.getBoard},
+		{Method: http.MethodPatch, Pattern: "/boards/{id}", Handler: p.renameBoard},
+		{Method: http.MethodDelete, Pattern: "/boards/{id}", Handler: p.deleteBoard},
+		{Method: http.MethodPost, Pattern: "/boards/{id}/items", Handler: p.addBoardItem},
+		{Method: http.MethodPatch, Pattern: "/boards/{id}/items", Handler: p.updateBoardItems},
+		{Method: http.MethodDelete, Pattern: "/boards/{id}/items/{itemId}", Handler: p.deleteBoardItem},
+
 		// Missing-file relocate (issue #45): repoint one asset, or rebase a
 		// path prefix for many after a folder move. The missing set is listed
 		// via GET /assets?status=missing.

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Folder, Tag } from "../types";
-import { IconAlert, IconFolder, IconGrid, IconPlus, IconTag, IconTrash } from "./icons";
+import { IconAlert, IconBoard, IconFolder, IconGrid, IconPlus, IconTag, IconTrash } from "./icons";
 import styles from "./Sidebar.module.css";
 
 interface Props {
@@ -8,8 +8,10 @@ interface Props {
   tags: Tag[];
   activeFolder: string | null;
   activeTag: string | null;
+  boardsActive: boolean;
   onPickFolder: (id: string | null) => void;
   onPickTag: (id: string | null) => void;
+  onViewBoards: () => void;
   onCreateFolder: (name: string) => void;
   onDeleteFolder: (id: string) => void;
   onCreateTag: (name: string) => void;
@@ -50,7 +52,7 @@ function AddForm({ placeholder, onSubmit }: { placeholder: string; onSubmit: (v:
 export function Sidebar(p: Props) {
   const [addFolder, setAddFolder] = useState(false);
   const [addTag, setAddTag] = useState(false);
-  const allActive = !p.activeFolder && !p.activeTag && !p.activeMissing;
+  const allActive = !p.activeFolder && !p.activeTag && !p.boardsActive && !p.activeMissing;
 
   return (
     <aside className={styles.side}>
@@ -64,6 +66,13 @@ export function Sidebar(p: Props) {
         >
           <IconGrid width={15} height={15} />
           <span className={styles.txt}>全部素材</span>
+        </button>
+        <button
+          className={`${styles.item} ${p.boardsActive ? styles.active : ""}`}
+          onClick={() => p.onViewBoards()}
+        >
+          <IconBoard width={15} height={15} />
+          <span className={styles.txt}>图板</span>
         </button>
         {p.missingCount > 0 && (
           <button

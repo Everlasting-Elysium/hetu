@@ -60,15 +60,40 @@ export interface NewTag {
   parent_id?: string;
 }
 
+// A moodboard / infinite canvas. `items` is only populated by GET /boards/:id.
+export interface Board {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  items?: BoardItem[];
+}
+
+// One asset placed on a board, with canvas geometry. Field names match the
+// boardItemDTO json tags in internal/plugins/dam/boards.go exactly.
+export interface BoardItem {
+  id: string;
+  asset_id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rotation: number;
+  z: number;
+}
+
 // The active view. Browse layouts (grid/waterfall/gallery/immersive) all show the
 // library dataset in different arrangements; trash/missing are distinct datasets.
+// "boards" lists moodboards; "board" is the infinite-canvas editor for one board.
 export type ViewMode =
   | "grid"
   | "waterfall"
   | "gallery"
   | "immersive"
   | "trash"
-  | "missing";
+  | "missing"
+  | "boards"
+  | "board";
 
 // Layouts that browse the library dataset (as opposed to trash/missing).
 export const LIBRARY_LAYOUTS = ["grid", "waterfall", "gallery", "immersive"] as const;

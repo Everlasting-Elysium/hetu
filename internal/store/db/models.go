@@ -80,6 +80,27 @@ type AssetsFt struct {
 	Description string
 }
 
+type Board struct {
+	ID        string
+	OwnerID   string
+	Name      string
+	CreatedAt int64
+	UpdatedAt int64
+}
+
+type BoardItem struct {
+	ID        string
+	BoardID   string
+	AssetID   string
+	X         float64
+	Y         float64
+	W         float64
+	H         float64
+	Rotation  float64
+	Z         int64
+	CreatedAt int64
+}
+
 type Embedding struct {
 	AssetID   string
 	Embedding []byte
