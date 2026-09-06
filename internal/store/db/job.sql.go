@@ -79,6 +79,30 @@ func (q *Queries) ListJobs(ctx context.Context, arg ListJobsParams) ([]Job, erro
 	return items, nil
 }
 
+const updateJobProgress = `-- name: UpdateJobProgress :exec
+UPDATE jobs SET status = ?, payload = ? WHERE id = ? AND owner_id = ?
+`
+
+type UpdateJobProgressParams struct {
+	Status  string
+	Payload string
+	ID      string
+	OwnerID string
+}
+
+// Updates status and payload together so a long-running job (e.g. a migration
+// import) can persist progress counts in the payload JSON without a schema
+// change. See internal/importers batch progress.
+func (q *Queries) UpdateJobProgress(ctx context.Context, arg UpdateJobProgressParams) error {
+	_, err := q.db.ExecContext(ctx, updateJobProgress,
+		arg.Status,
+		arg.Payload,
+		arg.ID,
+		arg.OwnerID,
+	)
+	return err
+}
+
 const updateJobStatus = `-- name: UpdateJobStatus :exec
 UPDATE jobs SET status = ? WHERE id = ? AND owner_id = ?
 `

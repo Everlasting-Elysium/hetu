@@ -36,6 +36,21 @@ func (s *SQLite) UpdateJobStatus(ctx context.Context, owner domain.OwnerID, id d
 	return nil
 }
 
+// UpdateJob transitions the owner's job to status and replaces its payload in
+// one statement, so a long-running job (e.g. a migration import) can persist
+// progress counts (JSON) in the payload as it advances without a schema change.
+func (s *SQLite) UpdateJob(ctx context.Context, owner domain.OwnerID, id domain.JobID, status domain.JobStatus, payload string) error {
+	if err := s.q.UpdateJobProgress(ctx, db.UpdateJobProgressParams{
+		Status:  string(status),
+		Payload: payload,
+		ID:      id.String(),
+		OwnerID: owner.String(),
+	}); err != nil {
+		return fmt.Errorf("update job %s: %w", id, err)
+	}
+	return nil
+}
+
 // ListJobs returns the owner's jobs, newest first.
 func (s *SQLite) ListJobs(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.Job, error) {
 	rows, err := s.q.ListJobs(ctx, db.ListJobsParams{

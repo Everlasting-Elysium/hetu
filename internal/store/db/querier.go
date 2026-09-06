@@ -48,6 +48,12 @@ type Querier interface {
 	// COALESCE falls back to the anchor's own values. storage_path/hash stay
 	// anchored to the original indexed file (scan/dedup/relocate key off them).
 	GetAsset(ctx context.Context, arg GetAssetParams) (GetAssetRow, error)
+	// Resolves the canonical asset row by its natural key (owner, provider, path).
+	// Needed after UpsertAsset because the ON CONFLICT clause keeps the existing
+	// id and discards a freshly generated one, so callers that import/index a file
+	// must re-resolve to attach tags/folders/ratings/annotations to the right row.
+	// Mirrors GetAsset's version-aware projection (issue #58) so it returns db.Asset.
+	GetAssetByPath(ctx context.Context, arg GetAssetByPathParams) (GetAssetByPathRow, error)
 	// The asset's current-version pointer ('' when the asset has no explicit
 	// versions yet; the anchor row itself is the implicit single version).
 	GetAssetCurrentVersion(ctx context.Context, arg GetAssetCurrentVersionParams) (string, error)
@@ -107,6 +113,10 @@ type Querier interface {
 	// Uses the natural key (owner_id, provider, storage_path) so the canonical
 	// row is resolved even after a re-scan discarded a fresh id on upsert.
 	UpdateAssetCreatedAt(ctx context.Context, arg UpdateAssetCreatedAtParams) error
+	// Updates status and payload together so a long-running job (e.g. a migration
+	// import) can persist progress counts in the payload JSON without a schema
+	// change. See internal/importers batch progress.
+	UpdateJobProgress(ctx context.Context, arg UpdateJobProgressParams) error
 	UpdateJobStatus(ctx context.Context, arg UpdateJobStatusParams) error
 	UpsertAnnotation(ctx context.Context, arg UpsertAnnotationParams) error
 	// Re-indexing preserves user metadata: the ON CONFLICT clause updates only

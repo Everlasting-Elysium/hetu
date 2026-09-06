@@ -66,7 +66,9 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodGet, Pattern: "/assets/{id}/tags", Handler: p.assetTags},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/thumb", Handler: p.serveThumb},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/model", Handler: p.serveModel},
-		// /file streams the original bytes (Range-enabled) for media playback.
+		// /file streams the original bytes (Range-enabled) for media playback and
+		// original download; it is provider-aware, so it also serves fs-backed
+		// assets migrated in place (issue #57).
 		{Method: http.MethodGet, Pattern: "/assets/{id}/file", Handler: p.serveFile},
 
 		// Version / revision history (issue #58): list, upload a new current
@@ -107,6 +109,11 @@ func (p *Plugin) Routes() []kernel.Route {
 		// via GET /assets?status=missing.
 		{Method: http.MethodPost, Pattern: "/assets/{id}/relocate", Handler: p.relocateAsset},
 		{Method: http.MethodPost, Pattern: "/relocate/rebase", Handler: p.rebaseRelocate},
+
+		// Import (#18) + migration importers (#57) + background job progress.
+		{Method: http.MethodPost, Pattern: "/import", Handler: p.importAsset},
+		{Method: http.MethodPost, Pattern: "/import/migrate", Handler: p.migrate},
+		{Method: http.MethodGet, Pattern: "/jobs", Handler: p.listJobs},
 	}
 }
 

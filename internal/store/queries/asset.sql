@@ -34,6 +34,23 @@ FROM assets a
 LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
 WHERE a.id = ? AND a.owner_id = ?;
 
+-- name: GetAssetByPath :one
+-- Resolves the canonical asset row by its natural key (owner, provider, path).
+-- Needed after UpsertAsset because the ON CONFLICT clause keeps the existing
+-- id and discards a freshly generated one, so callers that import/index a file
+-- must re-resolve to attach tags/folders/ratings/annotations to the right row.
+-- Mirrors GetAsset's version-aware projection (issue #58) so it returns db.Asset.
+SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext, a.size, a.hash,
+       COALESCE(cv.thumb_path, a.thumb_path) AS thumb_path,
+       COALESCE(cv.width, a.width) AS width,
+       COALESCE(cv.height, a.height) AS height,
+       a.created_at, a.indexed_at,
+       a.deleted_at, a.rating, a.color, a.display_name, a.folder_id, a.missing_at,
+       a.current_version_id
+FROM assets a
+LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
+WHERE a.owner_id = ? AND a.provider = ? AND a.storage_path = ?;
+
 -- name: ListAssets :many
 -- thumb_path/width/height resolve to the current version (see GetAsset).
 SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext, a.size, a.hash,
