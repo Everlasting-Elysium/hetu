@@ -126,6 +126,16 @@ type Store interface {
 	UpdateJob(ctx context.Context, owner domain.OwnerID, id domain.JobID, status domain.JobStatus, payload string) error
 	ListJobs(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.Job, error)
 
+	// Manual notes: user-written caption (manual layer annotation).
+	// UpsertManualCaption writes or replaces the manual-layer caption for an
+	// asset. The asset must exist and belong to owner.
+	UpsertManualCaption(ctx context.Context, owner domain.OwnerID, id domain.AssetID, text string) error
+	// DeleteManualCaption removes the manual-layer caption for an asset.
+	DeleteManualCaption(ctx context.Context, owner domain.OwnerID, id domain.AssetID) error
+	// ListManualCaptions returns the manual-layer caption for each of the
+	// owner's assets that has one. The returned map is keyed by asset id string.
+	ListManualCaptions(ctx context.Context, owner domain.OwnerID, assetIDs []domain.AssetID) (map[string]string, error)
+
 	// Embeddings: CLIP vector retrieval and brute-force similarity search.
 	// Write path (IndexEmbedding) lives on *store.SQLite only, accessed via the
 	// narrow ai.EmbedPersister interface — mirroring PersistAITagResult.

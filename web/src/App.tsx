@@ -7,6 +7,7 @@ import {
   isBrowseLayout,
   isLibraryView,
   type Query,
+  type Tag,
   type ViewMode,
 } from "./types";
 import { useAssets } from "./hooks/useAssets";
@@ -23,6 +24,7 @@ import { ImmersiveViewer } from "./components/ImmersiveViewer";
 import { AssetDetail } from "./components/AssetDetail";
 import { BatchBar } from "./components/BatchBar";
 import { TrashView } from "./components/TrashView";
+import { InspectorPanel } from "./components/InspectorPanel";
 import { BoardList } from "./components/BoardList";
 import { BoardCanvas } from "./components/BoardCanvas";
 import brand from "./components/Sidebar.module.css";
@@ -33,6 +35,7 @@ export default function App() {
   const [query, setQuery] = useState<Query>(EMPTY_QUERY);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [inspectorTags, setInspectorTags] = useState<Tag[]>([]);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Asset | null>(null);
   const [immersiveIndex, setImmersiveIndex] = useState(0);
@@ -43,6 +46,12 @@ export default function App() {
   const { assets, loading, error: loadErr } = useAssets(view, query, version);
   const ids = useMemo(() => assets.map((a) => a.id), [assets]);
   const sel = useSelection(ids);
+
+  // The inspector shows for a single selection; resolve it from the loaded list.
+  const inspectedId = sel.count === 1 ? ([...sel.selected][0] ?? null) : null;
+  const inspectedAsset = inspectedId
+    ? assets.find((a) => a.id === inspectedId)
+    : undefined;
 
   // Board views (list + canvas) own their full-area chrome, so the search and
   // batch bars hide there; every other view keeps the asset chrome.
@@ -60,6 +69,26 @@ export default function App() {
       return () => clearTimeout(t);
     }
   }, [error]);
+
+  // Load the inspected asset's tags; `version` refetches after batch mutations.
+  useEffect(() => {
+    if (!inspectedId) {
+      setInspectorTags([]);
+      return;
+    }
+    let alive = true;
+    api
+      .assetTags(inspectedId)
+      .then((t) => {
+        if (alive) setInspectorTags(t);
+      })
+      .catch(() => {
+        if (alive) setInspectorTags([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [inspectedId, version]);
 
   // Wraps a batch call: run over the selection, clear it, then refresh assets
   // and the trash badge. `ids` overrides the selection for single-card actions.
@@ -134,7 +163,7 @@ export default function App() {
   const openDetail = (id: string) => setDetail(assets.find((a) => a.id === id) ?? null);
 
   return (
-    <div className="app" onClick={() => sel.clear()}>
+    <div className={`app ${isAssetView && inspectedAsset ? "inspect" : ""}`} onClick={() => sel.clear()}>
       <div className={brand.brand}>
         <span className={brand.logo}>河</span>
         <span className={brand.brandName}>
@@ -224,6 +253,21 @@ export default function App() {
           </>
         )}
       </div>
+
+      {isAssetView && inspectedAsset && (
+        <InspectorPanel
+          asset={inspectedAsset}
+          tags={inspectorTags}
+          onRate={(rating) => void run((t) => api.rate(t, rating), [inspectedAsset.id])()}
+          onColor={(hex) => void run((t) => api.colorLabel(t, hex), [inspectedAsset.id])()}
+          onNoteChange={(text) =>
+            void run(() => api.updateNote(inspectedAsset.id, text), [inspectedAsset.id])()
+          }
+          onNoteDelete={() =>
+            void run(() => api.deleteNote(inspectedAsset.id), [inspectedAsset.id])()
+          }
+        />
+      )}
 
       {isAssetView && (
         <BatchBar

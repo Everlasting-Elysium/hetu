@@ -34,7 +34,7 @@ func (p *Plugin) listDuplicates(w http.ResponseWriter, r *http.Request) {
 	for _, g := range groups {
 		out = append(out, groupDTO{
 			Hash:   g.Hash,
-			Assets: toDTOs(g.Assets),
+			Assets: toDTOs(g.Assets, nil),
 		})
 	}
 	httpjson.WriteJSON(w, http.StatusOK, out)

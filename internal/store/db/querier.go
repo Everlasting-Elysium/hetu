@@ -39,6 +39,7 @@ type Querier interface {
 	CreateShare(ctx context.Context, arg CreateShareParams) error
 	CreateTag(ctx context.Context, arg CreateTagParams) error
 	CreateVersion(ctx context.Context, arg CreateVersionParams) error
+	DeleteAnnotation(ctx context.Context, arg DeleteAnnotationParams) error
 	DeleteAssetColors(ctx context.Context, assetID string) error
 	DeleteBoard(ctx context.Context, arg DeleteBoardParams) error
 	DeleteBoardItem(ctx context.Context, arg DeleteBoardItemParams) error
@@ -90,6 +91,9 @@ type Querier interface {
 	// Returns all live (non-trashed, non-missing) assets for a provider, used by
 	// the missing-file detector to check which indexed paths still exist on disk.
 	ListLiveAssetsByProvider(ctx context.Context, arg ListLiveAssetsByProviderParams) ([]Asset, error)
+	// Returns the manual-layer caption for each of the given owner's assets that
+	// has one. Joins assets to enforce owner scoping.
+	ListManualCaptions(ctx context.Context, arg ListManualCaptionsParams) ([]ListManualCaptionsRow, error)
 	ListMissingAssets(ctx context.Context, arg ListMissingAssetsParams) ([]Asset, error)
 	// Returns missing assets matching a given hash, oldest first (by created_at).
 	// Used by hash-based auto-reconnect during scan.

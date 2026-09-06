@@ -77,6 +77,7 @@
 
   /* Layout */
   --sidebar-w: 244px;
+  --inspector-w: 320px;
   --topbar-h: 56px;
   --grid-min: 180px;
   --z-batch: 40;

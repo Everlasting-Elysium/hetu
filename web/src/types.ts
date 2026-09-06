@@ -24,6 +24,7 @@ export interface Asset {
   color: string;
   display_name: string;
   folder_id: string;
+  note: string;
   deleted_at?: string;
   missing_at?: string;
 }

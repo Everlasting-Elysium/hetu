@@ -155,13 +155,30 @@ img {
   height: 100%;
 }
 
+/* Inspector open: a third column reveals the per-asset side panel. */
+.app.inspect {
+  grid-template-columns: var(--sidebar-w) 1fr var(--inspector-w);
+  grid-template-areas:
+    "brand topbar topbar"
+    "side  main   inspector";
+}
+
 @media (max-width: 720px) {
-  .app {
+  .app,
+  .app.inspect {
     grid-template-columns: 1fr;
     grid-template-rows: var(--topbar-h) auto 1fr;
     grid-template-areas:
       "topbar"
       "side"
       "main";
+  }
+  .app.inspect {
+    grid-template-rows: var(--topbar-h) auto 1fr auto;
+    grid-template-areas:
+      "topbar"
+      "side"
+      "main"
+      "inspector";
   }
 }

@@ -104,7 +104,7 @@ func (p *Plugin) listTrash(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
-	httpjson.WriteJSON(w, http.StatusOK, toDTOs(assets))
+	httpjson.WriteJSON(w, http.StatusOK, toDTOs(assets, nil))
 }
 
 func (p *Plugin) emptyTrash(w http.ResponseWriter, r *http.Request) {

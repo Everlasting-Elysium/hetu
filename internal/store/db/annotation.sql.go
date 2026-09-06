@@ -7,7 +7,78 @@ package db
 
 import (
 	"context"
+	"strings"
 )
+
+const deleteAnnotation = `-- name: DeleteAnnotation :exec
+DELETE FROM annotations
+WHERE asset_id = ? AND layer = ? AND "key" = ?
+`
+
+type DeleteAnnotationParams struct {
+	AssetID string
+	Layer   string
+	Key     string
+}
+
+func (q *Queries) DeleteAnnotation(ctx context.Context, arg DeleteAnnotationParams) error {
+	_, err := q.db.ExecContext(ctx, deleteAnnotation, arg.AssetID, arg.Layer, arg.Key)
+	return err
+}
+
+const listManualCaptions = `-- name: ListManualCaptions :many
+SELECT an.asset_id, an.value
+FROM annotations an
+JOIN assets a ON a.id = an.asset_id
+WHERE a.owner_id = ? AND an.asset_id IN (/*SLICE:ids*/?)
+  AND an.layer = 'manual' AND an."key" = 'caption'
+`
+
+type ListManualCaptionsParams struct {
+	OwnerID string
+	Ids     []string
+}
+
+type ListManualCaptionsRow struct {
+	AssetID string
+	Value   string
+}
+
+// Returns the manual-layer caption for each of the given owner's assets that
+// has one. Joins assets to enforce owner scoping.
+func (q *Queries) ListManualCaptions(ctx context.Context, arg ListManualCaptionsParams) ([]ListManualCaptionsRow, error) {
+	query := listManualCaptions
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OwnerID)
+	if len(arg.Ids) > 0 {
+		for _, v := range arg.Ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(arg.Ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListManualCaptionsRow{}
+	for rows.Next() {
+		var i ListManualCaptionsRow
+		if err := rows.Scan(&i.AssetID, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 
 const listPHashAnnotations = `-- name: ListPHashAnnotations :many
 SELECT an.asset_id, an.value
