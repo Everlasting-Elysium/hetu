@@ -148,7 +148,7 @@ export function ModelViewer({ asset }: { asset: Asset }) {
         <p className={styles.hint}>无法加载 3D 预览，可下载原文件查看。</p>
         <a
           className="btn btn-primary"
-          href={fileUrl(asset.path)}
+          href={fileUrl(asset.id)}
           target="_blank"
           rel="noreferrer"
           download
