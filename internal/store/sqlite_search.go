@@ -14,12 +14,21 @@ import (
 // filters to the owner's live (non-trashed) assets, and orders by FTS5 bm25
 // rank (ascending = best first). The column list mirrors db.Asset field order
 // so the Scan below and rowToAsset stay aligned with sqlc's ListAssets.
+// thumb_path/width/height resolve to the current version (issue #58) via the
+// LEFT JOIN on current_version_id, so search results reflect the current
+// revision's thumbnail; storage_path/hash stay anchored to the original.
 const searchAssetsSQL = `
 SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext,
-       a.size, a.hash, a.thumb_path, a.width, a.height, a.created_at, a.indexed_at,
-       a.deleted_at, a.rating, a.color, a.display_name, a.folder_id, a.missing_at
+       a.size, a.hash,
+       COALESCE(cv.thumb_path, a.thumb_path) AS thumb_path,
+       COALESCE(cv.width, a.width) AS width,
+       COALESCE(cv.height, a.height) AS height,
+       a.created_at, a.indexed_at,
+       a.deleted_at, a.rating, a.color, a.display_name, a.folder_id, a.missing_at,
+       a.current_version_id
 FROM assets_fts
 JOIN assets a ON a.rowid = assets_fts.rowid
+LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
 WHERE assets_fts MATCH ? AND a.owner_id = ? AND a.deleted_at IS NULL
 ORDER BY assets_fts.rank
 LIMIT ? OFFSET ?`
@@ -44,7 +53,7 @@ func (s *SQLite) SearchAssets(ctx context.Context, owner domain.OwnerID, ftsQuer
 			&r.Name, &r.Ext, &r.Size, &r.Hash, &r.ThumbPath,
 			&r.Width, &r.Height, &r.CreatedAt, &r.IndexedAt,
 			&r.DeletedAt, &r.Rating, &r.Color, &r.DisplayName, &r.FolderID,
-			&r.MissingAt,
+			&r.MissingAt, &r.CurrentVersionID,
 		); err != nil {
 			return nil, fmt.Errorf("scan search row: %w", err)
 		}

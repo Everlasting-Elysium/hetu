@@ -83,6 +83,11 @@ type entryDTO struct {
 func toDTOs(entries []domain.Entry) []entryDTO {
 	out := make([]entryDTO, 0, len(entries))
 	for _, e := range entries {
+		// Hide the hetu-managed tree (version copies, issue #58) so managed
+		// internals never surface to users browsing the library.
+		if e.Name == domain.ManagedDirName {
+			continue
+		}
 		out = append(out, entryDTO{Name: e.Name, Path: e.Path, IsDir: e.IsDir, Size: e.Size})
 	}
 	return out

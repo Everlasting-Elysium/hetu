@@ -39,6 +39,9 @@ v0 仅有一条系统用户记录。
 | height | INTEGER | 图片/视频高度（像素），非图像类型为 NULL |
 | created_at | DATETIME | 文件创建时间（来自文件系统或 EXIF） |
 | indexed_at | DATETIME | hetu 最后一次索引该文件的时间 |
+| current_version_id | TEXT | 当前版本指针 → `asset_versions.id`；空字符串表示无显式版本（锚点行自身即唯一隐式版本），详见 [asset_versions](#asset_versions) |
+
+**版本解析（issue #58）**：`storage_path` / `hash` 始终锚定最初被索引的原始文件（扫描、去重、relocate 均以其为准，因此版本功能不影响这些链路）。而读取接口（`GetAsset` / `ListAssets` / `ListAssetsFiltered` / `SearchAssets`）通过 `LEFT JOIN asset_versions` + `COALESCE` 将 `thumb_path` / `width` / `height` 解析为**当前版本**的值，使缩略/搜索反映当前版本，无需把版本数据写回 `assets`（否则会被下次扫描的 `UpsertAsset` 覆盖）。
 
 ---
 
@@ -119,6 +122,44 @@ v0 仅有一条系统用户记录。
 联合主键：`(asset_id, ord)`；`owner_id` 上有索引。重新索引时按 `asset_id` 整体删除后重写。
 
 检索接口：`GET /api/dam/search?color=<hex>&tol=<ΔE00>&limit=<n>`，按主色到查询色的 CIEDE2000 距离升序返回相近资产（`tol` 默认见 [search.go](../internal/plugins/dam/search.go) 的 `defaultColorTol`）。
+
+---
+
+### asset_versions
+
+资产的**版本/修订历史**（[#58](https://github.com/Everlasting-Elysium/hetu/issues/58)）。同一资产的多次迭代（设计稿 v1/v2…）成组管理，可列出/切换当前/删除旧版；缩略/搜索反映当前版本。DDL 与实现见 [schema.sql](../internal/store/schema.sql)、[queries/version.sql](../internal/store/queries/version.sql)、[store/sqlite_versions.go](../internal/store/sqlite_versions.go)、[plugins/dam/versions.go](../internal/plugins/dam/versions.go)。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | TEXT (UUID v7) | 主键 |
+| asset_id | TEXT | 外键 → assets.id，同一资产的所有版本共享 |
+| owner_id | TEXT | 外键 → users.id |
+| version_no | INTEGER | 版本序号（从 1 递增），`(asset_id, version_no)` 唯一 |
+| provider | TEXT | 该版本字节所在的存储提供者 |
+| storage_path | TEXT | 该版本文件路径。version 1 为原地索引的原始文件（锚点路径，在 `ManagedDirName` 之外）；version 2+ 为经 API 上传、拷贝进 `ManagedDirName` 的副本 |
+| hash | TEXT | 该版本内容哈希（SHA-256） |
+| size | INTEGER | 该版本字节数 |
+| thumb_path | TEXT | 该版本缩略图路径（`{ThumbDir}/{versionID}.jpg`；version 1 复用锚点缩略图），供读取时 COALESCE 解析当前版本 |
+| width / height | INTEGER | 该版本尺寸，供读取时 COALESCE 解析当前版本 |
+| note | TEXT | 版本备注（上传时可选填；回填的 version 1 为 `initial`） |
+| created_at | INTEGER | 写入时间（unix 秒） |
+
+**设计模型（parse-don't-validate）**：
+- **锚定不变**：`assets.storage_path` / `hash` 永久锚定最初索引的原始文件；「设为当前」只翻转 `assets.current_version_id`，从不改写锚点。扫描的 missing-detection、hash 自动重连、去重（[#22](https://github.com/Everlasting-Elysium/hetu/issues/22)）、relocate（[#45](https://github.com/Everlasting-Elysium/hetu/issues/45)）均以 `assets` 锚点为准，因此版本功能对它们零影响。
+- **惰性 v1 回填**：首次为某资产上传新版本时，先用锚点当前状态合成 version 1（`note=initial`，`storage_path` 指向原地原始文件），再把上传文件作为 version 2 并设为当前。`current_version_id=''` 是「无显式版本」的哨兵，避免为绝大多数从不加版本的资产在扫描热路径写入冗余行。
+- **受管存储**：上传版本经窄接口 `kernel.StorageWriter`（本地 provider 实现，调用处 type-assert；契约与 `PaletteExtractor` 等可选能力一致）拷贝到 `<ManagedDirName>/versions/<assetID>/<versionID>/<filename>`。`ManagedDirName`（`.hetu`）被扫描 walk 跳过、被 NAS 浏览隐藏，因此版本副本永不被当作新资产索引。
+- **删除安全**：不能删除当前版本（须先切换）；删除旧版仅移除受管路径（`ManagedDirName` 下）的物理文件与该版本专属缩略图（`{versionID}.jpg`），永不触碰用户原地原始文件（version 1）与其共享缩略图。清空回收站（`PurgeTrash`）级联删除对应版本行（物理文件保留，与既有缩略图清理行为一致）。
+
+**HTTP 接口**（`internal/plugins/dam/versions.go`、`version_upload.go`）：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/dam/assets/{id}/versions` | 列出版本（版本号降序，标记当前） |
+| POST | `/api/dam/assets/{id}/versions` | 上传新版本（multipart：`file`、可选 `note`），自动设为当前 |
+| POST | `/api/dam/assets/{id}/versions/{no}/current` | 切换当前版本（回滚） |
+| DELETE | `/api/dam/assets/{id}/versions/{no}` | 删除旧版（当前版本返回 409） |
+
+**已知限制 / 后续（本 issue 范围外）**：版本缩略图仅对有处理器的类型生成（当前为图片）；未提供逐版本缩略图 serve 端点（当前版本经 `GET /api/dam/assets/{id}/thumb` 反映）；purge 仅级联版本 DB 行，受管版本物理文件保留（与既有缩略图 purge 行为一致）。
 
 ---
 

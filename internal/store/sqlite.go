@@ -184,7 +184,10 @@ func (s *SQLite) GetAsset(ctx context.Context, owner domain.OwnerID, id domain.A
 		}
 		return domain.Asset{}, fmt.Errorf("get asset %s: %w", id, err)
 	}
-	return rowToAsset(row)
+	// GetAsset selects current-version-resolved display fields (COALESCE), so
+	// sqlc emits a distinct row type structurally identical to db.Asset; the
+	// conversion is compile-checked and fails loudly if the shapes ever diverge.
+	return rowToAsset(db.Asset(row))
 }
 
 // ListAssets returns the owner's live (non-trashed) assets, newest first.
@@ -197,7 +200,17 @@ func (s *SQLite) ListAssets(ctx context.Context, owner domain.OwnerID, limit, of
 	if err != nil {
 		return nil, fmt.Errorf("list assets: %w", err)
 	}
-	return rowsToAssets(rows)
+	// ListAssets resolves current-version display fields (COALESCE), so sqlc
+	// emits ListAssetsRow (identical shape to db.Asset). Convert per row.
+	assets := make([]domain.Asset, 0, len(rows))
+	for _, r := range rows {
+		a, err := rowToAsset(db.Asset(r))
+		if err != nil {
+			return nil, err
+		}
+		assets = append(assets, a)
+	}
+	return assets, nil
 }
 
 func rowsToAssets(rows []db.Asset) ([]domain.Asset, error) {
@@ -238,10 +251,11 @@ func rowToAsset(r db.Asset) (domain.Asset, error) {
 		IndexedAt:   time.Unix(r.IndexedAt, 0).UTC(),
 		DeletedAt:   nullUnixToTime(r.DeletedAt),
 		MissingAt:   nullUnixToTime(r.MissingAt),
-		Rating:      int(r.Rating),
-		Color:       r.Color,
-		DisplayName: r.DisplayName,
-		FolderID:    r.FolderID,
+		Rating:           int(r.Rating),
+		Color:            r.Color,
+		DisplayName:      r.DisplayName,
+		FolderID:         r.FolderID,
+		CurrentVersionID: r.CurrentVersionID,
 	}, nil
 }
 

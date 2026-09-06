@@ -12,10 +12,20 @@ import (
 
 // assetColumns is the a-prefixed asset column list in db.Asset field order, so
 // scanAssetRows and rowToAsset stay aligned with sqlc's generated queries.
+// thumb_path/width/height COALESCE to the current version (issue #58); callers
+// selecting these columns must join asset_versions as cv (see currentVersionJoin).
 const assetColumns = `a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, ` +
-	`a.ext, a.size, a.hash, a.thumb_path, a.width, a.height, a.created_at, ` +
+	`a.ext, a.size, a.hash, ` +
+	`COALESCE(cv.thumb_path, a.thumb_path) AS thumb_path, ` +
+	`COALESCE(cv.width, a.width) AS width, ` +
+	`COALESCE(cv.height, a.height) AS height, a.created_at, ` +
 	`a.indexed_at, a.deleted_at, a.rating, a.color, a.display_name, a.folder_id, ` +
-	`a.missing_at`
+	`a.missing_at, a.current_version_id`
+
+// currentVersionJoin resolves an asset's current version for display-field
+// COALESCE. current_version_id is '' for un-versioned assets, so cv is NULL and
+// COALESCE falls back to the anchor's own thumb_path/width/height.
+const currentVersionJoin = ` LEFT JOIN asset_versions cv ON cv.id = a.current_version_id `
 
 // ListAssetsFiltered returns the owner's live assets narrowed by folder, tag,
 // and minimum rating, newest first. Empty FolderID/TagID and MinRating 0 are
@@ -40,7 +50,7 @@ func (s *SQLite) ListAssetsFiltered(ctx context.Context, owner domain.OwnerID, f
 		conds = append(conds, "EXISTS (SELECT 1 FROM asset_tags atg WHERE atg.asset_id = a.id AND atg.tag_id = ?)")
 		args = append(args, f.TagID)
 	}
-	query := "SELECT " + assetColumns + " FROM assets a WHERE " +
+	query := "SELECT " + assetColumns + " FROM assets a" + currentVersionJoin + "WHERE " +
 		strings.Join(conds, " AND ") + " ORDER BY a.indexed_at DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
 
@@ -66,7 +76,7 @@ func scanAssetRows(rows *sql.Rows) ([]db.Asset, error) {
 			&r.ID, &r.OwnerID, &r.Kind, &r.Provider, &r.StoragePath, &r.Name,
 			&r.Ext, &r.Size, &r.Hash, &r.ThumbPath, &r.Width, &r.Height,
 			&r.CreatedAt, &r.IndexedAt, &r.DeletedAt, &r.Rating, &r.Color,
-			&r.DisplayName, &r.FolderID, &r.MissingAt,
+			&r.DisplayName, &r.FolderID, &r.MissingAt, &r.CurrentVersionID,
 		); err != nil {
 			return nil, fmt.Errorf("scan asset row: %w", err)
 		}
