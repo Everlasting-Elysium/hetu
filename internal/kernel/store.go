@@ -81,6 +81,9 @@ type Store interface {
 	AddVersion(ctx context.Context, owner domain.OwnerID, base, newVersion domain.AssetVersion) (domain.AssetVersion, error)
 	ListVersions(ctx context.Context, owner domain.OwnerID, assetID domain.AssetID) ([]domain.AssetVersion, error)
 	GetVersionByNo(ctx context.Context, owner domain.OwnerID, assetID domain.AssetID, versionNo int) (domain.AssetVersion, error)
+	// GetVersionByID resolves a version by its id (owner-scoped); the /file
+	// endpoint uses it to stream the current version's bytes.
+	GetVersionByID(ctx context.Context, owner domain.OwnerID, versionID domain.VersionID) (domain.AssetVersion, error)
 	CurrentVersionID(ctx context.Context, owner domain.OwnerID, assetID domain.AssetID) (string, error)
 	// SetCurrentVersion repoints the asset at versionID, verifying the version
 	// still exists in the same transaction so a concurrent delete cannot leave a

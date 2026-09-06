@@ -106,6 +106,41 @@ func (q *Queries) GetAssetCurrentVersion(ctx context.Context, arg GetAssetCurren
 	return current_version_id, err
 }
 
+const getVersionByID = `-- name: GetVersionByID :one
+SELECT id, asset_id, owner_id, version_no, provider, storage_path, hash, size,
+       thumb_path, width, height, note, created_at
+FROM asset_versions
+WHERE id = ? AND owner_id = ?
+`
+
+type GetVersionByIDParams struct {
+	ID      string
+	OwnerID string
+}
+
+// One version addressed by its id (owner-scoped). Used by the /file endpoint to
+// resolve the current version's bytes for playback/download.
+func (q *Queries) GetVersionByID(ctx context.Context, arg GetVersionByIDParams) (AssetVersion, error) {
+	row := q.db.QueryRowContext(ctx, getVersionByID, arg.ID, arg.OwnerID)
+	var i AssetVersion
+	err := row.Scan(
+		&i.ID,
+		&i.AssetID,
+		&i.OwnerID,
+		&i.VersionNo,
+		&i.Provider,
+		&i.StoragePath,
+		&i.Hash,
+		&i.Size,
+		&i.ThumbPath,
+		&i.Width,
+		&i.Height,
+		&i.Note,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getVersionByNo = `-- name: GetVersionByNo :one
 SELECT id, asset_id, owner_id, version_no, provider, storage_path, hash, size,
        thumb_path, width, height, note, created_at

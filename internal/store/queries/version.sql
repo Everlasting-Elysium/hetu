@@ -20,6 +20,14 @@ SELECT id, asset_id, owner_id, version_no, provider, storage_path, hash, size,
 FROM asset_versions
 WHERE asset_id = ? AND owner_id = ? AND version_no = ?;
 
+-- name: GetVersionByID :one
+-- One version addressed by its id (owner-scoped). Used by the /file endpoint to
+-- resolve the current version's bytes for playback/download.
+SELECT id, asset_id, owner_id, version_no, provider, storage_path, hash, size,
+       thumb_path, width, height, note, created_at
+FROM asset_versions
+WHERE id = ? AND owner_id = ?;
+
 -- name: MaxVersionNo :one
 -- Highest allocated version number for an asset (0 when none). CAST forces an
 -- int64 return so version-number allocation is MaxVersionNo + 1.

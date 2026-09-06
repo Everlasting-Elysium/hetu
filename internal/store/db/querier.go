@@ -57,6 +57,9 @@ type Querier interface {
 	// (possibly manual) tag instead of creating a duplicate. Returns sql.ErrNoRows
 	// when absent, signalling the caller to create it.
 	GetTagIDByName(ctx context.Context, arg GetTagIDByNameParams) (string, error)
+	// One version addressed by its id (owner-scoped). Used by the /file endpoint to
+	// resolve the current version's bytes for playback/download.
+	GetVersionByID(ctx context.Context, arg GetVersionByIDParams) (AssetVersion, error)
 	// One version addressed by (asset, version number); enforces ownership and that
 	// the version belongs to the asset. Used by set-current and delete.
 	GetVersionByNo(ctx context.Context, arg GetVersionByNoParams) (AssetVersion, error)

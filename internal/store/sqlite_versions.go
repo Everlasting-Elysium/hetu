@@ -99,6 +99,20 @@ func (s *SQLite) GetVersionByNo(ctx context.Context, owner domain.OwnerID, asset
 	return rowToVersion(row)
 }
 
+// GetVersionByID returns one version by its id (owner-scoped), or ErrNotFound.
+func (s *SQLite) GetVersionByID(ctx context.Context, owner domain.OwnerID, versionID domain.VersionID) (domain.AssetVersion, error) {
+	row, err := s.q.GetVersionByID(ctx, db.GetVersionByIDParams{
+		ID: versionID.String(), OwnerID: owner.String(),
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.AssetVersion{}, fmt.Errorf("get version %s: %w", versionID, domain.ErrNotFound)
+		}
+		return domain.AssetVersion{}, fmt.Errorf("get version %s: %w", versionID, err)
+	}
+	return rowToVersion(row)
+}
+
 // CurrentVersionID returns the asset's current-version pointer ('' when the
 // asset has no explicit versions), or ErrNotFound if the asset does not exist.
 func (s *SQLite) CurrentVersionID(ctx context.Context, owner domain.OwnerID, assetID domain.AssetID) (string, error) {

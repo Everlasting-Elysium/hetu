@@ -47,6 +47,8 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodGet, Pattern: "/assets", Handler: p.listAssets},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/tags", Handler: p.assetTags},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/thumb", Handler: p.serveThumb},
+		// /file streams the original bytes (Range-enabled) for media playback.
+		{Method: http.MethodGet, Pattern: "/assets/{id}/file", Handler: p.serveFile},
 
 		// Version / revision history (issue #58): list, upload a new current
 		// version, roll back to an existing version, delete an old version.
@@ -54,6 +56,7 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodPost, Pattern: "/assets/{id}/versions", Handler: p.uploadVersion},
 		{Method: http.MethodPost, Pattern: "/assets/{id}/versions/{no}/current", Handler: p.setCurrentVersion},
 		{Method: http.MethodDelete, Pattern: "/assets/{id}/versions/{no}", Handler: p.deleteVersion},
+
 		// /search dispatches on query params: ?q= full-text (FTS5), ?color= palette.
 		{Method: http.MethodGet, Pattern: "/search", Handler: p.search},
 
