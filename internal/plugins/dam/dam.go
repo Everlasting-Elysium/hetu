@@ -47,6 +47,8 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodGet, Pattern: "/assets", Handler: p.listAssets},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/tags", Handler: p.assetTags},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/thumb", Handler: p.serveThumb},
+		// /file streams the original bytes (Range-enabled) for media playback.
+		{Method: http.MethodGet, Pattern: "/assets/{id}/file", Handler: p.serveFile},
 		// /search dispatches on query params: ?q= full-text (FTS5), ?color= palette.
 		{Method: http.MethodGet, Pattern: "/search", Handler: p.search},
 

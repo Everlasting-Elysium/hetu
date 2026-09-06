@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { Asset, AssetKind } from "../types";
 import { fileUrl, thumbUrl } from "../api/client";
 import { IconClose, KindIcon } from "./icons";
+import { VideoPlayer } from "./VideoPlayer";
 import styles from "./AssetDetail.module.css";
 
 interface Props {
@@ -30,8 +31,9 @@ function formatSize(bytes: number): string {
   return `${value.toFixed(1)} ${units[unit]}`;
 }
 
-// Kind-specific preview built from native elements only — no external players.
-// Audio/video stream from the Range-enabled NAS route so scrubbing works.
+// Kind-specific preview. Video uses the custom VideoPlayer; audio/image use
+// native elements. Media streams from the Range-enabled DAM /file endpoint
+// (by asset id) so scrubbing/seeking works.
 function AssetMedia({ asset }: { asset: Asset }) {
   const label = asset.display_name || asset.name;
   switch (asset.kind) {
@@ -39,7 +41,7 @@ function AssetMedia({ asset }: { asset: Asset }) {
       return (
         <a
           className={styles.imageLink}
-          href={fileUrl(asset.path)}
+          href={fileUrl(asset.id)}
           target="_blank"
           rel="noreferrer"
           title="查看原图"
@@ -48,14 +50,7 @@ function AssetMedia({ asset }: { asset: Asset }) {
         </a>
       );
     case "video":
-      return (
-        <video
-          className={styles.videoPlayer}
-          src={fileUrl(asset.path)}
-          poster={thumbUrl(asset.id)}
-          controls
-        />
-      );
+      return <VideoPlayer asset={asset} />;
     case "audio":
       return (
         <div className={styles.audio}>
@@ -66,7 +61,7 @@ function AssetMedia({ asset }: { asset: Asset }) {
               <KindIcon kind="audio" width={72} height={72} />
             </div>
           )}
-          <audio className={styles.audioPlayer} src={fileUrl(asset.path)} controls />
+          <audio className={styles.audioPlayer} src={fileUrl(asset.id)} controls />
         </div>
       );
     default:
@@ -75,7 +70,7 @@ function AssetMedia({ asset }: { asset: Asset }) {
           <KindIcon kind={asset.kind} width={72} height={72} />
           <a
             className="btn btn-primary"
-            href={fileUrl(asset.path)}
+            href={fileUrl(asset.id)}
             target="_blank"
             rel="noreferrer"
             download

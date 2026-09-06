@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Asset, ColorMatch } from "../types";
-import { thumbUrl } from "../api/client";
+import { fileUrl, thumbUrl } from "../api/client";
 import { RatingStars } from "./RatingStars";
 import { ColorPopover } from "./ColorPicker";
 import { IconClose, KindIcon } from "./icons";
@@ -22,14 +22,19 @@ export function AssetCard({ asset, selected, onSelect, onToggleCheck, onRate, on
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
   const label = asset.display_name || asset.name;
   const showThumb = asset.thumb !== "" && !failed;
+  const showPreview = hovered && asset.kind === "video" && !previewFailed;
 
   return (
     <div
       className={`${styles.card} ${selected ? styles.selected : ""}`}
       onClick={onSelect}
       onDoubleClick={onDetail}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       <div className={styles.thumb}>
         {showThumb ? (
@@ -47,6 +52,20 @@ export function AssetCard({ asset, selected, onSelect, onToggleCheck, onRate, on
             <KindIcon kind={asset.kind} />
             <span className={styles.ext}>{asset.ext.replace(".", "") || asset.kind}</span>
           </div>
+        )}
+
+        {showPreview && (
+          <video
+            className={styles.preview}
+            src={fileUrl(asset.id)}
+            poster={thumbUrl(asset.id)}
+            muted
+            loop
+            autoPlay
+            playsInline
+            preload="none"
+            onError={() => setPreviewFailed(true)}
+          />
         )}
 
         <button
