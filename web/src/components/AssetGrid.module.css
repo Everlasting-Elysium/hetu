@@ -1,11 +1,21 @@
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--grid-min), 1fr));
-  gap: var(--sp-4);
-  padding: var(--sp-5) var(--sp-6);
-  align-content: start;
-  overflow-y: auto;
+/* Scroll viewport for the row virtualizer. Padding is applied in render (PAD_X/
+   PAD_Y) so the measured width matches the virtualizer's column math exactly. */
+.scroll {
+  position: relative;
   height: 100%;
+  overflow-y: auto;
+}
+.sizer {
+  position: relative;
+  width: 100%;
+}
+.row {
+  position: absolute;
+  top: 0;
+  left: var(--sp-6);
+  right: var(--sp-6);
+  display: grid;
+  gap: var(--sp-4);
 }
 
 .state {

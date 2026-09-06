@@ -32,7 +32,8 @@ function formatSize(bytes: number): string {
 
 // Kind-specific preview built from native elements only — no external players.
 // Audio/video stream from the Range-enabled NAS route so scrubbing works.
-function AssetMedia({ asset }: { asset: Asset }) {
+// Exported so gallery + immersive views render media identically (single source).
+export function AssetMedia({ asset }: { asset: Asset }) {
   const label = asset.display_name || asset.name;
   switch (asset.kind) {
     case "image":
