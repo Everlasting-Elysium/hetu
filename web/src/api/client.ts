@@ -40,6 +40,11 @@ const body = (data: unknown): RequestInit => ({
 
 export const thumbUrl = (id: string): string => `${BASE}/assets/${id}/thumb`;
 
+// Streams the original file via the NAS plugin (http.ServeContent, Range-enabled)
+// so <audio>/<video> can seek. Not under BASE — this is the NAS route, not DAM.
+export const fileUrl = (path: string): string =>
+  `/api/nas/download?path=${encodeURIComponent(path)}`;
+
 export const api = {
   listAssets: (limit = 200, offset = 0) =>
     req<Asset[]>(`/assets?limit=${limit}&offset=${offset}`),
@@ -99,4 +104,17 @@ export const api = {
     req<{ purged: boolean }>(`/trash?retention_days=${retention_days}`, {
       method: "DELETE",
     }),
+
+  listMissing: (limit = 200, offset = 0) =>
+    req<Asset[]>(`/assets?status=missing&limit=${limit}&offset=${offset}`),
+  relocate: (id: string, new_path: string, provider?: string) =>
+    req<{ relocated: string }>(
+      `/assets/${id}/relocate`,
+      body({ new_path, ...(provider ? { provider } : {}) }),
+    ),
+  rebase: (old_prefix: string, new_prefix: string, provider = "local") =>
+    req<{ rebased: boolean }>(
+      "/relocate/rebase",
+      body({ old_prefix, new_prefix, provider }),
+    ),
 };

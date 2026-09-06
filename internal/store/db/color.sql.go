@@ -31,7 +31,7 @@ func (q *Queries) AssetIDByPath(ctx context.Context, arg AssetIDByPathParams) (s
 const assetsByIDs = `-- name: AssetsByIDs :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id
+       deleted_at, rating, color, display_name, folder_id, missing_at
 FROM assets
 WHERE owner_id = ? AND id IN (/*SLICE:ids*/?)
 `
@@ -81,6 +81,7 @@ func (q *Queries) AssetsByIDs(ctx context.Context, arg AssetsByIDsParams) ([]Ass
 			&i.Color,
 			&i.DisplayName,
 			&i.FolderID,
+			&i.MissingAt,
 		); err != nil {
 			return nil, err
 		}

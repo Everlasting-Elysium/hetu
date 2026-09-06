@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api/client";
-import { EMPTY_QUERY, type Query, type Tag, type ViewMode } from "./types";
+import { type Asset, EMPTY_QUERY, type Query, type Tag, type ViewMode } from "./types";
 import { useAssets } from "./hooks/useAssets";
 import { useLibrary } from "./hooks/useLibrary";
 import { useSelection } from "./hooks/useSelection";
 import { Sidebar } from "./components/Sidebar";
 import { SearchBar } from "./components/SearchBar";
 import { AssetGrid } from "./components/AssetGrid";
+import { AssetDetail } from "./components/AssetDetail";
 import { BatchBar } from "./components/BatchBar";
 import { TrashView } from "./components/TrashView";
 import { InspectorPanel } from "./components/InspectorPanel";
@@ -19,6 +20,7 @@ export default function App() {
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [inspectorTags, setInspectorTags] = useState<Tag[]>([]);
+  const [detail, setDetail] = useState<Asset | null>(null);
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
   const lib = useLibrary(setError);
@@ -70,6 +72,7 @@ export default function App() {
         if (!override) sel.clear();
         bump();
         lib.refreshTrash();
+        lib.refreshMissing();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       }
@@ -92,13 +95,16 @@ export default function App() {
     sel.clear();
     setQuery(EMPTY_QUERY);
   };
+  const setMissing = () => changeView("missing");
 
   const emptyHint =
     view === "trash"
       ? "回收站是空的。"
-      : query.keyword || query.colorHex
-        ? "没有匹配的素材，换个条件试试。"
-        : "运行 `bin/hetu scan` 索引素材目录后即可浏览。";
+      : view === "missing"
+        ? "没有丢失文件，所有索引文件均可访问。"
+        : query.keyword || query.colorHex
+          ? "没有匹配的素材，换个条件试试。"
+          : "运行 `bin/hetu scan` 索引素材目录后即可浏览。";
 
   return (
     <div className={`app ${inspectedAsset ? "inspect" : ""}`} onClick={() => sel.clear()}>
@@ -120,11 +126,15 @@ export default function App() {
         onDeleteFolder={(id) => void lib.deleteFolder(id)}
         onCreateTag={(n) => void lib.createTag(n)}
         onDeleteTag={(id) => void lib.deleteTag(id)}
+        missingCount={lib.missingCount}
+        onPickMissing={setMissing}
+        activeMissing={view === "missing"}
       />
 
       <SearchBar
         view={view}
         trashCount={lib.trashCount}
+        missingCount={lib.missingCount}
         onKeyword={(q) => setQuery((p) => ({ ...EMPTY_QUERY, folderId: p.folderId, tagId: p.tagId, keyword: q }))}
         onColor={(hex) => setQuery((p) => ({ ...EMPTY_QUERY, folderId: p.folderId, tagId: p.tagId, colorHex: hex }))}
         onViewChange={changeView}
@@ -146,6 +156,7 @@ export default function App() {
             emptyHint={emptyHint}
             onRate={(id, rating) => void run((t) => api.rate(t, rating), [id])()}
             onColor={(id, hex) => void run((t) => api.colorLabel(t, hex), [id])()}
+            onDetail={(id) => setDetail(assets.find((a) => a.id === id) ?? null)}
           />
         </div>
       </div>
@@ -178,6 +189,8 @@ export default function App() {
         onTrash={() => void run((t) => api.trash(t))()}
         onRestore={() => void run((t) => api.restore(t))()}
       />
+
+      <AssetDetail asset={detail} onClose={() => setDetail(null)} />
 
       {error && <div className={styles.toast}>{error}</div>}
     </div>

@@ -12,6 +12,7 @@ interface Props {
   emptyHint: string;
   onRate: (id: string, rating: number) => void;
   onColor: (id: string, hex: string) => void;
+  onDetail: (id: string) => void;
 }
 
 export function AssetGrid({
@@ -22,6 +23,7 @@ export function AssetGrid({
   emptyHint,
   onRate,
   onColor,
+  onDetail,
 }: Props) {
   if (loading && assets.length === 0)
     return (
@@ -62,6 +64,7 @@ export function AssetGrid({
           onToggleCheck={() => selection.toggle(a.id)}
           onRate={(r) => onRate(a.id, r)}
           onColor={(hex) => onColor(a.id, hex)}
+          onDetail={() => onDetail(a.id)}
         />
       ))}
     </div>

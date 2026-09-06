@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ViewMode } from "../types";
-import { IconClose, IconDroplet, IconSearch, IconTrash } from "./icons";
+import { IconAlert, IconClose, IconDroplet, IconSearch, IconTrash } from "./icons";
 import styles from "./SearchBar.module.css";
 
 type SearchKind = "keyword" | "color";
@@ -8,6 +8,7 @@ type SearchKind = "keyword" | "color";
 interface Props {
   view: ViewMode;
   trashCount: number;
+  missingCount: number;
   onKeyword: (q: string) => void;
   onColor: (hex: string | null) => void;
   onViewChange: (v: ViewMode) => void;
@@ -15,7 +16,7 @@ interface Props {
 
 // Topbar: keyword/color search modes (300ms debounced), plus library/trash
 // view toggle. Switching mode clears the other mode's active query.
-export function SearchBar({ view, trashCount, onKeyword, onColor, onViewChange }: Props) {
+export function SearchBar({ view, trashCount, missingCount, onKeyword, onColor, onViewChange }: Props) {
   const [kind, setKind] = useState<SearchKind>("keyword");
   const [text, setText] = useState("");
   const [hex, setHex] = useState("#4f8ff7");
@@ -116,6 +117,15 @@ export function SearchBar({ view, trashCount, onKeyword, onColor, onViewChange }
           <IconTrash width={14} height={14} /> 回收站
           {trashCount > 0 && <span className={styles.badge}>{trashCount}</span>}
         </button>
+        {missingCount > 0 && (
+          <button
+            className={`btn ${view === "missing" ? "btn-primary" : "btn-ghost"}`}
+            onClick={() => onViewChange("missing")}
+          >
+            <IconAlert width={14} height={14} /> 丢失文件
+            <span className={styles.badge}>{missingCount}</span>
+          </button>
+        )}
       </div>
     </div>
   );

@@ -203,6 +203,144 @@ func TestIndexer_ScanModel(t *testing.T) {
 	}
 }
 
+// TestIndexer_DetectMissing proves that a rescan flags an asset as missing once
+// its backing file is deleted: the first scan indexes the PNG, the file is
+// removed, and the second scan marks the record missing (missing_at set).
+func TestIndexer_DetectMissing(t *testing.T) {
+	ctx := context.Background()
+	tmp := t.TempDir()
+	lib := filepath.Join(tmp, "lib")
+	if err := os.MkdirAll(lib, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writePNG(t, filepath.Join(lib, "a.png"), 32, 32)
+
+	st, err := store.Open(ctx, filepath.Join(tmp, "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	k := kernel.New(kernel.Deps{
+		Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Store:     st,
+		ThumbDir:  filepath.Join(tmp, "thumbs"),
+		JobBuffer: 1,
+	})
+	k.Storage.Register(local.New(lib))
+	k.Assets.Register(assetimage.New())
+
+	owner, err := domain.NewOwnerID("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix := index.New(k, owner)
+
+	if _, err := ix.Scan(ctx, local.ProviderName, ""); err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+
+	// Delete the physical file, then rescan: the asset must be marked missing.
+	if err := os.Remove(filepath.Join(lib, "a.png")); err != nil {
+		t.Fatal(err)
+	}
+	res, err := ix.Scan(ctx, local.ProviderName, "")
+	if err != nil {
+		t.Fatalf("second scan: %v", err)
+	}
+	if res.Missing != 1 {
+		t.Fatalf("res.Missing = %d, want 1", res.Missing)
+	}
+
+	missing, err := st.ListMissingAssets(ctx, owner, 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(missing) != 1 {
+		t.Fatalf("missing count = %d, want 1", len(missing))
+	}
+	if missing[0].MissingAt == nil {
+		t.Fatal("missing_at not set on missing asset")
+	}
+}
+
+// TestIndexer_AutoReconnect proves that moving a file to a new path preserves
+// its asset identity: the moved file reconnects (by content hash) to its
+// now-missing record in a single rescan instead of creating a duplicate, and
+// missing_at is cleared.
+func TestIndexer_AutoReconnect(t *testing.T) {
+	ctx := context.Background()
+	tmp := t.TempDir()
+	lib := filepath.Join(tmp, "lib")
+	if err := os.MkdirAll(lib, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writePNG(t, filepath.Join(lib, "a.png"), 32, 32)
+
+	st, err := store.Open(ctx, filepath.Join(tmp, "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	k := kernel.New(kernel.Deps{
+		Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Store:     st,
+		ThumbDir:  filepath.Join(tmp, "thumbs"),
+		JobBuffer: 1,
+	})
+	k.Storage.Register(local.New(lib))
+	k.Assets.Register(assetimage.New())
+
+	owner, err := domain.NewOwnerID("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix := index.New(k, owner)
+
+	if _, err := ix.Scan(ctx, local.ProviderName, ""); err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+	before, err := st.ListAssets(ctx, owner, 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(before) != 1 {
+		t.Fatalf("after first scan len = %d, want 1", len(before))
+	}
+	origID := before[0].ID
+
+	// Move the file to a new path within the same library.
+	if err := os.Rename(filepath.Join(lib, "a.png"), filepath.Join(lib, "b.png")); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := ix.Scan(ctx, local.ProviderName, "")
+	if err != nil {
+		t.Fatalf("second scan: %v", err)
+	}
+	if res.Reconnected != 1 {
+		t.Fatalf("res.Reconnected = %d, want 1", res.Reconnected)
+	}
+
+	after, err := st.ListAssets(ctx, owner, 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != 1 {
+		t.Fatalf("after reconnect len = %d, want 1 (no duplicate)", len(after))
+	}
+	if after[0].ID != origID {
+		t.Fatalf("asset ID = %s, want preserved %s", after[0].ID, origID)
+	}
+	if after[0].StoragePath != "b.png" {
+		t.Fatalf("path = %q, want %q", after[0].StoragePath, "b.png")
+	}
+	if after[0].MissingAt != nil {
+		t.Fatal("missing_at not cleared after reconnect")
+	}
+}
+
 func writePNG(t *testing.T, path string, w, h int) {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
