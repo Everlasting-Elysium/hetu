@@ -46,6 +46,13 @@ const (
 	KeyXMPDescription = "xmp.description" // JSON string
 	KeyXMPSubject     = "xmp.subject"     // JSON []string
 	KeyXMPCopyright   = "xmp.copyright"   // JSON string
+
+	// Audio keys (layer=extracted, prefix "audio.").
+	KeyAudioDuration   = "audio.duration"    // JSON float64, seconds
+	KeyAudioBitrate    = "audio.bitrate"     // JSON int, bits per second
+	KeyAudioSampleRate = "audio.sample_rate" // JSON int, Hz
+	KeyAudioChannels   = "audio.channels"    // JSON int
+	KeyAudioCodec      = "audio.codec"       // JSON string, e.g. "mp3", "flac"
 )
 
 // Annotation is one layered metadata key/value for an asset. Value is a

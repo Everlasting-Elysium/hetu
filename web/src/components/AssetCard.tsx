@@ -13,11 +13,12 @@ interface Props {
   onToggleCheck: () => void;
   onRate: (rating: number) => void;
   onColor: (hex: string) => void;
+  onDetail: () => void;
 }
 
 const isMatch = (a: Asset | ColorMatch): a is ColorMatch => "match_hex" in a;
 
-export function AssetCard({ asset, selected, onSelect, onToggleCheck, onRate, onColor }: Props) {
+export function AssetCard({ asset, selected, onSelect, onToggleCheck, onRate, onColor, onDetail }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
@@ -28,6 +29,7 @@ export function AssetCard({ asset, selected, onSelect, onToggleCheck, onRate, on
     <div
       className={`${styles.card} ${selected ? styles.selected : ""}`}
       onClick={onSelect}
+      onDoubleClick={onDetail}
     >
       <div className={styles.thumb}>
         {showThumb ? (
