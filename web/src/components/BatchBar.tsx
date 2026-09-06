@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { isLibraryView } from "../types";
 import type { Folder, Tag, ViewMode } from "../types";
 import { RatingStars } from "./RatingStars";
 import { ColorSwatches } from "./ColorPicker";
@@ -38,7 +39,7 @@ export function BatchBar(p: Props) {
       </span>
       <div className={styles.sep} />
 
-      {p.view === "library" ? (
+      {isLibraryView(p.view) ? (
         <>
           <div className={styles.menuWrap}>
             <button className="btn btn-ghost" onClick={() => toggle("tag")}>

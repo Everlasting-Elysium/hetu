@@ -59,9 +59,5 @@ func (h *Handler) Thumbnail(_ context.Context, src io.ReadSeeker, w io.Writer) e
 	if err != nil {
 		return fmt.Errorf("decode image: %w", err)
 	}
-	thumb := imaging.Fit(img, thumbMaxDim, thumbMaxDim, imaging.Lanczos)
-	if err := imaging.Encode(w, thumb, imaging.JPEG); err != nil {
-		return fmt.Errorf("encode thumbnail: %w", err)
-	}
-	return nil
+	return encodeThumbnail(img, w)
 }

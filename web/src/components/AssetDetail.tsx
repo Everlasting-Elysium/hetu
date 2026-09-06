@@ -1,8 +1,16 @@
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import type { Asset, AssetKind } from "../types";
 import { fileUrl, thumbUrl } from "../api/client";
 import { IconClose, KindIcon } from "./icons";
+import { VideoPlayer } from "./VideoPlayer";
 import styles from "./AssetDetail.module.css";
+
+// The 3D viewer bundles model-viewer + three.js (~1 MB). Load it lazily so it is
+// fetched only when a user actually opens a 3D model, keeping the initial app
+// bundle lean for the common image/video/audio cases.
+const ModelViewer = lazy(() =>
+  import("./ModelViewer").then((m) => ({ default: m.ModelViewer })),
+);
 
 interface Props {
   asset: Asset | null;
@@ -30,16 +38,18 @@ function formatSize(bytes: number): string {
   return `${value.toFixed(1)} ${units[unit]}`;
 }
 
-// Kind-specific preview built from native elements only — no external players.
-// Audio/video stream from the Range-enabled NAS route so scrubbing works.
-function AssetMedia({ asset }: { asset: Asset }) {
+// Kind-specific preview. Video uses the custom VideoPlayer; audio/image use
+// native elements. Media streams from the Range-enabled DAM /file endpoint
+// (by asset id) so scrubbing/seeking works.
+// Exported so gallery + immersive views reuse the exact same media rendering.
+export function AssetMedia({ asset }: { asset: Asset }) {
   const label = asset.display_name || asset.name;
   switch (asset.kind) {
     case "image":
       return (
         <a
           className={styles.imageLink}
-          href={fileUrl(asset.path)}
+          href={fileUrl(asset.id)}
           target="_blank"
           rel="noreferrer"
           title="查看原图"
@@ -48,14 +58,7 @@ function AssetMedia({ asset }: { asset: Asset }) {
         </a>
       );
     case "video":
-      return (
-        <video
-          className={styles.videoPlayer}
-          src={fileUrl(asset.path)}
-          poster={thumbUrl(asset.id)}
-          controls
-        />
-      );
+      return <VideoPlayer asset={asset} />;
     case "audio":
       return (
         <div className={styles.audio}>
@@ -66,8 +69,20 @@ function AssetMedia({ asset }: { asset: Asset }) {
               <KindIcon kind="audio" width={72} height={72} />
             </div>
           )}
-          <audio className={styles.audioPlayer} src={fileUrl(asset.path)} controls />
+          <audio className={styles.audioPlayer} src={fileUrl(asset.id)} controls />
         </div>
+      );
+    case "model":
+      return (
+        <Suspense
+          fallback={
+            <div className={styles.modelLoading}>
+              <div className={styles.spinner} />
+            </div>
+          }
+        >
+          <ModelViewer key={asset.id} asset={asset} />
+        </Suspense>
       );
     default:
       return (
@@ -75,7 +90,7 @@ function AssetMedia({ asset }: { asset: Asset }) {
           <KindIcon kind={asset.kind} width={72} height={72} />
           <a
             className="btn btn-primary"
-            href={fileUrl(asset.path)}
+            href={fileUrl(asset.id)}
             target="_blank"
             rel="noreferrer"
             download

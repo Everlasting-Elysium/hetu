@@ -184,7 +184,31 @@ func (s *SQLite) GetAsset(ctx context.Context, owner domain.OwnerID, id domain.A
 		}
 		return domain.Asset{}, fmt.Errorf("get asset %s: %w", id, err)
 	}
-	return rowToAsset(row)
+	// GetAsset selects current-version-resolved display fields (COALESCE), so
+	// sqlc emits a distinct row type structurally identical to db.Asset; the
+	// conversion is compile-checked and fails loudly if the shapes ever diverge.
+	return rowToAsset(db.Asset(row))
+}
+
+// GetAssetByPath resolves the owner's asset by its natural key (provider,
+// storage path), or domain.ErrNotFound. Callers use it after UpsertAsset to
+// obtain the canonical row id: the upsert's ON CONFLICT clause keeps the
+// existing id and discards a freshly generated one, so the in-memory asset
+// cannot be trusted for identity on a re-index.
+func (s *SQLite) GetAssetByPath(ctx context.Context, owner domain.OwnerID, provider, path string) (domain.Asset, error) {
+	row, err := s.q.GetAssetByPath(ctx, db.GetAssetByPathParams{
+		OwnerID: owner.String(), Provider: provider, StoragePath: path,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Asset{}, fmt.Errorf("get asset %q: %w", path, domain.ErrNotFound)
+		}
+		return domain.Asset{}, fmt.Errorf("get asset %q: %w", path, err)
+	}
+	// GetAssetByPath mirrors GetAsset's current-version COALESCE projection, so
+	// sqlc emits a distinct row type structurally identical to db.Asset; the
+	// conversion is compile-checked and fails loudly if the shapes ever diverge.
+	return rowToAsset(db.Asset(row))
 }
 
 // ListAssets returns the owner's live (non-trashed) assets, newest first.
@@ -197,7 +221,17 @@ func (s *SQLite) ListAssets(ctx context.Context, owner domain.OwnerID, limit, of
 	if err != nil {
 		return nil, fmt.Errorf("list assets: %w", err)
 	}
-	return rowsToAssets(rows)
+	// ListAssets resolves current-version display fields (COALESCE), so sqlc
+	// emits ListAssetsRow (identical shape to db.Asset). Convert per row.
+	assets := make([]domain.Asset, 0, len(rows))
+	for _, r := range rows {
+		a, err := rowToAsset(db.Asset(r))
+		if err != nil {
+			return nil, err
+		}
+		assets = append(assets, a)
+	}
+	return assets, nil
 }
 
 func rowsToAssets(rows []db.Asset) ([]domain.Asset, error) {
@@ -238,10 +272,11 @@ func rowToAsset(r db.Asset) (domain.Asset, error) {
 		IndexedAt:   time.Unix(r.IndexedAt, 0).UTC(),
 		DeletedAt:   nullUnixToTime(r.DeletedAt),
 		MissingAt:   nullUnixToTime(r.MissingAt),
-		Rating:      int(r.Rating),
-		Color:       r.Color,
-		DisplayName: r.DisplayName,
-		FolderID:    r.FolderID,
+		Rating:           int(r.Rating),
+		Color:            r.Color,
+		DisplayName:      r.DisplayName,
+		FolderID:         r.FolderID,
+		CurrentVersionID: r.CurrentVersionID,
 	}, nil
 }
 

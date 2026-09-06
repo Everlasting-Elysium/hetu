@@ -17,6 +17,21 @@ type StorageProvider interface {
 	Stat(ctx context.Context, path string) (domain.FileInfo, error)
 }
 
+// StorageWriter is an optional StorageProvider capability for backends that can
+// accept managed writes (currently the local provider). Asset versioning copies
+// uploaded revisions into the library through it; callers type-assert and return
+// domain.ErrUnsupported when a provider does not implement it — the base
+// read-only StorageProvider contract stays unchanged. This mirrors the optional
+// AssetHandler capabilities (PaletteExtractor, PHashExtractor, MetadataExtractor).
+type StorageWriter interface {
+	// Write copies all bytes from r to path (creating parent directories),
+	// returning the number of bytes written.
+	Write(ctx context.Context, path string, r io.Reader) (int64, error)
+	// Remove deletes the file at path. Removing a non-existent path is not an
+	// error, so cleanup is idempotent.
+	Remove(ctx context.Context, path string) error
+}
+
 // StorageRegistry holds the enabled storage providers by name.
 type StorageRegistry struct {
 	mu        sync.RWMutex

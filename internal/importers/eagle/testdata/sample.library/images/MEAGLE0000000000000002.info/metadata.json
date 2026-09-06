@@ -1,0 +1,19 @@
+{
+  "id": "MEAGLE0000000000000002",
+  "name": "character",
+  "size": 12345,
+  "btime": 1700001000000,
+  "mtime": 1700001000000,
+  "ext": "png",
+  "tags": ["character", "anime"],
+  "folders": ["LFOLDER_CHARS"],
+  "isDeleted": false,
+  "url": "",
+  "annotation": "Main protagonist concept",
+  "modificationTime": 1700001000000,
+  "height": 56,
+  "width": 72,
+  "lastModified": 1700001000000,
+  "palettes": [{ "color": [156, 39, 176], "ratio": 100 }],
+  "star": 3
+}

@@ -61,8 +61,27 @@ export interface NewTag {
   parent_id?: string;
 }
 
-// Which dataset the main grid is showing.
-export type ViewMode = "library" | "trash" | "missing";
+// The active view. Browse layouts (grid/waterfall/gallery/immersive) all show the
+// library dataset in different arrangements; trash/missing are distinct datasets.
+export type ViewMode =
+  | "grid"
+  | "waterfall"
+  | "gallery"
+  | "immersive"
+  | "trash"
+  | "missing";
+
+// Layouts that browse the library dataset (as opposed to trash/missing).
+export const LIBRARY_LAYOUTS = ["grid", "waterfall", "gallery", "immersive"] as const;
+// Layouts persisted as the default browse preference — immersive is a transient
+// overlay entered on demand, so it is never stored as the startup view.
+export const BROWSE_LAYOUTS = ["grid", "waterfall", "gallery"] as const;
+export type BrowseLayout = (typeof BROWSE_LAYOUTS)[number];
+
+export const isLibraryView = (v: ViewMode): boolean =>
+  (LIBRARY_LAYOUTS as readonly string[]).includes(v);
+export const isBrowseLayout = (v: ViewMode): v is BrowseLayout =>
+  (BROWSE_LAYOUTS as readonly string[]).includes(v);
 
 // Active filter/search state driving the asset query.
 export interface Query {

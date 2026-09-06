@@ -43,6 +43,19 @@ func (s *SQLite) FindExactDuplicates(ctx context.Context, owner domain.OwnerID, 
 	return groups, nil
 }
 
+// ListAssetsByHash returns the owner's live assets whose content hash equals
+// hash (oldest first). The import service uses it to skip content duplicates
+// (same bytes reached via a different path) when the conflict policy is skip.
+func (s *SQLite) ListAssetsByHash(ctx context.Context, owner domain.OwnerID, hash string) ([]domain.Asset, error) {
+	rows, err := s.q.ListAssetsByHash(ctx, db.ListAssetsByHashParams{
+		OwnerID: owner.String(), Hash: hash,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list assets by hash: %w", err)
+	}
+	return rowsToAssets(rows)
+}
+
 // IndexPHash stores the perceptual hash for an asset as an extracted-layer
 // annotation. The asset is addressed by its natural key (owner, provider, path)
 // so the canonical row id resolves even when a re-scan generated a fresh id

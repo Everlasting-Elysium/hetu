@@ -1,0 +1,22 @@
+{
+  "id": "MEAGLE0000000000000001",
+  "name": "sunset",
+  "size": 9999,
+  "btime": 1700000000000,
+  "mtime": 1700000050000,
+  "ext": "png",
+  "tags": ["nature", "nature/sky"],
+  "folders": ["LFOLDER_PHOTOS"],
+  "isDeleted": false,
+  "url": "https://example.com/sunset",
+  "annotation": "A calm sunset over the sea",
+  "modificationTime": 1700000050000,
+  "height": 48,
+  "width": 64,
+  "lastModified": 1700000050000,
+  "palettes": [
+    { "color": [232, 116, 59], "ratio": 80 },
+    { "color": [59, 130, 232], "ratio": 20 }
+  ],
+  "star": 5
+}

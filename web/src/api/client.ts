@@ -40,10 +40,15 @@ const body = (data: unknown): RequestInit => ({
 
 export const thumbUrl = (id: string): string => `${BASE}/assets/${id}/thumb`;
 
-// Streams the original file via the NAS plugin (http.ServeContent, Range-enabled)
-// so <audio>/<video> can seek. Not under BASE — this is the NAS route, not DAM.
-export const fileUrl = (path: string): string =>
-  `/api/nas/download?path=${encodeURIComponent(path)}`;
+// Streams the original bytes (http.ServeContent, Range-enabled) so <audio>/<video>
+// can seek. Keyed by asset id — the DAM endpoint resolves the storage path
+// server-side, so the disk path is never exposed and no NAS plugin is required.
+export const fileUrl = (id: string): string => `${BASE}/assets/${id}/file`;
+
+// Serves a browser-loadable 3D model (#51): glTF/GLB stream as-is, other
+// supported formats are converted to GLB server-side and cached. Feeds the
+// <model-viewer> `src` in the asset detail modal.
+export const modelUrl = (id: string): string => `${BASE}/assets/${id}/model`;
 
 export const api = {
   listAssets: (limit = 200, offset = 0) =>

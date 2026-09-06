@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Asset, ColorMatch } from "../types";
-import { thumbUrl } from "../api/client";
+import { fileUrl, thumbUrl } from "../api/client";
 import { RatingStars } from "./RatingStars";
 import { ColorPopover } from "./ColorPicker";
 import { IconClose, KindIcon } from "./icons";
@@ -14,24 +14,34 @@ interface Props {
   onRate: (rating: number) => void;
   onColor: (hex: string) => void;
   onDetail: () => void;
+  // When set (waterfall), the thumb renders at this natural ratio instead of 1:1.
+  aspectRatio?: number;
 }
 
 const isMatch = (a: Asset | ColorMatch): a is ColorMatch => "match_hex" in a;
 
-export function AssetCard({ asset, selected, onSelect, onToggleCheck, onRate, onColor, onDetail }: Props) {
+export function AssetCard({ asset, selected, onSelect, onToggleCheck, onRate, onColor, onDetail, aspectRatio }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
   const label = asset.display_name || asset.name;
   const showThumb = asset.thumb !== "" && !failed;
+  const showPreview = hovered && asset.kind === "video" && !previewFailed;
 
   return (
     <div
       className={`${styles.card} ${selected ? styles.selected : ""}`}
       onClick={onSelect}
       onDoubleClick={onDetail}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      <div className={styles.thumb}>
+      <div
+        className={styles.thumb}
+        style={aspectRatio ? { aspectRatio: String(aspectRatio) } : undefined}
+      >
         {showThumb ? (
           <img
             src={thumbUrl(asset.id)}
@@ -47,6 +57,20 @@ export function AssetCard({ asset, selected, onSelect, onToggleCheck, onRate, on
             <KindIcon kind={asset.kind} />
             <span className={styles.ext}>{asset.ext.replace(".", "") || asset.kind}</span>
           </div>
+        )}
+
+        {showPreview && (
+          <video
+            className={styles.preview}
+            src={fileUrl(asset.id)}
+            poster={thumbUrl(asset.id)}
+            muted
+            loop
+            autoPlay
+            playsInline
+            preload="none"
+            onError={() => setPreviewFailed(true)}
+          />
         )}
 
         <button
