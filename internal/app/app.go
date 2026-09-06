@@ -55,11 +55,12 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		return nil, err
 	}
 	k := kernel.New(kernel.Deps{
-		Log:         log,
-		Store:       st,
-		ThumbDir:    filepath.Join(cfg.DataDir, "thumbnails"),
-		JobBuffer:   64,
-		BlenderAddr: cfg.BlenderAddr,
+		Log:           log,
+		Store:         st,
+		ThumbDir:      filepath.Join(cfg.DataDir, "thumbnails"),
+		ModelCacheDir: filepath.Join(cfg.DataDir, "models"),
+		JobBuffer:     64,
+		BlenderAddr:   cfg.BlenderAddr,
 	})
 	k.Storage.Register(local.New(cfg.LibraryDir))
 	if cfg.RcloneAddr != "" {
