@@ -36,6 +36,11 @@ type Querier interface {
 	EnqueueJob(ctx context.Context, arg EnqueueJobParams) error
 	EnsureOwner(ctx context.Context, arg EnsureOwnerParams) error
 	GetAsset(ctx context.Context, arg GetAssetParams) (Asset, error)
+	// Resolves the canonical asset row by its natural key (owner, provider, path).
+	// Needed after UpsertAsset because the ON CONFLICT clause keeps the existing
+	// id and discards a freshly generated one, so callers that import/index a file
+	// must re-resolve to attach tags/folders/ratings/annotations to the right row.
+	GetAssetByPath(ctx context.Context, arg GetAssetByPathParams) (Asset, error)
 	GetEmbedding(ctx context.Context, assetID string) (Embedding, error)
 	GetShareByToken(ctx context.Context, token string) (Share, error)
 	// Resolves an owner's tag id by name so the AI pipeline can reuse an existing
@@ -79,6 +84,10 @@ type Querier interface {
 	// Uses the natural key (owner_id, provider, storage_path) so the canonical
 	// row is resolved even after a re-scan discarded a fresh id on upsert.
 	UpdateAssetCreatedAt(ctx context.Context, arg UpdateAssetCreatedAtParams) error
+	// Updates status and payload together so a long-running job (e.g. a migration
+	// import) can persist progress counts in the payload JSON without a schema
+	// change. See internal/importers batch progress.
+	UpdateJobProgress(ctx context.Context, arg UpdateJobProgressParams) error
 	UpdateJobStatus(ctx context.Context, arg UpdateJobStatusParams) error
 	UpsertAnnotation(ctx context.Context, arg UpsertAnnotationParams) error
 	// Re-indexing preserves user metadata: the ON CONFLICT clause updates only

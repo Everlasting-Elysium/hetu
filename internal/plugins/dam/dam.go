@@ -47,6 +47,7 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodGet, Pattern: "/assets", Handler: p.listAssets},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/tags", Handler: p.assetTags},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/thumb", Handler: p.serveThumb},
+		{Method: http.MethodGet, Pattern: "/assets/{id}/raw", Handler: p.serveRaw},
 		// /search dispatches on query params: ?q= full-text (FTS5), ?color= palette.
 		{Method: http.MethodGet, Pattern: "/search", Handler: p.search},
 
@@ -78,6 +79,11 @@ func (p *Plugin) Routes() []kernel.Route {
 		// via GET /assets?status=missing.
 		{Method: http.MethodPost, Pattern: "/assets/{id}/relocate", Handler: p.relocateAsset},
 		{Method: http.MethodPost, Pattern: "/relocate/rebase", Handler: p.rebaseRelocate},
+
+		// Import (#18) + migration importers (#57) + background job progress.
+		{Method: http.MethodPost, Pattern: "/import", Handler: p.importAsset},
+		{Method: http.MethodPost, Pattern: "/import/migrate", Handler: p.migrate},
+		{Method: http.MethodGet, Pattern: "/jobs", Handler: p.listJobs},
 	}
 }
 

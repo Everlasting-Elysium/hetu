@@ -1,0 +1,18 @@
+{
+  "id": "MEAGLE0000000000000003",
+  "name": "logo",
+  "size": 4096,
+  "btime": 1700002000000,
+  "mtime": 1700002000000,
+  "ext": "png",
+  "tags": ["design"],
+  "folders": ["LFOLDER_ILLUS"],
+  "isDeleted": false,
+  "annotation": "",
+  "modificationTime": 1700002000000,
+  "height": 64,
+  "width": 80,
+  "lastModified": 1700002000000,
+  "palettes": [{ "color": [76, 175, 80], "ratio": 100 }],
+  "star": 0
+}

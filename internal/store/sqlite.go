@@ -187,6 +187,24 @@ func (s *SQLite) GetAsset(ctx context.Context, owner domain.OwnerID, id domain.A
 	return rowToAsset(row)
 }
 
+// GetAssetByPath resolves the owner's asset by its natural key (provider,
+// storage path), or domain.ErrNotFound. Callers use it after UpsertAsset to
+// obtain the canonical row id: the upsert's ON CONFLICT clause keeps the
+// existing id and discards a freshly generated one, so the in-memory asset
+// cannot be trusted for identity on a re-index.
+func (s *SQLite) GetAssetByPath(ctx context.Context, owner domain.OwnerID, provider, path string) (domain.Asset, error) {
+	row, err := s.q.GetAssetByPath(ctx, db.GetAssetByPathParams{
+		OwnerID: owner.String(), Provider: provider, StoragePath: path,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Asset{}, fmt.Errorf("get asset %q: %w", path, domain.ErrNotFound)
+		}
+		return domain.Asset{}, fmt.Errorf("get asset %q: %w", path, err)
+	}
+	return rowToAsset(row)
+}
+
 // ListAssets returns the owner's live (non-trashed) assets, newest first.
 func (s *SQLite) ListAssets(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.Asset, error) {
 	rows, err := s.q.ListAssets(ctx, db.ListAssetsParams{

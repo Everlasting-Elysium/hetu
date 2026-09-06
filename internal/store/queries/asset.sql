@@ -25,6 +25,17 @@ SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
 FROM assets
 WHERE id = ? AND owner_id = ?;
 
+-- name: GetAssetByPath :one
+-- Resolves the canonical asset row by its natural key (owner, provider, path).
+-- Needed after UpsertAsset because the ON CONFLICT clause keeps the existing
+-- id and discards a freshly generated one, so callers that import/index a file
+-- must re-resolve to attach tags/folders/ratings/annotations to the right row.
+SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
+       thumb_path, width, height, created_at, indexed_at,
+       deleted_at, rating, color, display_name, folder_id, missing_at
+FROM assets
+WHERE owner_id = ? AND provider = ? AND storage_path = ?;
+
 -- name: ListAssets :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,

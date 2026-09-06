@@ -51,6 +51,52 @@ func (q *Queries) GetAsset(ctx context.Context, arg GetAssetParams) (Asset, erro
 	return i, err
 }
 
+const getAssetByPath = `-- name: GetAssetByPath :one
+SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
+       thumb_path, width, height, created_at, indexed_at,
+       deleted_at, rating, color, display_name, folder_id, missing_at
+FROM assets
+WHERE owner_id = ? AND provider = ? AND storage_path = ?
+`
+
+type GetAssetByPathParams struct {
+	OwnerID     string
+	Provider    string
+	StoragePath string
+}
+
+// Resolves the canonical asset row by its natural key (owner, provider, path).
+// Needed after UpsertAsset because the ON CONFLICT clause keeps the existing
+// id and discards a freshly generated one, so callers that import/index a file
+// must re-resolve to attach tags/folders/ratings/annotations to the right row.
+func (q *Queries) GetAssetByPath(ctx context.Context, arg GetAssetByPathParams) (Asset, error) {
+	row := q.db.QueryRowContext(ctx, getAssetByPath, arg.OwnerID, arg.Provider, arg.StoragePath)
+	var i Asset
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Kind,
+		&i.Provider,
+		&i.StoragePath,
+		&i.Name,
+		&i.Ext,
+		&i.Size,
+		&i.Hash,
+		&i.ThumbPath,
+		&i.Width,
+		&i.Height,
+		&i.CreatedAt,
+		&i.IndexedAt,
+		&i.DeletedAt,
+		&i.Rating,
+		&i.Color,
+		&i.DisplayName,
+		&i.FolderID,
+		&i.MissingAt,
+	)
+	return i, err
+}
+
 const listAssets = `-- name: ListAssets :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
