@@ -33,8 +33,16 @@ WHERE owner_id = ? AND deleted_at IS NOT NULL AND deleted_at < ?;
 -- name: ListTrashedAssets :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id
+       deleted_at, rating, color, display_name, folder_id, missing_at
 FROM assets
 WHERE owner_id = ? AND deleted_at IS NOT NULL
 ORDER BY deleted_at DESC
 LIMIT ? OFFSET ?;
+
+-- name: MarkAssetsMissing :exec
+UPDATE assets SET missing_at = ?
+WHERE id IN (sqlc.slice('ids')) AND owner_id = ? AND deleted_at IS NULL;
+
+-- name: MarkAssetsFound :exec
+UPDATE assets SET missing_at = NULL
+WHERE id IN (sqlc.slice('ids')) AND owner_id = ?;

@@ -37,6 +37,7 @@ type Asset struct {
 	Color       string
 	DisplayName string
 	FolderID    string
+	MissingAt   sql.NullInt64
 }
 
 type AssetColor struct {

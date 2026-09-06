@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Folder, Tag } from "../types";
-import { IconBoard, IconFolder, IconGrid, IconPlus, IconTag, IconTrash } from "./icons";
+import { IconAlert, IconBoard, IconFolder, IconGrid, IconPlus, IconTag, IconTrash } from "./icons";
 import styles from "./Sidebar.module.css";
 
 interface Props {
@@ -16,6 +16,9 @@ interface Props {
   onDeleteFolder: (id: string) => void;
   onCreateTag: (name: string) => void;
   onDeleteTag: (id: string) => void;
+  missingCount: number;
+  onPickMissing: () => void;
+  activeMissing: boolean;
 }
 
 // Inline "add" form toggled per section.
@@ -49,7 +52,7 @@ function AddForm({ placeholder, onSubmit }: { placeholder: string; onSubmit: (v:
 export function Sidebar(p: Props) {
   const [addFolder, setAddFolder] = useState(false);
   const [addTag, setAddTag] = useState(false);
-  const allActive = !p.activeFolder && !p.activeTag && !p.boardsActive;
+  const allActive = !p.activeFolder && !p.activeTag && !p.boardsActive && !p.activeMissing;
 
   return (
     <aside className={styles.side}>
@@ -71,6 +74,16 @@ export function Sidebar(p: Props) {
           <IconBoard width={15} height={15} />
           <span className={styles.txt}>图板</span>
         </button>
+        {p.missingCount > 0 && (
+          <button
+            className={`${styles.item} ${p.activeMissing ? styles.active : ""}`}
+            onClick={p.onPickMissing}
+          >
+            <IconAlert width={15} height={15} />
+            <span className={styles.txt}>丢失文件</span>
+            <span className={styles.badge}>{p.missingCount}</span>
+          </button>
+        )}
       </div>
 
       <div className={styles.section}>

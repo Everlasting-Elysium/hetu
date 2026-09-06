@@ -86,6 +86,13 @@ export const IconPencil = (p: P) => (
     <path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17.2Zm10.5-13 2.8 2.8" />
   </svg>
 );
+export const IconAlert = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+    <path d="M12 9v4" />
+    <path d="M12 17h.01" />
+  </svg>
+);
 
 // File-type placeholder glyphs, keyed by asset kind, for missing thumbnails.
 const KIND_PATHS: Record<AssetKind, string> = {

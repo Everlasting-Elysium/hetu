@@ -180,7 +180,7 @@ func (q *Queries) BatchUpdateRating(ctx context.Context, arg BatchUpdateRatingPa
 const listTrashedAssets = `-- name: ListTrashedAssets :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id
+       deleted_at, rating, color, display_name, folder_id, missing_at
 FROM assets
 WHERE owner_id = ? AND deleted_at IS NOT NULL
 ORDER BY deleted_at DESC
@@ -222,6 +222,7 @@ func (q *Queries) ListTrashedAssets(ctx context.Context, arg ListTrashedAssetsPa
 			&i.Color,
 			&i.DisplayName,
 			&i.FolderID,
+			&i.MissingAt,
 		); err != nil {
 			return nil, err
 		}
@@ -234,6 +235,60 @@ func (q *Queries) ListTrashedAssets(ctx context.Context, arg ListTrashedAssetsPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const markAssetsFound = `-- name: MarkAssetsFound :exec
+UPDATE assets SET missing_at = NULL
+WHERE id IN (/*SLICE:ids*/?) AND owner_id = ?
+`
+
+type MarkAssetsFoundParams struct {
+	Ids     []string
+	OwnerID string
+}
+
+func (q *Queries) MarkAssetsFound(ctx context.Context, arg MarkAssetsFoundParams) error {
+	query := markAssetsFound
+	var queryParams []interface{}
+	if len(arg.Ids) > 0 {
+		for _, v := range arg.Ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(arg.Ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.OwnerID)
+	_, err := q.db.ExecContext(ctx, query, queryParams...)
+	return err
+}
+
+const markAssetsMissing = `-- name: MarkAssetsMissing :exec
+UPDATE assets SET missing_at = ?
+WHERE id IN (/*SLICE:ids*/?) AND owner_id = ? AND deleted_at IS NULL
+`
+
+type MarkAssetsMissingParams struct {
+	MissingAt sql.NullInt64
+	Ids       []string
+	OwnerID   string
+}
+
+func (q *Queries) MarkAssetsMissing(ctx context.Context, arg MarkAssetsMissingParams) error {
+	query := markAssetsMissing
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.MissingAt)
+	if len(arg.Ids) > 0 {
+		for _, v := range arg.Ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(arg.Ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.OwnerID)
+	_, err := q.db.ExecContext(ctx, query, queryParams...)
+	return err
 }
 
 const purgeTrash = `-- name: PurgeTrash :exec

@@ -25,6 +25,7 @@ export interface Asset {
   display_name: string;
   folder_id: string;
   deleted_at?: string;
+  missing_at?: string;
 }
 
 // Color-search results extend Asset with the matched swatch + distance.
@@ -82,8 +83,8 @@ export interface BoardItem {
 }
 
 // Which dataset the main area is showing. "boards" lists moodboards; "board"
-// is the infinite-canvas editor for a single board.
-export type ViewMode = "library" | "trash" | "boards" | "board";
+// is the infinite-canvas editor for a single board. "missing" shows missing files.
+export type ViewMode = "library" | "trash" | "missing" | "boards" | "board";
 
 // Active filter/search state driving the asset query.
 export interface Query {

@@ -59,13 +59,28 @@ type Querier interface {
 	ListDuplicateHashes(ctx context.Context, arg ListDuplicateHashesParams) ([]ListDuplicateHashesRow, error)
 	ListFolders(ctx context.Context, ownerID string) ([]Folder, error)
 	ListJobs(ctx context.Context, arg ListJobsParams) ([]Job, error)
+	// Returns all live (non-trashed, non-missing) assets for a provider, used by
+	// the missing-file detector to check which indexed paths still exist on disk.
+	ListLiveAssetsByProvider(ctx context.Context, arg ListLiveAssetsByProviderParams) ([]Asset, error)
+	ListMissingAssets(ctx context.Context, arg ListMissingAssetsParams) ([]Asset, error)
+	// Returns missing assets matching a given hash, oldest first (by created_at).
+	// Used by hash-based auto-reconnect during scan.
+	ListMissingAssetsByHash(ctx context.Context, arg ListMissingAssetsByHashParams) ([]Asset, error)
 	ListOwnerEmbeddings(ctx context.Context, ownerID string) ([]ListOwnerEmbeddingsRow, error)
 	// Returns all pHash annotations for the owner's live assets, joining through
 	// assets to filter by owner and exclude trashed items.
 	ListPHashAnnotations(ctx context.Context, ownerID string) ([]ListPHashAnnotationsRow, error)
 	ListTags(ctx context.Context, ownerID string) ([]Tag, error)
 	ListTrashedAssets(ctx context.Context, arg ListTrashedAssetsParams) ([]Asset, error)
+	MarkAssetsFound(ctx context.Context, arg MarkAssetsFoundParams) error
+	MarkAssetsMissing(ctx context.Context, arg MarkAssetsMissingParams) error
 	PurgeTrash(ctx context.Context, arg PurgeTrashParams) error
+	// Batch-updates storage_path by replacing old_prefix with new_prefix for all
+	// assets whose path starts with old_prefix, and clears missing_at.
+	RebaseAssets(ctx context.Context, arg RebaseAssetsParams) error
+	// Updates the storage path (and optionally provider) of a single asset and
+	// clears missing_at. Used for manual relocate and hash-based auto-reconnect.
+	RelocateAsset(ctx context.Context, arg RelocateAssetParams) error
 	SetDisplayName(ctx context.Context, arg SetDisplayNameParams) error
 	TouchBoard(ctx context.Context, arg TouchBoardParams) error
 	// Updates asset.created_at when embedded metadata (EXIF) provides a capture
@@ -78,7 +93,7 @@ type Querier interface {
 	UpsertAnnotation(ctx context.Context, arg UpsertAnnotationParams) error
 	// Re-indexing preserves user metadata: the ON CONFLICT clause updates only
 	// index-derived fields, leaving rating/color/display_name/folder_id/deleted_at
-	// (and thus trash state) untouched.
+	// (and thus trash state) and missing_at untouched.
 	UpsertAsset(ctx context.Context, arg UpsertAssetParams) error
 	UpsertEmbedding(ctx context.Context, arg UpsertEmbeddingParams) error
 }

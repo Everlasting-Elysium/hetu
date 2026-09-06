@@ -81,12 +81,19 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodPost, Pattern: "/boards/{id}/items", Handler: p.addBoardItem},
 		{Method: http.MethodPatch, Pattern: "/boards/{id}/items", Handler: p.updateBoardItems},
 		{Method: http.MethodDelete, Pattern: "/boards/{id}/items/{itemId}", Handler: p.deleteBoardItem},
+
+		// Missing-file relocate (issue #45): repoint one asset, or rebase a
+		// path prefix for many after a folder move. The missing set is listed
+		// via GET /assets?status=missing.
+		{Method: http.MethodPost, Pattern: "/assets/{id}/relocate", Handler: p.relocateAsset},
+		{Method: http.MethodPost, Pattern: "/relocate/rebase", Handler: p.rebaseRelocate},
 	}
 }
 
 // listAssets lists the owner's live assets, optionally narrowed by
 // ?folder=<id>, ?tag=<id>, and ?rating=<min> (0-5, keeps that many stars and
-// up). Paged by ?limit=/?offset=.
+// up). ?status=missing switches to the missing-file view (issue #45). Paged by
+// ?limit=/?offset=.
 func (p *Plugin) listAssets(w http.ResponseWriter, r *http.Request) {
 	limit := httpjson.QueryInt(r, "limit", 50)
 	offset := httpjson.QueryInt(r, "offset", 0)
@@ -94,6 +101,7 @@ func (p *Plugin) listAssets(w http.ResponseWriter, r *http.Request) {
 		FolderID:  r.URL.Query().Get("folder"),
 		TagID:     r.URL.Query().Get("tag"),
 		MinRating: httpjson.QueryInt(r, "rating", 0),
+		Status:    r.URL.Query().Get("status"),
 	}
 	assets, err := p.k.Store.ListAssetsFiltered(r.Context(), p.owner, filter, limit, offset)
 	if err != nil {
@@ -119,6 +127,7 @@ type assetDTO struct {
 	DisplayName string `json:"display_name"`
 	FolderID    string `json:"folder_id"`
 	DeletedAt   string `json:"deleted_at,omitempty"`
+	MissingAt   string `json:"missing_at,omitempty"`
 }
 
 func toDTOs(assets []domain.Asset) []assetDTO {
@@ -148,6 +157,9 @@ func toDTO(a domain.Asset) assetDTO {
 	}
 	if a.DeletedAt != nil {
 		dto.DeletedAt = a.DeletedAt.Format(time.RFC3339)
+	}
+	if a.MissingAt != nil {
+		dto.MissingAt = a.MissingAt.Format(time.RFC3339)
 	}
 	return dto
 }

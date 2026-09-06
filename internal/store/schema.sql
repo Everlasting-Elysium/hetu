@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS assets (
     rating       INTEGER NOT NULL DEFAULT 0,       -- 0-5 stars
     color        TEXT NOT NULL DEFAULT '',         -- color label, e.g. '#FF5733'
     display_name TEXT NOT NULL DEFAULT '',         -- user rename; empty = use name
-    folder_id    TEXT NOT NULL DEFAULT ''          -- FK -> folders.id; empty = root
+    folder_id    TEXT NOT NULL DEFAULT '',         -- FK -> folders.id; empty = root
+    missing_at   INTEGER                           -- NULL = found; unix ts = marked missing
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_owner_path
@@ -42,6 +43,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_owner_path
 CREATE INDEX IF NOT EXISTS idx_assets_owner ON assets (owner_id);
 CREATE INDEX IF NOT EXISTS idx_assets_deleted ON assets (owner_id, deleted_at);
 CREATE INDEX IF NOT EXISTS idx_assets_hash ON assets (owner_id, hash);
+CREATE INDEX IF NOT EXISTS idx_assets_missing ON assets (owner_id, missing_at);
 
 -- annotations is the layered-metadata store (manual > ai > extracted). Value is a
 -- JSON payload; model is set only for the ai layer. Color extraction writes the
