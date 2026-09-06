@@ -16,6 +16,13 @@ import (
 
 var _ kernel.MetadataExtractor = (*Handler)(nil)
 
+// exifScanCap bounds how many bytes goexif reads. EXIF/IFD0 sit near the start
+// of JPEG and TIFF-based RAW containers, so a few MB captures them while
+// preventing a 50-100MB RAW from being slurped into memory just to read tags
+// (goexif's TIFF path does io.ReadAll). Files whose EXIF lies beyond the cap
+// degrade to no/zero metadata — acceptable, and the intended graceful behavior.
+const exifScanCap = 2 << 20
+
 // ExtractMetadata reads EXIF, IPTC, and XMP metadata from src. Failures in
 // individual sections are swallowed: a JPEG with EXIF but no IPTC still
 // returns whatever was found. Implements kernel.MetadataExtractor.
@@ -34,12 +41,16 @@ func (h *Handler) ExtractMetadata(_ context.Context, src io.ReadSeeker) (domain.
 	if segments.xmp != nil {
 		extractXMP(segments.xmp, &md)
 	}
+	// Record the embedded color space (ICC description / EXIF ColorSpace) so the
+	// UI can flag wide-gamut assets. Best-effort: absent profiles add nothing.
+	extractColorSpace(src, &md)
 	return md, nil
 }
 
-// extractEXIF populates md with EXIF fields using rwcarlsen/goexif.
+// extractEXIF populates md with EXIF fields using rwcarlsen/goexif. The reader
+// is bounded (see exifScanCap) so a large RAW is not read whole into memory.
 func extractEXIF(src io.ReadSeeker, md *domain.ExtractedMetadata) {
-	x, err := goexif.Decode(src)
+	x, err := goexif.Decode(io.LimitReader(src, exifScanCap))
 	if err != nil {
 		return
 	}
