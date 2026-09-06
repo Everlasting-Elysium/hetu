@@ -34,6 +34,7 @@ type Asset struct {
 
 	// User-managed metadata (DAM batch operations).
 	DeletedAt   *time.Time // nil = live; set = soft-deleted (in trash)
+	MissingAt   *time.Time // nil = file found; set = file missing from storage
 	Rating      int        // 0-5 stars
 	Color       string     // color label, e.g. "#FF5733"; empty = none
 	DisplayName string     // user-facing rename; empty = use Name

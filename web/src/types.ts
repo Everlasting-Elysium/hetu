@@ -25,6 +25,7 @@ export interface Asset {
   display_name: string;
   folder_id: string;
   deleted_at?: string;
+  missing_at?: string;
 }
 
 // Color-search results extend Asset with the matched swatch + distance.
@@ -60,7 +61,7 @@ export interface NewTag {
 }
 
 // Which dataset the main grid is showing.
-export type ViewMode = "library" | "trash";
+export type ViewMode = "library" | "trash" | "missing";
 
 // Active filter/search state driving the asset query.
 export interface Query {

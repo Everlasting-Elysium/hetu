@@ -14,14 +14,19 @@ import (
 // scanAssetRows and rowToAsset stay aligned with sqlc's generated queries.
 const assetColumns = `a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, ` +
 	`a.ext, a.size, a.hash, a.thumb_path, a.width, a.height, a.created_at, ` +
-	`a.indexed_at, a.deleted_at, a.rating, a.color, a.display_name, a.folder_id`
+	`a.indexed_at, a.deleted_at, a.rating, a.color, a.display_name, a.folder_id, ` +
+	`a.missing_at`
 
 // ListAssetsFiltered returns the owner's live assets narrowed by folder, tag,
 // and minimum rating, newest first. Empty FolderID/TagID and MinRating 0 are
 // ignored. Hand-written (not sqlc) because sqlc's SQLite engine cannot type
 // optional filter params — the same reason SearchAssets is hand-written.
 func (s *SQLite) ListAssetsFiltered(ctx context.Context, owner domain.OwnerID, f domain.AssetFilter, limit, offset int) ([]domain.Asset, error) {
-	conds := []string{"a.owner_id = ?", "a.deleted_at IS NULL"}
+	statusCond := "a.deleted_at IS NULL"
+	if f.Status == "missing" {
+		statusCond = "a.missing_at IS NOT NULL AND a.deleted_at IS NULL"
+	}
+	conds := []string{"a.owner_id = ?", statusCond}
 	args := []any{owner.String()}
 	if f.FolderID != "" {
 		conds = append(conds, "a.folder_id = ?")
@@ -61,7 +66,7 @@ func scanAssetRows(rows *sql.Rows) ([]db.Asset, error) {
 			&r.ID, &r.OwnerID, &r.Kind, &r.Provider, &r.StoragePath, &r.Name,
 			&r.Ext, &r.Size, &r.Hash, &r.ThumbPath, &r.Width, &r.Height,
 			&r.CreatedAt, &r.IndexedAt, &r.DeletedAt, &r.Rating, &r.Color,
-			&r.DisplayName, &r.FolderID,
+			&r.DisplayName, &r.FolderID, &r.MissingAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan asset row: %w", err)
 		}
