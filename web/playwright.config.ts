@@ -2,7 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 // E2E smoke config. Point BASE_URL (or E2E_BASE_URL) at a running hetu instance
 // (default :8080). Tests never start a server themselves so they can target a
-// real deploy — the model-viewer (#51) and multi-view (#52) smokes live in ./e2e.
+// real deploy — the model-viewer (#51), multi-view (#52), and moodboard (#43)
+// smokes live in ./e2e.
 const baseURL = process.env.BASE_URL ?? process.env.E2E_BASE_URL ?? "http://localhost:8080";
 
 export default defineConfig({

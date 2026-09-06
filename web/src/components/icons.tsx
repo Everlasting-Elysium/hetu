@@ -69,6 +69,23 @@ export const IconGrid = (p: P) => (
     <rect x="14" y="14" width="7" height="7" rx="1" />
   </svg>
 );
+export const IconBoard = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <rect x="7" y="7" width="4" height="4" rx="0.5" />
+    <rect x="13" y="12" width="5" height="5" rx="0.5" />
+  </svg>
+);
+export const IconArrowLeft = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M19 12H5m0 0 6-6m-6 6 6 6" />
+  </svg>
+);
+export const IconPencil = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17.2Zm10.5-13 2.8 2.8" />
+  </svg>
+);
 export const IconAlert = (p: P) => (
   <svg {...base(p)}>
     <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
