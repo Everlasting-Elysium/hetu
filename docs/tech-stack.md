@@ -56,6 +56,27 @@
 
 ---
 
+## 图像解码:纯 Go vs 外部工具(RAW/HEIC/EXR/ICC)
+
+图片处理器分两层。**普通位图(jpeg/png/gif/bmp/tiff)走纯 Go**(`disintegration/imaging`),解码、缩略、调色板、pHash 全部在进程内完成,零外部依赖。**专业格式(相机 RAW、HEIC/HEIF、OpenEXR)走外部工具子进程**,原因是这些格式没有成熟的纯 Go 解码器:
+
+| 格式 | 纯 Go 现状 | 决策 |
+|------|-----------|------|
+| RAW(CR2/NEF/ARW/DNG…) | 无可用纯 Go demosaic 库;`libraw` 是 C 库 | 外部工具:`dcraw` / `darktable-cli` |
+| HEIC/HEIF | 无成熟纯 Go 解码器;`libheif` 是 C 库 | 外部工具:`libheif`(heif-dec/heif-convert) |
+| OpenEXR | 无成熟纯 Go 解码器 | 外部工具:`oiiotool` / `ffmpeg`(原生 EXR) |
+
+**为何不用 CGO**:`libraw`/`libheif`/`OpenImageIO` 均为 C/C++ 库,直接绑定会引入 CGO,破坏 `modernc.org/sqlite` 的无 CGO 前提(交叉编译、最小镜像,见下节)。改用子进程复用了视频(ffmpeg)/文档(pdftoppm)已有的 `internal/asset/mediaproc` 模式,内核保持纯 Go。
+
+**实现要点**(代码见 [`internal/asset/image/`](../internal/asset/image/)):
+- 解码前端 `ProHandler` 与纯 Go `Handler` 同包共存,按扩展名路由(集合不重叠),均产出 `kind=image`。
+- 每格式的候选工具链与参数见 [`protools.go`](../internal/asset/image/protools.go) 的 `proToolsByFormat`(按色彩保真度优先排序,逐个回退);解码统一转 sRGB PNG 后复用同一条缩略管线([`render.go`](../internal/asset/image/render.go))。
+- **ICC/色彩管理**:像素级 ICC→sRGB 转换由外部工具在转码时完成(仅专业格式);色彩空间**元数据**(ICC profile 描述 + EXIF ColorSpace)对所有格式用纯 Go 提取([`icc.go`](../internal/asset/image/icc.go) / [`icclocate.go`](../internal/asset/image/icclocate.go)),写入 `extracted` 层(键 `color.space` / `color.icc_profile`,见 [`domain/annotation.go`](../internal/domain/annotation.go))。
+- EXR 为场景线性,ffmpeg 用 `eq=gamma=2.2` 近似线性→显示传递做 8-bit 预览;oiiotool 用 `--colorconvert linear sRGB` 更精确。
+- **优雅降级**:工具缺失或转码失败时返回 `domain.ErrNoThumbnail`,资产仍以 `kind=image` 入库,只是无缩略图/尺寸,扫描永不中断。为避免对 50-100MB 的 RAW 重复解码,`ProHandler` 刻意**不实现** `PaletteExtractor`/`PHashExtractor`(索引器对每个可选能力独立开流解码)。
+
+---
+
 ## 为什么选 modernc.org/sqlite
 
 `modernc.org/sqlite` 是将 SQLite C 源码通过 `cgo-free` 转译工具转为纯 Go 的实现。选择它的原因：

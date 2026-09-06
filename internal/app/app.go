@@ -68,6 +68,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		log.Info("registered rclone storage provider", slog.String("addr", cfg.RcloneAddr), slog.String("remote", cfg.RcloneRemote))
 	}
 	k.Assets.Register(image.New())
+	k.Assets.Register(image.NewPro(log))
 	k.Assets.Register(model3d.New(cfg.BlenderAddr))
 	k.Assets.Register(video.New(log))
 	k.Assets.Register(audio.New(log))
