@@ -1,10 +1,13 @@
 package dam
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"mime"
 	"net/http"
+	"path"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -60,13 +63,22 @@ func (p *Plugin) serveFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	provider, ok := p.k.Storage.Get(asset.Provider)
+	// Serve the current version's bytes (issue #58): the asset's storage_path is
+	// anchored to the original file, so resolve through current_version_id when
+	// the asset is versioned. Falls back to the anchor for un-versioned assets.
+	providerName, storagePath, ext := asset.Provider, asset.StoragePath, asset.Ext
+	if v, ok := p.currentVersionFile(r.Context(), asset); ok {
+		providerName, storagePath = v.Provider, v.StoragePath
+		ext = strings.ToLower(strings.TrimPrefix(path.Ext(v.StoragePath), "."))
+	}
+
+	provider, ok := p.k.Storage.Get(providerName)
 	if !ok {
 		httpjson.WriteError(w, http.StatusInternalServerError,
-			fmt.Errorf("storage provider %q not registered", asset.Provider))
+			fmt.Errorf("storage provider %q not registered", providerName))
 		return
 	}
-	info, err := provider.Stat(r.Context(), asset.StoragePath)
+	info, err := provider.Stat(r.Context(), storagePath)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -75,14 +87,14 @@ func (p *Plugin) serveFile(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusBadRequest, fmt.Errorf("asset path is a directory"))
 		return
 	}
-	f, err := provider.Open(r.Context(), asset.StoragePath)
+	f, err := provider.Open(r.Context(), storagePath)
 	if err != nil {
 		httpjson.WriteError(w, http.StatusInternalServerError, fmt.Errorf("open asset: %w", err))
 		return
 	}
 	defer f.Close()
 
-	if ct := contentType(asset.Ext); ct != "" {
+	if ct := contentType(ext); ct != "" {
 		w.Header().Set("Content-Type", ct)
 	}
 	// Owner-scoped, so private; short TTL because the backing file can be
@@ -91,4 +103,23 @@ func (p *Plugin) serveFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, max-age=3600")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", asset.Name))
 	http.ServeContent(w, r, asset.Name, info.ModTime, f)
+}
+
+// currentVersionFile returns the asset's current version when it is explicitly
+// versioned (issue #58), so callers serve the current revision's bytes. ok is
+// false for an un-versioned asset (serve the anchor) or if the pointer cannot be
+// resolved, in which case the caller falls back to the anchor.
+func (p *Plugin) currentVersionFile(ctx context.Context, asset domain.Asset) (domain.AssetVersion, bool) {
+	if asset.CurrentVersionID == "" {
+		return domain.AssetVersion{}, false
+	}
+	vid, err := domain.NewVersionID(asset.CurrentVersionID)
+	if err != nil {
+		return domain.AssetVersion{}, false
+	}
+	v, err := p.k.Store.GetVersionByID(ctx, p.owner, vid)
+	if err != nil {
+		return domain.AssetVersion{}, false
+	}
+	return v, true
 }

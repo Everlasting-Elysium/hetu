@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/Everlasting-Elysium/hetu/internal/domain"
 	"github.com/Everlasting-Elysium/hetu/internal/httpjson"
@@ -21,16 +22,33 @@ import (
 // Name is the plugin's config key (HETU_PLUGINS).
 const Name = "dam"
 
+// maxConcurrentConversions bounds how many Blender GLB conversions run at once.
+// A burst of viewer opens (a folder of un-cached models, a double-click, or a
+// React StrictMode double-mount) must not spawn unbounded Blender subprocesses
+// and exhaust a self-hosted host.
+const maxConcurrentConversions = 3
+
 // Plugin implements kernel.Plugin for asset management.
 type Plugin struct {
 	k     *kernel.Kernel
 	owner domain.OwnerID
+
+	// convertGroup dedups concurrent GLB conversions of the same model (keyed by
+	// content hash) so identical requests share one Blender job; convertSem bounds
+	// total concurrent conversions across all models. See ensureGLB.
+	convertGroup singleflight.Group
+	convertSem   chan struct{}
 }
 
 var _ kernel.Plugin = (*Plugin)(nil)
 
 // New returns a DAM plugin scoped to owner.
-func New(owner domain.OwnerID) *Plugin { return &Plugin{owner: owner} }
+func New(owner domain.OwnerID) *Plugin {
+	return &Plugin{
+		owner:      owner,
+		convertSem: make(chan struct{}, maxConcurrentConversions),
+	}
+}
 
 // Name returns the plugin config key.
 func (p *Plugin) Name() string { return Name }
@@ -47,8 +65,17 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodGet, Pattern: "/assets", Handler: p.listAssets},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/tags", Handler: p.assetTags},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/thumb", Handler: p.serveThumb},
+		{Method: http.MethodGet, Pattern: "/assets/{id}/model", Handler: p.serveModel},
 		// /file streams the original bytes (Range-enabled) for media playback.
 		{Method: http.MethodGet, Pattern: "/assets/{id}/file", Handler: p.serveFile},
+
+		// Version / revision history (issue #58): list, upload a new current
+		// version, roll back to an existing version, delete an old version.
+		{Method: http.MethodGet, Pattern: "/assets/{id}/versions", Handler: p.listVersions},
+		{Method: http.MethodPost, Pattern: "/assets/{id}/versions", Handler: p.uploadVersion},
+		{Method: http.MethodPost, Pattern: "/assets/{id}/versions/{no}/current", Handler: p.setCurrentVersion},
+		{Method: http.MethodDelete, Pattern: "/assets/{id}/versions/{no}", Handler: p.deleteVersion},
+
 		// /search dispatches on query params: ?q= full-text (FTS5), ?color= palette.
 		{Method: http.MethodGet, Pattern: "/search", Handler: p.search},
 

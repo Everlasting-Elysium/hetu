@@ -34,6 +34,13 @@ func (p *Plugin) relocateAsset(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusBadRequest, errors.New("new_path is required"))
 		return
 	}
+	// Never let an anchor point into the hetu-managed tree: it is excluded from
+	// scans (issue #58), so an anchor there would be stranded as permanently
+	// missing on the next scan.
+	if domain.IsManagedPath(req.NewPath) {
+		httpjson.WriteError(w, http.StatusBadRequest, fmt.Errorf("new_path must not be under %s", domain.ManagedDirName))
+		return
+	}
 
 	// The asset must exist before it can be relocated.
 	asset, err := p.k.Store.GetAsset(r.Context(), p.owner, id)

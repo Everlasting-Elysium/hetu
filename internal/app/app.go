@@ -55,11 +55,12 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		return nil, err
 	}
 	k := kernel.New(kernel.Deps{
-		Log:         log,
-		Store:       st,
-		ThumbDir:    filepath.Join(cfg.DataDir, "thumbnails"),
-		JobBuffer:   64,
-		BlenderAddr: cfg.BlenderAddr,
+		Log:           log,
+		Store:         st,
+		ThumbDir:      filepath.Join(cfg.DataDir, "thumbnails"),
+		ModelCacheDir: filepath.Join(cfg.DataDir, "models"),
+		JobBuffer:     64,
+		BlenderAddr:   cfg.BlenderAddr,
 	})
 	k.Storage.Register(local.New(cfg.LibraryDir))
 	if cfg.RcloneAddr != "" {
@@ -67,6 +68,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		log.Info("registered rclone storage provider", slog.String("addr", cfg.RcloneAddr), slog.String("remote", cfg.RcloneRemote))
 	}
 	k.Assets.Register(image.New())
+	k.Assets.Register(image.NewPro(log))
 	k.Assets.Register(model3d.New(cfg.BlenderAddr))
 	k.Assets.Register(video.New(log))
 	k.Assets.Register(audio.New(log))

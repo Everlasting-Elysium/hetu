@@ -31,7 +31,7 @@ test("switch through all views + immersive keyboard nav, no console errors", asy
     await page.getByRole("button", { name: v.name }).click();
     await expect(page.getByTestId(v.testid)).toBeVisible();
     await page.waitForTimeout(600); // let thumbnails/layout settle for evidence
-    await page.screenshot({ path: `tests/screenshots/${v.file}.png` });
+    await page.screenshot({ path: `e2e/screenshots/${v.file}.png` });
   }
 
   // Immersive: enter, navigate with the keyboard, capture, then Escape to exit.
@@ -42,7 +42,7 @@ test("switch through all views + immersive keyboard nav, no console errors", asy
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowLeft");
   await page.waitForTimeout(400);
-  await page.screenshot({ path: "tests/screenshots/immersive.png" });
+  await page.screenshot({ path: "e2e/screenshots/immersive.png" });
   await page.keyboard.press("Escape");
   await expect(overlay).toBeHidden();
 

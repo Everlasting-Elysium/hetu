@@ -10,16 +10,21 @@ import (
 	"github.com/Everlasting-Elysium/hetu/internal/domain"
 )
 
-// jpegSegments holds raw IPTC and XMP payloads extracted from JPEG APPn markers.
+// jpegSegments holds raw IPTC, XMP, and ICC payloads extracted from JPEG APPn
+// markers.
 type jpegSegments struct {
 	iptc []byte // APP13 IPTC-IIM payload (after Photoshop 3.0 header)
 	xmp  []byte // APP1 XMP payload (raw XML)
+	icc  []byte // APP2 ICC profile, concatenated across chunks (headers stripped)
 }
 
-// scanJPEGSegments reads JPEG APPn markers to extract IPTC (APP13) and XMP
-// (APP1) payloads. Non-JPEG files or read errors return empty segments.
-func scanJPEGSegments(r io.Reader) (jpegSegments, error) {
-	var seg jpegSegments
+// scanJPEGSegments reads JPEG APPn markers to extract IPTC (APP13), XMP (APP1),
+// and ICC (APP2) payloads. Non-JPEG files or read errors return empty segments.
+// ICC profiles may span multiple APP2 markers; they are reassembled in sequence
+// order (not encounter order) once scanning finishes.
+func scanJPEGSegments(r io.Reader) (seg jpegSegments, retErr error) {
+	iccChunks := make(map[int][]byte)
+	defer func() { seg.icc = assembleICCChunks(iccChunks) }()
 	var buf [2]byte
 	if _, err := io.ReadFull(r, buf[:]); err != nil {
 		return seg, err
@@ -60,6 +65,11 @@ func scanJPEGSegments(r io.Reader) (jpegSegments, error) {
 			if seg.xmp == nil && bytes.HasPrefix(data, xmpPrefix) {
 				seg.xmp = data[len(xmpPrefix):]
 			}
+		case 0xE2: // APP2 — may be an ICC profile chunk (1-based seq + count, then data)
+			if bytes.HasPrefix(data, iccPrefix) && len(data) > len(iccPrefix)+2 {
+				seqNo := int(data[len(iccPrefix)])
+				iccChunks[seqNo] = data[len(iccPrefix)+2:]
+			}
 		case 0xED: // APP13 — may be IPTC (Photoshop IRB)
 			if seg.iptc == nil && bytes.HasPrefix(data, photoshopPrefix) {
 				seg.iptc = data[len(photoshopPrefix):]
@@ -68,9 +78,24 @@ func scanJPEGSegments(r io.Reader) (jpegSegments, error) {
 	}
 }
 
+// assembleICCChunks concatenates ICC profile chunks in ascending sequence order
+// (chunks are 1-based). A missing sequence leaves a gap, yielding an incomplete
+// profile that parseICCProfile safely rejects. Returns nil when no chunks exist.
+func assembleICCChunks(chunks map[int][]byte) []byte {
+	if len(chunks) == 0 {
+		return nil
+	}
+	var out []byte
+	for seq := 1; seq <= len(chunks); seq++ {
+		out = append(out, chunks[seq]...)
+	}
+	return out
+}
+
 var (
 	xmpPrefix       = append([]byte("http://ns.adobe.com/xap/1.0/"), 0x00)
 	photoshopPrefix = append([]byte("Photoshop 3.0"), 0x00)
+	iccPrefix       = append([]byte("ICC_PROFILE"), 0x00)
 )
 
 // iptcRecordTag identifies an IPTC-IIM dataset.

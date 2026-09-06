@@ -1,9 +1,16 @@
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import type { Asset, AssetKind } from "../types";
 import { fileUrl, thumbUrl } from "../api/client";
 import { IconClose, KindIcon } from "./icons";
 import { VideoPlayer } from "./VideoPlayer";
 import styles from "./AssetDetail.module.css";
+
+// The 3D viewer bundles model-viewer + three.js (~1 MB). Load it lazily so it is
+// fetched only when a user actually opens a 3D model, keeping the initial app
+// bundle lean for the common image/video/audio cases.
+const ModelViewer = lazy(() =>
+  import("./ModelViewer").then((m) => ({ default: m.ModelViewer })),
+);
 
 interface Props {
   asset: Asset | null;
@@ -64,6 +71,18 @@ export function AssetMedia({ asset }: { asset: Asset }) {
           )}
           <audio className={styles.audioPlayer} src={fileUrl(asset.id)} controls />
         </div>
+      );
+    case "model":
+      return (
+        <Suspense
+          fallback={
+            <div className={styles.modelLoading}>
+              <div className={styles.spinner} />
+            </div>
+          }
+        >
+          <ModelViewer key={asset.id} asset={asset} />
+        </Suspense>
       );
     default:
       return (

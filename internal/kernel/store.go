@@ -72,6 +72,28 @@ type Store interface {
 	ListFolders(ctx context.Context, owner domain.OwnerID) ([]domain.Folder, error)
 	DeleteFolder(ctx context.Context, owner domain.OwnerID, id domain.FolderID) error
 
+	// Versions: revision history (issue #58). AddVersion appends newVersion and
+	// makes it current; when the asset has no explicit versions yet it first
+	// synthesizes base as version 1 from the asset's anchor state (lazy backfill).
+	// It returns newVersion with its allocated version_no. Reads reflect the
+	// current version via GetAsset/ListAssets/SearchAssets (LEFT JOIN); the
+	// anchor's storage_path/hash stay put so scan/dedup/relocate are unaffected.
+	AddVersion(ctx context.Context, owner domain.OwnerID, base, newVersion domain.AssetVersion) (domain.AssetVersion, error)
+	ListVersions(ctx context.Context, owner domain.OwnerID, assetID domain.AssetID) ([]domain.AssetVersion, error)
+	GetVersionByNo(ctx context.Context, owner domain.OwnerID, assetID domain.AssetID, versionNo int) (domain.AssetVersion, error)
+	// GetVersionByID resolves a version by its id (owner-scoped); the /file
+	// endpoint uses it to stream the current version's bytes.
+	GetVersionByID(ctx context.Context, owner domain.OwnerID, versionID domain.VersionID) (domain.AssetVersion, error)
+	CurrentVersionID(ctx context.Context, owner domain.OwnerID, assetID domain.AssetID) (string, error)
+	// SetCurrentVersion repoints the asset at versionID, verifying the version
+	// still exists in the same transaction so a concurrent delete cannot leave a
+	// dangling pointer; returns domain.ErrNotFound if it no longer exists.
+	SetCurrentVersion(ctx context.Context, owner domain.OwnerID, assetID domain.AssetID, versionID domain.VersionID) error
+	// DeleteVersion removes a version unless it is the asset's current version,
+	// atomically. It returns deleted=false (without error) when the version is
+	// current, so callers can reject the request without a separate racy check.
+	DeleteVersion(ctx context.Context, owner domain.OwnerID, assetID domain.AssetID, versionID domain.VersionID) (deleted bool, err error)
+
 	// Duplicates: exact (SHA-256) and perceptual (pHash) duplicate detection.
 	FindExactDuplicates(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.DuplicateGroup, error)
 	IndexPHash(ctx context.Context, owner domain.OwnerID, provider, path string, phash uint64) error
