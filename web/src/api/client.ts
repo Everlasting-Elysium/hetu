@@ -3,6 +3,8 @@
 // origin serves both the SPA and the API.
 import type {
   Asset,
+  Board,
+  BoardItem,
   ColorMatch,
   Folder,
   NewFolder,
@@ -35,6 +37,11 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 
 const body = (data: unknown): RequestInit => ({
   method: "POST",
+  body: JSON.stringify(data),
+});
+
+const patch = (data: unknown): RequestInit => ({
+  method: "PATCH",
   body: JSON.stringify(data),
 });
 
@@ -89,6 +96,23 @@ export const api = {
     req<Asset[]>(`/trash?limit=${limit}&offset=${offset}`),
   purgeTrash: (retention_days = 0) =>
     req<{ purged: boolean }>(`/trash?retention_days=${retention_days}`, {
+      method: "DELETE",
+    }),
+
+  listBoards: () => req<Board[]>("/boards"),
+  getBoard: (id: string) => req<Board>(`/boards/${id}`),
+  createBoard: (name: string) => req<Board>("/boards", body({ name })),
+  renameBoard: (id: string, name: string) =>
+    req<{ ok: boolean }>(`/boards/${id}`, patch({ name })),
+  deleteBoard: (id: string) =>
+    req<{ deleted: boolean }>(`/boards/${id}`, { method: "DELETE" }),
+
+  addBoardItem: (id: string, item: Omit<BoardItem, "id">) =>
+    req<BoardItem>(`/boards/${id}/items`, body(item)),
+  updateBoardItems: (id: string, items: BoardItem[]) =>
+    req<{ updated: number }>(`/boards/${id}/items`, patch({ items })),
+  deleteBoardItem: (id: string, itemId: string) =>
+    req<{ deleted: boolean }>(`/boards/${id}/items/${itemId}`, {
       method: "DELETE",
     }),
 };

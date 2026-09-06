@@ -32,6 +32,7 @@ export function useAssets(view: ViewMode, query: Query, version: number): Assets
     setError(null);
 
     (async (): Promise<Asset[]> => {
+      if (view === "boards" || view === "board") return [];
       if (view === "trash") return api.listTrash();
       if (query.colorHex) return api.searchColor(query.colorHex);
       if (query.keyword.trim()) return api.searchKeyword(query.keyword.trim());

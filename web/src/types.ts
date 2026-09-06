@@ -59,8 +59,31 @@ export interface NewTag {
   parent_id?: string;
 }
 
-// Which dataset the main grid is showing.
-export type ViewMode = "library" | "trash";
+// A moodboard / infinite canvas. `items` is only populated by GET /boards/:id.
+export interface Board {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  items?: BoardItem[];
+}
+
+// One asset placed on a board, with canvas geometry. Field names match the
+// boardItemDTO json tags in internal/plugins/dam/boards.go exactly.
+export interface BoardItem {
+  id: string;
+  asset_id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rotation: number;
+  z: number;
+}
+
+// Which dataset the main area is showing. "boards" lists moodboards; "board"
+// is the infinite-canvas editor for a single board.
+export type ViewMode = "library" | "trash" | "boards" | "board";
 
 // Active filter/search state driving the asset query.
 export interface Query {

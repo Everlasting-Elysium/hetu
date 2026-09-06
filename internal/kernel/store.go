@@ -87,5 +87,18 @@ type Store interface {
 	GetEmbedding(ctx context.Context, assetID domain.AssetID) ([]float32, error)
 	SearchByEmbedding(ctx context.Context, owner domain.OwnerID, query []float32, excludeID domain.AssetID, limit int) ([]domain.SimilarityMatch, error)
 
+	// Boards: moodboard / infinite canvas CRUD.
+	CreateBoard(ctx context.Context, b domain.Board) error
+	ListBoards(ctx context.Context, owner domain.OwnerID) ([]domain.Board, error)
+	GetBoard(ctx context.Context, owner domain.OwnerID, id domain.BoardID) (domain.Board, error)
+	UpdateBoardName(ctx context.Context, owner domain.OwnerID, id domain.BoardID, name string) error
+	DeleteBoard(ctx context.Context, owner domain.OwnerID, id domain.BoardID) error
+
+	// Board items: placed assets on a board.
+	AddBoardItem(ctx context.Context, item domain.BoardItem) (domain.BoardItem, error)
+	ListBoardItems(ctx context.Context, boardID domain.BoardID) ([]domain.BoardItem, error)
+	BatchUpdateBoardItems(ctx context.Context, boardID domain.BoardID, updates []domain.BoardItem) error
+	DeleteBoardItem(ctx context.Context, boardID domain.BoardID, itemID domain.BoardItemID) error
+
 	Close() error
 }
