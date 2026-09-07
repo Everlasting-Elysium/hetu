@@ -162,6 +162,9 @@ export function BoardAlignToolbar({ selectedItems, onUpdate }: Props) {
           ))}
         </Fragment>
       ))}
+      <span className={styles.alignHint}>
+        {MOD}方向 对齐 · {MOD}{ALT}方向 等尺寸 · {MOD}{ALT}⇧方向 分布
+      </span>
     </div>
   );
 }

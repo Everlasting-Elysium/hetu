@@ -184,6 +184,14 @@
   background: var(--border);
   margin: 0 var(--sp-1);
 }
+/* Always-visible shortcut cheatsheet at the right end of the arrange bar, so
+   the keyboard shortcuts are discoverable without hovering each button. */
+.alignHint {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
 
 /* Note inline editor: an HTML textarea floated over a note's Konva rect while
    editing (Konva cannot host DOM). Positioned via inline left/top/size. */
