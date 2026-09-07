@@ -149,3 +149,137 @@
 .panning {
   cursor: grab;
 }
+
+/* Fullscreen: the board `.view` fills the screen; the flex toolbar, arrange
+   bar, and body stay laid out exactly as they are windowed. */
+.view:fullscreen {
+  background: var(--bg-base);
+}
+
+/* Arrange bar: floats above the canvas body when 2+ items are selected. */
+.alignBar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-3);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+.alignBtn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.alignBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.alignSep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 var(--sp-1);
+}
+
+/* Note inline editor: an HTML textarea floated over a note's Konva rect while
+   editing (Konva cannot host DOM). Positioned via inline left/top/size. */
+.noteEditor {
+  position: absolute;
+  z-index: var(--z-pop);
+  margin: 0;
+  padding: var(--sp-2);
+  border: 2px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: var(--note-bg);
+  color: var(--note-text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  line-height: 1.4;
+  resize: none;
+  outline: none;
+  box-shadow: var(--shadow-2);
+}
+
+/* Export dialog: a small modal centered over the board. */
+.dialogBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.5);
+}
+.dialog {
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-pop);
+}
+.dialogTitle {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.dialogHint {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+.presetRow {
+  display: flex;
+  gap: var(--sp-2);
+}
+.preset {
+  flex: 1;
+  height: 34px;
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-dim);
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+.preset:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.presetActive {
+  color: #fff;
+  background: var(--accent);
+  border-color: transparent;
+}
+.sizeRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-2);
+}
+.sizeField {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.sizeX,
+.sizeUnit {
+  padding-bottom: var(--sp-2);
+  color: var(--text-muted);
+}
+.sizeUnit {
+  font-size: var(--fs-sm);
+}
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}

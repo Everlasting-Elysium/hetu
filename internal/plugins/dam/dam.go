@@ -74,6 +74,9 @@ func (p *Plugin) Routes() []kernel.Route {
 		// original download; it is provider-aware, so it also serves fs-backed
 		// assets migrated in place (issue #57).
 		{Method: http.MethodGet, Pattern: "/assets/{id}/file", Handler: p.serveFile},
+		// /frame decodes one video frame at ?ms=<t> as JPEG (issue #86) for
+		// timeline scrubbing; deterministic per (asset, ms), so long-cached.
+		{Method: http.MethodGet, Pattern: "/assets/{id}/frame", Handler: p.extractFrame},
 
 		// Version / revision history (issue #58): list, upload a new current
 		// version, roll back to an existing version, delete an old version.
