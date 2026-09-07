@@ -74,6 +74,9 @@ export function ModelViewer({ asset }: { asset: Asset }) {
     const el = ref.current;
     if (!el) return;
     el.cameraControls = true;
+    // The default auto-rotate-delay (3 000 ms) makes the model appear stuck after
+    // the user interacts then enables auto-rotate — zero gives instant feedback.
+    el.autoRotateDelay = 0;
     // Force model-viewer's built-in "neutral" IBL. Without an environment-image
     // WebKit/Safari renders the model fully black (Chromium falls back to a
     // default light, hiding the bug); "neutral" guarantees cross-browser lighting.
@@ -120,11 +123,14 @@ export function ModelViewer({ asset }: { asset: Asset }) {
     };
   }, [asset.id]);
 
-  // Reflect the auto-rotate toggle onto the element.
+  // Reflect the auto-rotate toggle onto the element. Guarded by status so the
+  // property is (re-)applied only after the model finishes loading — setting it
+  // earlier is silently ignored by <model-viewer>'s internal scene setup.
   useEffect(() => {
     const el = ref.current;
-    if (el) el.autoRotate = autoRotate;
-  }, [autoRotate]);
+    if (!el || status !== "ready") return;
+    el.autoRotate = autoRotate;
+  }, [autoRotate, status]);
 
   // Apply the material mode whenever it changes or the model becomes ready.
   useEffect(() => {
@@ -207,6 +213,7 @@ export function ModelViewer({ asset }: { asset: Asset }) {
         <button
           type="button"
           className={autoRotate ? styles.active : ""}
+          data-testid="toggle-auto-rotate"
           onClick={() => setAutoRotate((a) => !a)}
         >
           自动旋转
