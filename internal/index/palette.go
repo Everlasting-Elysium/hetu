@@ -19,9 +19,9 @@ import (
 //     kernel.PaletteExtractor and are read from the source file at full
 //     resolution.
 //   - Handlers whose source carries no raster (video, 3D) derive their palette
-//     from the thumbnail the indexer just generated — the ffmpeg keyframe, an
-//     optional Blender render, or a later client screenshot — so palette
-//     extraction never triggers a second decode or render of its own.
+//     from the thumbnail the indexer just generated — the ffmpeg keyframe or a
+//     later client screenshot — so palette extraction never triggers a second
+//     decode or render of its own.
 func (ix *Indexer) indexPalette(ctx context.Context, p kernel.StorageProvider, path, thumbPath string, h kernel.AssetHandler) {
 	pal, err := ix.extractPalette(ctx, p, path, thumbPath, h)
 	if err != nil {
