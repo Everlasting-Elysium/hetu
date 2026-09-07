@@ -25,6 +25,13 @@
   box-shadow: var(--shadow-2);
   animation: rise var(--t-med);
 }
+/* Success/info variant of .toast (e.g. "已添加 N 张到「板名」"). Declared after
+   .toast so its accent colors win the equal-specificity cascade. */
+.notice {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-hover);
+}
 @keyframes rise {
   from {
     opacity: 0;

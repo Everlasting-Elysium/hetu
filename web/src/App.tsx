@@ -35,6 +35,7 @@ export default function App() {
   const [query, setQuery] = useState<Query>(EMPTY_QUERY);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [inspectorTags, setInspectorTags] = useState<Tag[]>([]);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Asset | null>(null);
@@ -69,6 +70,13 @@ export default function App() {
       return () => clearTimeout(t);
     }
   }, [error]);
+
+  useEffect(() => {
+    if (notice) {
+      const t = setTimeout(() => setNotice(null), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [notice]);
 
   // Load the inspected asset's tags; `version` refetches after batch mutations.
   useEffect(() => {
@@ -148,6 +156,29 @@ export default function App() {
     if (created) openBoard(created.id);
   };
   const setMissing = () => changeView("missing");
+
+  // Send the current selection to a board. Unlike run(), this leaves the asset
+  // grid untouched (the assets themselves don't change) — it clears the
+  // selection and reports how many landed; `added` can be < the selection when
+  // some assets were already on the board (skipped server-side).
+  const sendToBoard = async (boardId: string, boardName: string) => {
+    const targets = [...sel.selected];
+    if (targets.length === 0) return;
+    try {
+      const { added } = await api.batchAddToBoard(boardId, targets);
+      sel.clear();
+      setNotice(`已添加 ${added} 张到「${boardName}」`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  // "新建图板…" from the batch bar: create a board (default name, matching the
+  // board list) then send the selection to it.
+  const sendToNewBoard = async () => {
+    if (sel.count === 0) return;
+    const created = await boards.createBoard("未命名图板");
+    if (created) await sendToBoard(created.id, created.name);
+  };
 
   const emptyHint =
     view === "trash"
@@ -275,11 +306,14 @@ export default function App() {
           view={view}
           folders={lib.folders}
           tags={lib.tags}
+          boards={boards.list}
           onClear={sel.clear}
           onTag={(tagId) => void run((t) => api.tag(t, [tagId]))()}
           onRate={(rating) => void run((t) => api.rate(t, rating))()}
           onColor={(hex) => void run((t) => api.colorLabel(t, hex))()}
           onMove={(folderId) => void run((t) => api.move(t, folderId))()}
+          onAddToBoard={(boardId, boardName) => void sendToBoard(boardId, boardName)}
+          onAddToNewBoard={() => void sendToNewBoard()}
           onTrash={() => void run((t) => api.trash(t))()}
           onRestore={() => void run((t) => api.restore(t))()}
         />
@@ -296,6 +330,7 @@ export default function App() {
       <AssetDetail asset={detail} onClose={() => setDetail(null)} />
 
       {error && <div className={styles.toast}>{error}</div>}
+      {notice && <div className={`${styles.toast} ${styles.notice}`}>{notice}</div>}
     </div>
   );
 }
