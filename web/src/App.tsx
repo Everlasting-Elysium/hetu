@@ -281,7 +281,7 @@ export default function App() {
 
   return (
     <div
-      className={`app ${isAssetView && inspectedAsset ? "inspect" : ""}`}
+      className={`app ${isAssetView && inspectedAsset && !detail ? "inspect" : ""}`}
       onClick={() => {
         sel.clear();
         setFocusedId(null);
@@ -396,7 +396,7 @@ export default function App() {
         )}
       </div>
 
-      {isAssetView && inspectedAsset && (
+      {isAssetView && inspectedAsset && !detail && (
         <InspectorPanel
           asset={inspectedAsset}
           tags={inspectorTags}

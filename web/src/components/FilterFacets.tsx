@@ -1,4 +1,4 @@
-import type { AssetKind, KindCount } from "../types";
+import type { AssetKind, KindCount, Tag } from "../types";
 import { KindIcon } from "./icons";
 import { RatingStars } from "./RatingStars";
 import styles from "./FilterFacets.module.css";
@@ -20,18 +20,60 @@ interface Props {
   minRating: number;
   onToggleKind: (kind: AssetKind) => void;
   onSetRating: (rating: number) => void;
+  // Optional tag facet: the board asset panel passes these to get a labeled
+  // 标签 section consistent with 格式/星级. The main sidebar omits them because it
+  // renders its own CRUD-capable tag list, so no 标签 section appears there.
+  tags?: Tag[];
+  activeTag?: string | null;
+  onPickTag?: (tagId: string) => void;
 }
 
-// Shared format + star facets, styled like the sidebar tag rows so the two read
-// as one filter language. Formats with no live assets in the current scope are
-// hidden; clicking a format toggles it (multi-select), and the star row reuses
-// RatingStars as a "≥ N stars" selector (clicking the active star clears it).
-// Mounted in both the main sidebar and the board asset panel (issue #75).
-export function FilterFacets({ counts, activeKinds, minRating, onToggleKind, onSetRating }: Props) {
+// Shared tag + format + star facets, styled like the sidebar rows so they read
+// as one filter language. Tags render as toggleable chips (single-select, clears
+// on re-pick); formats with no live assets in the current scope are hidden and
+// toggle (multi-select); the star row reuses RatingStars as a "≥ N stars"
+// selector. Mounted in the main sidebar (format/star) and the board asset panel
+// (tag/format/star) — issue #75.
+export function FilterFacets({
+  counts,
+  activeKinds,
+  minRating,
+  onToggleKind,
+  onSetRating,
+  tags,
+  activeTag,
+  onPickTag,
+}: Props) {
   const visible = counts.filter((c) => c.count > 0);
 
   return (
     <>
+      {onPickTag && tags && tags.length > 0 && (
+        <div className={styles.section}>
+          <div className={styles.head}>
+            <span>标签</span>
+            {activeTag && (
+              <button className={styles.clear} onClick={() => onPickTag(activeTag)}>
+                清除
+              </button>
+            )}
+          </div>
+          <div className={styles.chips}>
+            {tags.map((t) => (
+              <button
+                key={t.id}
+                className={`${styles.chip} ${activeTag === t.id ? styles.chipOn : ""}`}
+                aria-pressed={activeTag === t.id}
+                onClick={() => onPickTag(t.id)}
+              >
+                {t.color && <i className={styles.chipDot} style={{ background: t.color }} />}
+                {t.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className={styles.section}>
         <div className={styles.head}>
           <span>格式</span>

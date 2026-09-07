@@ -131,6 +131,27 @@ test("board panel: search narrows assets; format facet narrows further", async (
   await page.screenshot({ path: "e2e/screenshots/board-search-filter.png" });
 });
 
+test("board panel: 标签 facet is labeled and filters", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("grid-view")).toBeVisible();
+
+  await page.getByText("图板", { exact: true }).click();
+  await page.getByText("新建图板").click();
+  await expect(page.getByText("返回图板列表")).toBeVisible({ timeout: 8_000 });
+
+  const panel = page
+    .locator("aside")
+    .filter({ has: page.getByPlaceholder("搜索素材…") });
+
+  // The tag facet is a labeled 标签 section (consistent with 格式/星级), not a bare
+  // chip row. Clicking the "hero" chip toggles it on and narrows to its 2 assets.
+  await expect(panel.getByText("标签", { exact: true })).toBeVisible();
+  const hero = panel.getByRole("button", { name: "hero" });
+  await hero.click();
+  await expect(hero).toHaveAttribute("aria-pressed", "true");
+  await expect(panel.getByText(/素材 · 2/)).toBeVisible({ timeout: 5_000 });
+});
+
 test("board panel: filtered items are draggable; placement verified via API", async ({
   page,
   request,
