@@ -103,6 +103,48 @@ func (s *SQLite) AddBoardItem(ctx context.Context, item domain.BoardItem) (domai
 	return rowToBoardItem(row)
 }
 
+// BatchAddBoardItems inserts multiple items onto a board in one transaction and
+// touches the board's updated_at. Items are pre-validated and de-duplicated by
+// the caller (see the /items/batch handler); an empty slice is a no-op so a
+// request whose assets were all already on the board does not needlessly touch
+// it. Loops the single-row CreateBoardItem via WithTx rather than a dynamic
+// multi-row INSERT, which sqlc cannot express.
+func (s *SQLite) BatchAddBoardItems(ctx context.Context, boardID domain.BoardID, items []domain.BoardItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	tx, err := s.sqldb.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin batch add items: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	q := s.q.WithTx(tx)
+	for _, it := range items {
+		if _, err := q.CreateBoardItem(ctx, db.CreateBoardItemParams{
+			ID:        it.ID.String(),
+			BoardID:   it.BoardID.String(),
+			AssetID:   it.AssetID.String(),
+			X:         it.X,
+			Y:         it.Y,
+			W:         it.W,
+			H:         it.H,
+			Rotation:  it.Rotation,
+			Z:         int64(it.Z),
+			CreatedAt: it.CreatedAt.Unix(),
+		}); err != nil {
+			return fmt.Errorf("add board item %s: %w", it.ID, err)
+		}
+	}
+	if err := q.TouchBoard(ctx, db.TouchBoardParams{UpdatedAt: time.Now().Unix(), ID: boardID.String()}); err != nil {
+		return fmt.Errorf("touch board %s: %w", boardID, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit batch add items: %w", err)
+	}
+	return nil
+}
+
 // ListBoardItems returns all items on a board, ordered by z then created_at.
 func (s *SQLite) ListBoardItems(ctx context.Context, boardID domain.BoardID) ([]domain.BoardItem, error) {
 	rows, err := s.q.ListBoardItems(ctx, boardID.String())

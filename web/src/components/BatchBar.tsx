@@ -1,9 +1,19 @@
 import { useState } from "react";
 import { isLibraryView } from "../types";
-import type { Folder, Tag, ViewMode } from "../types";
+import type { Board, Folder, Tag, ViewMode } from "../types";
 import { RatingStars } from "./RatingStars";
 import { ColorSwatches } from "./ColorPicker";
-import { IconClose, IconDroplet, IconFolder, IconRestore, IconStar, IconTag, IconTrash } from "./icons";
+import {
+  IconBoard,
+  IconClose,
+  IconDroplet,
+  IconFolder,
+  IconPlus,
+  IconRestore,
+  IconStar,
+  IconTag,
+  IconTrash,
+} from "./icons";
 import styles from "./BatchBar.module.css";
 
 interface Props {
@@ -11,16 +21,19 @@ interface Props {
   view: ViewMode;
   folders: Folder[];
   tags: Tag[];
+  boards: Board[];
   onClear: () => void;
   onTag: (tagId: string) => void;
   onRate: (rating: number) => void;
   onColor: (hex: string) => void;
   onMove: (folderId: string) => void;
+  onAddToBoard: (boardId: string, boardName: string) => void;
+  onAddToNewBoard: () => void;
   onTrash: () => void;
   onRestore: () => void;
 }
 
-type Menu = "tag" | "rate" | "color" | "move" | null;
+type Menu = "tag" | "rate" | "color" | "move" | "board" | null;
 
 // Floating action bar shown while assets are selected. Adapts to the current
 // view: library selections expose tag/rate/color/move/trash; trash selections
@@ -132,6 +145,38 @@ export function BatchBar(p: Props) {
                     }}
                   >
                     <IconFolder width={14} height={14} /> {f.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className={styles.menuWrap}>
+            <button className="btn btn-ghost" onClick={() => toggle("board")}>
+              <IconBoard width={14} height={14} /> 发往图板
+            </button>
+            {menu === "board" && (
+              <div className={styles.menu}>
+                <div className={styles.menuTitle}>发往图板</div>
+                <button
+                  className={styles.menuItem}
+                  onClick={() => {
+                    p.onAddToNewBoard();
+                    close();
+                  }}
+                >
+                  <IconPlus width={14} height={14} /> 新建图板…
+                </button>
+                {p.boards.map((b) => (
+                  <button
+                    key={b.id}
+                    className={styles.menuItem}
+                    onClick={() => {
+                      p.onAddToBoard(b.id, b.name);
+                      close();
+                    }}
+                  >
+                    <IconBoard width={14} height={14} /> {b.name}
                   </button>
                 ))}
               </div>

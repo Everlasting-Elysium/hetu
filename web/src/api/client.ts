@@ -170,6 +170,11 @@ export const api = {
 
   addBoardItem: (id: string, item: Omit<BoardItem, "id">) =>
     req<BoardItem>(`/boards/${id}/items`, body(item)),
+  // Sends a list-view selection to a board with a server-assigned default
+  // layout (issue #76). `added` may be < asset_ids.length because assets already
+  // on the board are skipped.
+  batchAddToBoard: (id: string, asset_ids: string[]) =>
+    req<{ added: number }>(`/boards/${id}/items/batch`, body({ asset_ids })),
   updateBoardItems: (id: string, items: BoardItem[]) =>
     req<{ updated: number }>(`/boards/${id}/items`, patch({ items })),
   deleteBoardItem: (id: string, itemId: string) =>

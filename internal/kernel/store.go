@@ -161,6 +161,9 @@ type Store interface {
 
 	// Board items: placed assets on a board.
 	AddBoardItem(ctx context.Context, item domain.BoardItem) (domain.BoardItem, error)
+	// BatchAddBoardItems inserts several pre-laid-out items onto a board in one
+	// transaction (the "send to board" action from the asset list, issue #76).
+	BatchAddBoardItems(ctx context.Context, boardID domain.BoardID, items []domain.BoardItem) error
 	ListBoardItems(ctx context.Context, boardID domain.BoardID) ([]domain.BoardItem, error)
 	BatchUpdateBoardItems(ctx context.Context, boardID domain.BoardID, updates []domain.BoardItem) error
 	DeleteBoardItem(ctx context.Context, boardID domain.BoardID, itemID domain.BoardItemID) error
