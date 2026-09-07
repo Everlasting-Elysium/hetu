@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Asset } from "../types";
 import { fileUrl, thumbUrl } from "../api/client";
+import { copyAssetsToClipboard } from "../lib/clipboard";
 import { AssetMedia } from "./AssetDetail";
 import { IconChevronLeft, IconChevronRight, IconClose } from "./icons";
 import styles from "./ImmersiveViewer.module.css";
@@ -9,15 +10,21 @@ interface Props {
   assets: Asset[];
   startIndex: number;
   onExit: () => void;
+  onNotice?: (msg: string) => void;
+  onError?: (msg: string) => void;
 }
 
 const clamp = (i: number, max: number): number => Math.min(Math.max(i, 0), max);
 
 // Distraction-free fullscreen viewer. One asset at a time; ←/→ navigate, Esc
 // exits. Images load the original (Range-streamed) with a thumbnail fallback.
-export function ImmersiveViewer({ assets, startIndex, onExit }: Props) {
+export function ImmersiveViewer({ assets, startIndex, onExit, onNotice, onError }: Props) {
   const [index, setIndex] = useState(() => clamp(startIndex, Math.max(0, assets.length - 1)));
   const [failed, setFailed] = useState(false);
+
+  // Ref bundle so the keydown listener always reads the latest index & assets.
+  const ctxRef = useRef({ index, assets });
+  ctxRef.current = { index, assets };
 
   useEffect(() => {
     if (assets.length === 0) onExit();
@@ -25,13 +32,32 @@ export function ImmersiveViewer({ assets, startIndex, onExit }: Props) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Ctrl/Cmd+C: copy the currently viewed asset (#90). toLowerCase so
+      // CapsLock-on (e.key === "C") still triggers.
+      if (e.key.toLowerCase() === "c" && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
+        const { index: idx, assets: list } = ctxRef.current;
+        const cur = list[idx];
+        if (!cur) return;
+        e.preventDefault();
+        const single = new Set([cur.id]);
+        copyAssetsToClipboard(list, single, cur.id)
+          .then((r) => {
+            if (!r) return;
+            const label = r.type === "image" ? "已复制图片" : "已复制链接";
+            onNotice?.(label);
+          })
+          .catch((err) => {
+            onError?.(`复制失败: ${err instanceof Error ? err.message : String(err)}`);
+          });
+        return;
+      }
       if (e.key === "ArrowLeft") setIndex((i) => Math.max(0, i - 1));
       else if (e.key === "ArrowRight") setIndex((i) => Math.min(assets.length - 1, i + 1));
       else if (e.key === "Escape") onExit();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [assets.length, onExit]);
+  }, [assets.length, onExit, onNotice, onError]);
 
   // Clamp when the dataset shrinks; reset the image error flag on navigation.
   useEffect(() => {

@@ -1,17 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Asset } from "../types";
 import { fileUrl, thumbUrl } from "../api/client";
+import { formatTime, useMediaController } from "./useMediaController";
 import styles from "./VideoPlayer.module.css";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 const FRAME_STEP = 1 / 30; // assume 30fps; refined via rVFC when available
 const SEEK_STEP = 5;
-
-function formatTime(sec: number): string {
-  const s = Number.isFinite(sec) && sec > 0 ? sec : 0;
-  const m = Math.floor(s / 60);
-  return `${m}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
-}
 
 // requestVideoFrameCallback ships in Chromium/WebKit but is absent from older TS
 // DOM libs; feature-detect and route through a narrow unknown cast (no any).
@@ -53,106 +48,29 @@ interface VideoPlayerProps {
 
 export function VideoPlayer({ asset, toggleRef }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const draggingRef = useRef(false);
   const aRef = useRef<number | null>(null);
   const bRef = useRef<number | null>(null);
-
-  const [current, setCurrent] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [paused, setPaused] = useState(true);
-  const [rate, setRate] = useState(1);
-  const [muted, setMuted] = useState(false);
-  const [volume, setVolume] = useState(1);
   const [aPoint, setA] = useState<number | null>(null);
   const [bPoint, setB] = useState<number | null>(null);
-  const [dragging, setDragging] = useState(false);
 
-  // Media state syncs one-way from the element; the A-B loop reads refs so the
-  // once-attached timeupdate handler always sees the latest markers.
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    const onTime = () => {
-      const a = aRef.current, b = bRef.current;
-      if (a !== null && b !== null && a < b && v.currentTime >= b) {
-        v.currentTime = a;
-        setCurrent(a);
-      } else setCurrent(v.currentTime);
-    };
-    const onMeta = () => {
-      setDuration(Number.isFinite(v.duration) ? v.duration : 0);
-      setRate(v.playbackRate); setMuted(v.muted); setVolume(v.volume);
-    };
-    const onState = () => setPaused(v.paused);
-    const onRate = () => setRate(v.playbackRate);
-    const onVol = () => { setMuted(v.muted); setVolume(v.volume); };
-    const pairs: [keyof HTMLMediaElementEventMap, () => void][] = [
-      ["loadedmetadata", onMeta], ["timeupdate", onTime], ["play", onState],
-      ["pause", onState], ["ratechange", onRate], ["volumechange", onVol],
-    ];
-    pairs.forEach(([e, h]) => v.addEventListener(e, h));
-    return () => pairs.forEach(([e, h]) => v.removeEventListener(e, h));
+  // A-B loop: on each tick, snap back to A once playback reaches B. Runs inside
+  // the controller's timeupdate handler (via onTick) so `current` reflects the
+  // adjusted time in the same frame — no separate listener, no jitter.
+  const abLoop = useCallback((v: HTMLMediaElement) => {
+    const a = aRef.current, b = bRef.current;
+    if (a !== null && b !== null && a < b && v.currentTime >= b) v.currentTime = a;
   }, []);
 
-  // Stable ref so toggleRef assignment only runs once (no deps).
-  const togglePlay = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (v.paused) void v.play();
-    else v.pause();
-  }, []);
+  const c = useMediaController(videoRef, { toggleRef, onTick: abLoop });
 
-  // Expose togglePlay to App so the App-level Space handler can call it even when
-  // the player container doesn't have focus (e.g. user clicked elsewhere in modal).
-  useEffect(() => {
-    if (toggleRef) toggleRef.current = togglePlay;
-    return () => {
-      if (toggleRef) toggleRef.current = null;
-    };
-  }, [togglePlay, toggleRef]);
-  const seekTo = (t: number) => {
-    const v = videoRef.current;
-    if (!v) return;
-    const clamped = Math.min(duration || v.duration || 0, Math.max(0, t));
-    v.currentTime = clamped;
-    setCurrent(clamped);
-  };
-  const seekFromX = (clientX: number) => {
-    const track = trackRef.current;
-    const dur = videoRef.current?.duration ?? duration;
-    if (!track || !Number.isFinite(dur) || dur <= 0) return;
-    const rect = track.getBoundingClientRect();
-    seekTo(Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)) * dur);
-  };
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    trackRef.current?.setPointerCapture(e.pointerId);
-    draggingRef.current = true;
-    setDragging(true);
-    seekFromX(e.clientX);
-  };
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (draggingRef.current) seekFromX(e.clientX);
-  };
-  const endDrag = () => {
-    draggingRef.current = false;
-    setDragging(false);
-  };
-  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!draggingRef.current) return;
-    endDrag();
-    trackRef.current?.releasePointerCapture(e.pointerId);
-  };
   const stepFrame = (dir: 1 | -1) => {
     const v = videoRef.current;
     if (!v) return;
     v.pause();
     const dur = Number.isFinite(v.duration) ? v.duration : v.currentTime;
     const t = dir > 0 ? Math.min(dur, v.currentTime + FRAME_STEP) : Math.max(0, v.currentTime - FRAME_STEP);
-    v.currentTime = t;
-    setCurrent(t);
-    if (dir > 0) onNextFrame(v, (meta) => setCurrent(meta.mediaTime));
+    c.seekTo(t);
+    if (dir > 0) onNextFrame(v, (meta) => c.seekTo(meta.mediaTime));
   };
   const cycleRate = () => {
     const v = videoRef.current;
@@ -161,16 +79,6 @@ export function VideoPlayer({ asset, toggleRef }: VideoPlayerProps) {
     // so two quick clicks in one render would both see the stale value and skip.
     const i = SPEEDS.findIndex((s) => s === v.playbackRate);
     v.playbackRate = SPEEDS[(i + 1) % SPEEDS.length] ?? 1;
-  };
-  const toggleMute = () => {
-    const v = videoRef.current;
-    if (v) v.muted = !v.muted;
-  };
-  const onVolumeInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.volume = Number(e.target.value);
-    v.muted = v.volume === 0;
   };
 
   const markA = () => {
@@ -197,9 +105,9 @@ export function VideoPlayer({ asset, toggleRef }: VideoPlayerProps) {
     const v = videoRef.current;
     if (!v) return;
     const actions: Record<string, () => void> = {
-      " ": togglePlay,
-      ArrowLeft: () => seekTo(v.currentTime - SEEK_STEP),
-      ArrowRight: () => seekTo(v.currentTime + SEEK_STEP),
+      " ": c.togglePlay,
+      ArrowLeft: () => c.seekTo(v.currentTime - SEEK_STEP),
+      ArrowRight: () => c.seekTo(v.currentTime + SEEK_STEP),
       ",": () => stepFrame(-1),
       ".": () => stepFrame(1),
     };
@@ -211,6 +119,7 @@ export function VideoPlayer({ asset, toggleRef }: VideoPlayerProps) {
     if (e.key === " ") e.nativeEvent.stopPropagation();
     act();
   };
+  const { current, duration, paused, rate, muted, volume, dragging } = c;
   const pct = duration > 0 ? (current / duration) * 100 : 0;
   const aPct = aPoint !== null && duration > 0 ? (aPoint / duration) * 100 : null;
   const bPct = bPoint !== null && duration > 0 ? (bPoint / duration) * 100 : null;
@@ -225,16 +134,16 @@ export function VideoPlayer({ asset, toggleRef }: VideoPlayerProps) {
         poster={thumbUrl(asset.id)}
         preload="metadata"
         playsInline
-        onClick={togglePlay}
+        onClick={c.togglePlay}
       />
       <div className={styles.bar}>
         <div
-          ref={trackRef}
+          ref={c.trackRef}
           className={`${styles.scrub} ${dragging ? styles.scrubbing : ""}`}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={endDrag}
+          onPointerDown={c.onPointerDown}
+          onPointerMove={c.onPointerMove}
+          onPointerUp={c.onPointerUp}
+          onPointerCancel={c.endDrag}
         >
           <div className={styles.track}>
             <div className={styles.fill} style={{ width: `${pct}%` }} />
@@ -244,7 +153,7 @@ export function VideoPlayer({ asset, toggleRef }: VideoPlayerProps) {
           <div className={styles.handle} style={{ left: `${pct}%` }} />
         </div>
         <div className={styles.controls}>
-          <button type="button" className={styles.ctrl} onClick={togglePlay}
+          <button type="button" className={styles.ctrl} onClick={c.togglePlay}
             aria-label={paused ? "播放" : "暂停"} title={paused ? "播放 (空格)" : "暂停 (空格)"}>
             {paused ? <IconPlay /> : <IconPause />}
           </button>
@@ -262,12 +171,12 @@ export function VideoPlayer({ asset, toggleRef }: VideoPlayerProps) {
             className={styles.ctrl} disabled={aPoint === null && bPoint === null}>A-B✕</button>
           <button type="button" className={`${styles.ctrl} ${styles.rate}`} onClick={cycleRate}
             aria-label="播放速度" title="播放速度">{rate}x</button>
-          <button type="button" className={styles.ctrl} onClick={toggleMute}
+          <button type="button" className={styles.ctrl} onClick={c.toggleMute}
             aria-label={muted ? "取消静音" : "静音"} title={muted ? "取消静音" : "静音"}>
             <IconVolume off={muted || volume === 0} />
           </button>
           <input className={styles.volume} type="range" min={0} max={1} step={0.05}
-            value={muted ? 0 : volume} onChange={onVolumeInput} aria-label="音量" title="音量" />
+            value={muted ? 0 : volume} onChange={c.onVolumeInput} aria-label="音量" title="音量" />
         </div>
       </div>
     </div>
