@@ -56,6 +56,53 @@ func TestSearchByColor_BadRequest(t *testing.T) {
 	}
 }
 
+// TestSearchByColor_ExcludesAudio proves audio never appears in color-search
+// results even when it still carries a matching palette from an earlier scan:
+// a waveform's colors do not describe the asset, so audio is not a color filter
+// target (#88).
+func TestSearchByColor_ExcludesAudio(t *testing.T) {
+	srv, owner, st := newTestServer(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	upsert := func(id, path, ext string, kind domain.AssetKind) domain.AssetID {
+		aid, err := domain.NewAssetID(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := st.UpsertAsset(ctx, domain.Asset{
+			ID: aid, Owner: owner, Kind: kind, Provider: "local",
+			StoragePath: path, Name: path, Ext: ext, Size: 1, Hash: id,
+			CreatedAt: now, IndexedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return aid
+	}
+	red := color.Palette{{RGB: color.RGB{R: 0xff}, Weight: 1}}
+	imgID := upsert("img-red", "red.png", "png", domain.KindImage)
+	audID := upsert("aud-red", "song.mp3", "mp3", domain.KindAudio)
+	for _, id := range []domain.AssetID{imgID, audID} {
+		if err := st.IndexPaletteByID(ctx, owner, id, red); err != nil {
+			t.Fatalf("seed palette %s: %v", id, err)
+		}
+	}
+
+	resp, err := http.Get(srv.URL + "/api/dam/search?color=ff0000&tol=15")
+	if err != nil {
+		t.Fatalf("GET search: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var got []struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got) != 1 || got[0].Name != "red.png" {
+		t.Fatalf("results = %+v, want only the image red.png (audio excluded)", got)
+	}
+}
+
 // seedRouter builds a router over a store holding one red and one blue asset.
 func seedRouter(t *testing.T) (http.Handler, domain.OwnerID) {
 	t.Helper()

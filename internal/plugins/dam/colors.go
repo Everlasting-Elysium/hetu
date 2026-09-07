@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/Everlasting-Elysium/hetu/internal/color"
 	"github.com/Everlasting-Elysium/hetu/internal/domain"
 	"github.com/Everlasting-Elysium/hetu/internal/httpjson"
 )
@@ -20,12 +21,19 @@ func (p *Plugin) assetColors(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	if _, err := p.k.Store.GetAsset(r.Context(), p.owner, id); err != nil {
+	asset, err := p.k.Store.GetAsset(r.Context(), p.owner, id)
+	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			http.NotFound(w, r)
 			return
 		}
 		httpjson.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+	// Audio carries no meaningful color (its thumbnail is a waveform), so it
+	// never offers color swatches — answer [] even if stale rows linger (#88).
+	if !asset.Kind.SupportsColorPalette() {
+		httpjson.WriteJSON(w, http.StatusOK, []color.Swatch{})
 		return
 	}
 	swatches, err := p.k.Store.ListAssetColors(r.Context(), p.owner, id)

@@ -32,7 +32,8 @@ func (p *Plugin) uploadThumb(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	if _, err := p.k.Store.GetAsset(r.Context(), p.owner, id); err != nil {
+	asset, err := p.k.Store.GetAsset(r.Context(), p.owner, id)
+	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			http.NotFound(w, r)
 			return
@@ -65,8 +66,11 @@ func (p *Plugin) uploadThumb(w http.ResponseWriter, r *http.Request) {
 	}
 	// Re-extract palette from the uploaded thumbnail (issue #88). Failures are
 	// logged and swallowed: the thumbnail save already succeeded, so a palette
-	// error must not roll back the upload.
-	p.reindexPaletteFromThumb(r.Context(), id, thumbPath)
+	// error must not roll back the upload. Audio is skipped — a waveform's colors
+	// do not describe the asset, so audio never carries an extracted palette.
+	if asset.Kind.SupportsColorPalette() {
+		p.reindexPaletteFromThumb(r.Context(), id, thumbPath)
+	}
 	httpjson.WriteJSON(w, http.StatusOK, map[string]string{"thumb": thumbPath})
 }
 

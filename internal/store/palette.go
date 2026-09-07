@@ -168,7 +168,9 @@ func (s *SQLite) SearchByColor(ctx context.Context, owner domain.OwnerID, target
 	}
 	matches := make([]domain.ColorMatch, 0, len(hits))
 	for _, h := range hits {
-		if a, ok := byID[h.id]; ok {
+		// Exclude non-color-bearing kinds (audio) even if stale palette rows
+		// linger from an earlier scan, so color search never returns them (#88).
+		if a, ok := byID[h.id]; ok && a.Kind.SupportsColorPalette() {
 			matches = append(matches, domain.ColorMatch{Asset: a, Hex: h.hex, Distance: h.dist})
 		}
 	}
