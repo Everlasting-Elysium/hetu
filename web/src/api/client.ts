@@ -141,9 +141,26 @@ export const api = {
       `/assets/${id}/relocate`,
       body({ new_path, ...(provider ? { provider } : {}) }),
     ),
-  rebase: (old_prefix: string, new_prefix: string, provider = "local") =>
-    req<{ rebased: boolean }>(
-      "/relocate/rebase",
-      body({ old_prefix, new_prefix, provider }),
-    ),
+   rebase: (old_prefix: string, new_prefix: string, provider = "local") =>
+     req<{ rebased: boolean }>(
+       "/relocate/rebase",
+       body({ old_prefix, new_prefix, provider }),
+     ),
+
+   uploadThumb: async (id: string, blob: Blob): Promise<void> => {
+     const form = new FormData();
+     form.append("file", blob, "thumb.png");
+     const res = await fetch(`${BASE}/assets/${id}/thumb`, {
+       method: "POST",
+       body: form,
+     });
+     if (!res.ok) {
+       let msg = `${res.status} ${res.statusText}`;
+       try {
+         const body = (await res.json()) as { error?: string };
+         if (body.error) msg = body.error;
+       } catch { /* non-JSON error body */ }
+       throw new Error(msg);
+     }
+   },
 };

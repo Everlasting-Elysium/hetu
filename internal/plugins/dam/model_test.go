@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Everlasting-Elysium/hetu/internal/api"
+	"github.com/Everlasting-Elysium/hetu/internal/asset/model3d"
 	"github.com/Everlasting-Elysium/hetu/internal/domain"
 	"github.com/Everlasting-Elysium/hetu/internal/kernel"
 	"github.com/Everlasting-Elysium/hetu/internal/plugins/dam"
@@ -53,9 +54,16 @@ func newModelServer(t *testing.T, blenderAddr string) modelEnv {
 
 	libDir, cacheDir := t.TempDir(), t.TempDir()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// Build the model converter from the blenderAddr so that serveModel (which
+	// gates on k.ModelConverter != nil) can convert non-web-friendly formats.
+	var conv kernel.ModelConverter
+	if blenderAddr != "" {
+		conv, _ = model3d.NewConverter("blender", blenderAddr)
+	}
 	k := kernel.New(kernel.Deps{
 		Log: log, Store: st, ThumbDir: t.TempDir(),
-		ModelCacheDir: cacheDir, BlenderAddr: blenderAddr, JobBuffer: 1,
+		ModelCacheDir: cacheDir, BlenderAddr: blenderAddr,
+		ModelConverter: conv, JobBuffer: 1,
 	})
 	k.Storage.Register(local.New(libDir))
 	p := dam.New(owner)

@@ -2,6 +2,7 @@ package kernel
 
 import (
 	"context"
+	"io"
 	"log/slog"
 )
 
@@ -10,6 +11,15 @@ import (
 // semantic search is unavailable.
 type Embedder interface {
 	Embed(ctx context.Context, ref string) ([]float32, error)
+}
+
+// ModelConverter converts a 3D model (identified by ext, lowercase no dot) to
+// GLB, streaming the result into w. It is defined here — not in the model3d
+// package — so the kernel can hold the abstraction without importing model3d
+// (which imports the kernel). A nil ModelConverter means conversion is
+// unavailable and callers must degrade gracefully.
+type ModelConverter interface {
+	ConvertToGLB(ctx context.Context, ext string, src io.ReadSeeker, w io.Writer) error
 }
 
 // Kernel holds the shared services every plugin consumes.
@@ -24,29 +34,34 @@ type Kernel struct {
 	ModelCacheDir string   // directory where web-friendly GLB conversions are cached
 	BlenderAddr   string   // host:port of the Blender sidecar; empty = disabled
 	Embedder      Embedder // optional CLIP embedder; nil = semantic search disabled
+	// ModelConverter converts non-web-friendly 3D models to GLB for the viewer.
+	// nil = conversion unavailable; the DAM plugin gates on it (see serveModel).
+	ModelConverter ModelConverter
 }
 
 // Deps are the externally provided dependencies for New.
 type Deps struct {
-	Log           *slog.Logger
-	Store         Store
-	ThumbDir      string
-	ModelCacheDir string
-	JobBuffer     int
-	BlenderAddr   string
+	Log            *slog.Logger
+	Store          Store
+	ThumbDir       string
+	ModelCacheDir  string
+	JobBuffer      int
+	BlenderAddr    string
+	ModelConverter ModelConverter
 }
 
 // New constructs a Kernel with empty registries and an idle job queue.
 func New(d Deps) *Kernel {
 	return &Kernel{
-		Log:           d.Log,
-		Store:         d.Store,
-		Storage:       NewStorageRegistry(),
-		Assets:        NewAssetRegistry(),
-		Events:        NewEventBus(),
-		Jobs:          NewJobQueue(d.Log, d.JobBuffer),
-		ThumbDir:      d.ThumbDir,
-		ModelCacheDir: d.ModelCacheDir,
-		BlenderAddr:   d.BlenderAddr,
+		Log:            d.Log,
+		Store:          d.Store,
+		Storage:        NewStorageRegistry(),
+		Assets:         NewAssetRegistry(),
+		Events:         NewEventBus(),
+		Jobs:           NewJobQueue(d.Log, d.JobBuffer),
+		ThumbDir:       d.ThumbDir,
+		ModelCacheDir:  d.ModelCacheDir,
+		BlenderAddr:    d.BlenderAddr,
+		ModelConverter: d.ModelConverter,
 	}
 }

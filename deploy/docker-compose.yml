@@ -26,7 +26,10 @@ services:
       # Uncomment to enable rclone storage (requires --profile storage):
       # HETU_RCLONE_ADDR: "rclone:5572"
       # HETU_RCLONE_REMOTE: "remote:"
-      # Uncomment to enable 3D thumbnails via Blender (requires --profile media):
+      # 3D model conversion backend (issue #78). Empty = auto-detect (assimp on
+      # PATH → Blender sidecar → none). Explicit values: "assimp", "blender".
+      # HETU_MODEL_CONVERTER: ""
+      # Uncomment to enable Blender sidecar (requires --profile media):
       # HETU_BLENDER_ADDR: "blender:9090"
     volumes:
       - hetu-data:/data

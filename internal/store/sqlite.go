@@ -211,6 +211,19 @@ func (s *SQLite) GetAssetByPath(ctx context.Context, owner domain.OwnerID, provi
 	return rowToAsset(db.Asset(row))
 }
 
+// UpdateAssetThumbPath repoints the owner's asset at a new thumbnail file (a
+// client-uploaded 3D thumbnail, issue #78) via a targeted single-column update.
+func (s *SQLite) UpdateAssetThumbPath(ctx context.Context, owner domain.OwnerID, id domain.AssetID, thumbPath string) error {
+	if err := s.q.UpdateAssetThumbPath(ctx, db.UpdateAssetThumbPathParams{
+		ThumbPath: thumbPath,
+		ID:        id.String(),
+		OwnerID:   owner.String(),
+	}); err != nil {
+		return fmt.Errorf("update asset thumb path %s: %w", id, err)
+	}
+	return nil
+}
+
 // ListAssets returns the owner's live (non-trashed) assets, newest first.
 func (s *SQLite) ListAssets(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.Asset, error) {
 	rows, err := s.q.ListAssets(ctx, db.ListAssetsParams{
