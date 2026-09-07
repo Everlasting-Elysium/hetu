@@ -60,6 +60,7 @@ type Querier interface {
 	// must re-resolve to attach tags/folders/ratings/annotations to the right row.
 	// Mirrors GetAsset's version-aware projection (issue #58) so it returns db.Asset.
 	GetAssetByPath(ctx context.Context, arg GetAssetByPathParams) (GetAssetByPathRow, error)
+	GetAssetColors(ctx context.Context, arg GetAssetColorsParams) ([]GetAssetColorsRow, error)
 	// The asset's current-version pointer ('' when the asset has no explicit
 	// versions yet; the anchor row itself is the implicit single version).
 	GetAssetCurrentVersion(ctx context.Context, arg GetAssetCurrentVersionParams) (string, error)

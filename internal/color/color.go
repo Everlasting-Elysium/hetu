@@ -1,8 +1,10 @@
 // Package color provides pure-Go color analysis for asset indexing: sRGB<->hex
 // parsing, CIE-Lab conversion, perceptual distance (CIEDE2000, see distance.go),
-// and median-cut palette extraction (see quantize.go). It has no I/O and depends
-// only on the standard library so it can be unit-tested in isolation and reused
-// by the image handler, the store's color index, and the DAM search endpoint.
+// and median-cut palette extraction (see quantize.go). The core primitives do no
+// I/O and depend only on the standard library, so they can be unit-tested in
+// isolation and reused by the image handler, the store's color index, and the
+// DAM search endpoint. ExtractPalette (see extract.go) adds a thin downsampling
+// helper over imaging, shared by every palette-extracting asset handler.
 package color
 
 import (

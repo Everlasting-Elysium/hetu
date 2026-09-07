@@ -22,8 +22,8 @@ func encodeThumbnail(img stdimage.Image, w io.Writer) error {
 }
 
 // paletteFromImage downsamples img and returns up to paletteSize dominant colors
-// ordered dominant-first. Shared decode-agnostic tail of palette extraction.
+// ordered dominant-first. It delegates to color.ExtractPalette, the shared tail
+// every palette-extracting handler (image, video, 3D) converges on.
 func paletteFromImage(img stdimage.Image) color.Palette {
-	small := imaging.Fit(img, sampleMaxDim, sampleMaxDim, imaging.Box)
-	return color.Quantize(small, paletteSize)
+	return color.ExtractPalette(img, sampleMaxDim, paletteSize)
 }

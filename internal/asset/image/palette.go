@@ -11,13 +11,12 @@ import (
 	"github.com/Everlasting-Elysium/hetu/internal/kernel"
 )
 
-// sampleMaxDim caps the longest edge before quantization. Median-cut cost is
-// linear in pixel count and dominant colors survive heavy downsampling, so this
-// keeps palette extraction fast even on large images.
-const sampleMaxDim = 128
-
-// paletteSize is the number of dominant colors extracted per image.
-const paletteSize = 6
+// sampleMaxDim and paletteSize reference the canonical palette defaults defined
+// in the color package, so all asset handlers produce identical palettes.
+const (
+	sampleMaxDim = color.DefaultSampleMaxDim
+	paletteSize  = color.DefaultPaletteSize
+)
 
 var _ kernel.PaletteExtractor = (*Handler)(nil)
 

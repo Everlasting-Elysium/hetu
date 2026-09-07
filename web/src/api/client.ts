@@ -12,6 +12,7 @@ import type {
   NewFolder,
   NewTag,
   Query,
+  Swatch,
   Tag,
 } from "../types";
 
@@ -132,6 +133,7 @@ export const api = {
   deleteTag: (id: string) =>
     req<{ deleted: boolean }>(`/tags/${id}`, { method: "DELETE" }),
   assetTags: (id: string) => req<Tag[]>(`/assets/${id}/tags`),
+  assetColors: (id: string) => req<Swatch[]>(`/assets/${id}/colors`),
 
   updateNote: (id: string, text: string) =>
     req<{ note: string }>(`/assets/${id}/note`, {

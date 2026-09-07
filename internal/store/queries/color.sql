@@ -13,6 +13,11 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 SELECT asset_id, hex, l, a, b FROM asset_colors
 WHERE owner_id = ?;
 
+-- name: GetAssetColors :many
+SELECT ord, hex, weight FROM asset_colors
+WHERE asset_id = ? AND owner_id = ?
+ORDER BY ord ASC;
+
 -- name: AssetsByIDs :many
 -- Color-search / visual-similar results. thumb/dims stay the anchor's (not the
 -- current version): the color and pHash indexes are built from the anchor at

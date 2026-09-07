@@ -419,6 +419,7 @@ export default function App() {
           tags={inspectorTags}
           onRate={(rating) => void run((t) => api.rate(t, rating), [inspectedAsset.id])()}
           onColor={(hex) => void run((t) => api.colorLabel(t, hex), [inspectedAsset.id])()}
+          onColorSearch={lq.setColor}
           onNoteChange={(text) =>
             void run(() => api.updateNote(inspectedAsset.id, text), [inspectedAsset.id])()
           }
@@ -463,6 +464,12 @@ export default function App() {
       <AssetDetail
         asset={detail}
         toggleRef={videoToggleRef}
+        onColorSearch={(hex) => {
+          // Close the modal so the color-filtered grid behind it is visible.
+          lq.setColor(hex);
+          videoToggleRef.current = null;
+          setDetail(null);
+        }}
         onClose={() => {
           videoToggleRef.current = null;
           setDetail(null);
