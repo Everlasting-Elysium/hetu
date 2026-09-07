@@ -113,6 +113,7 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodPatch, Pattern: "/boards/{id}", Handler: p.renameBoard},
 		{Method: http.MethodDelete, Pattern: "/boards/{id}", Handler: p.deleteBoard},
 		{Method: http.MethodPost, Pattern: "/boards/{id}/items", Handler: p.addBoardItem},
+		{Method: http.MethodPost, Pattern: "/boards/{id}/items/batch", Handler: p.batchAddBoardItems},
 		{Method: http.MethodPatch, Pattern: "/boards/{id}/items", Handler: p.updateBoardItems},
 		{Method: http.MethodDelete, Pattern: "/boards/{id}/items/{itemId}", Handler: p.deleteBoardItem},
 
