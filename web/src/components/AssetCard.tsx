@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Asset, ColorMatch } from "../types";
 import { fileUrl, thumbUrl } from "../api/client";
 import { RatingStars } from "./RatingStars";
@@ -26,17 +26,39 @@ export function AssetCard({ asset, selected, onSelect, onToggleCheck, onRate, on
   const [colorOpen, setColorOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
+  const hoverTimer = useRef<number | null>(null);
   const label = asset.display_name || asset.name;
   const showThumb = asset.thumb !== "" && !failed;
   const showPreview = hovered && asset.kind === "video" && !previewFailed;
+
+  // Delay the hover-preview mount. A quick double-click (open detail) must not be
+  // interrupted by the re-render that mounts the autoplaying <video>: if that
+  // re-render lands between the two clicks the browser drops the dblclick and the
+  // detail modal never opens. A short intent delay keeps double-click reliable.
+  const startHover = () => {
+    hoverTimer.current = window.setTimeout(() => setHovered(true), 380);
+  };
+  const endHover = () => {
+    if (hoverTimer.current !== null) {
+      clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+    }
+    setHovered(false);
+  };
+  useEffect(
+    () => () => {
+      if (hoverTimer.current !== null) clearTimeout(hoverTimer.current);
+    },
+    [],
+  );
 
   return (
     <div
       className={`${styles.card} ${selected ? styles.selected : ""}`}
       onClick={onSelect}
       onDoubleClick={onDetail}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={startHover}
+      onMouseLeave={endHover}
     >
       <div
         className={styles.thumb}

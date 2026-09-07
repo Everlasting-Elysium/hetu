@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import type { Asset, AssetKind, Tag } from "../types";
 import { COLOR_LABELS } from "../types";
-import { thumbUrl } from "../api/client";
 import { RatingStars } from "./RatingStars";
 import { ColorPopover } from "./ColorPicker";
-import { KindIcon } from "./icons";
+import { AssetMedia } from "./AssetDetail";
 import styles from "./InspectorPanel.module.css";
 
 interface InspectorProps {
@@ -52,22 +51,14 @@ export function InspectorPanel({
   onNoteChange,
   onNoteDelete,
 }: InspectorProps) {
-  const [loaded, setLoaded] = useState(false);
-  const [failed, setFailed] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   const [note, setNote] = useState(asset.note);
 
-  // Reset transient thumbnail state and the note draft when the asset changes
-  // (also re-syncs the draft after a save refetches the asset).
-  useEffect(() => {
-    setLoaded(false);
-    setFailed(false);
-  }, [asset.id]);
+  // Re-sync the note draft when the asset changes (also after a save refetches).
   useEffect(() => setNote(asset.note), [asset.id, asset.note]);
 
   const label = asset.display_name || asset.name;
   const ext = asset.ext.replace(".", "");
-  const showThumb = asset.thumb !== "" && !failed;
 
   const commitNote = () => {
     if (note === asset.note) return;
@@ -80,23 +71,8 @@ export function InspectorPanel({
 
   return (
     <aside className={styles.panel} onClick={(e) => e.stopPropagation()}>
-      <div className={styles.thumb}>
-        {showThumb ? (
-          <img
-            key={asset.id}
-            src={thumbUrl(asset.id)}
-            alt={label}
-            decoding="async"
-            className={loaded ? styles.loaded : ""}
-            onLoad={() => setLoaded(true)}
-            onError={() => setFailed(true)}
-          />
-        ) : (
-          <div className={styles.placeholder}>
-            <KindIcon kind={asset.kind} />
-            <span className={styles.ext}>{ext || asset.kind}</span>
-          </div>
-        )}
+      <div className={styles.preview}>
+        <AssetMedia key={asset.id} asset={asset} />
       </div>
 
       <div className={styles.section}>
