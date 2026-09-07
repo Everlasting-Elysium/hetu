@@ -27,6 +27,7 @@ import { TrashView } from "./components/TrashView";
 import { InspectorPanel } from "./components/InspectorPanel";
 import { BoardList } from "./components/BoardList";
 import { BoardCanvas } from "./components/BoardCanvas";
+import { copyAssetsToClipboard } from "./lib/clipboard";
 import brand from "./components/Sidebar.module.css";
 import styles from "./App.module.css";
 
@@ -209,28 +210,56 @@ export default function App() {
   const color = (id: string, hex: string) => void run((t) => api.colorLabel(t, hex), [id])();
   const openDetail = (id: string) => setDetail(assets.find((a) => a.id === id) ?? null);
 
-  // App-level Space handler — single canonical path for Space across all views:
-  //   • Immersive open            → skip (immersive owns its own keys)
-  //   • Detail open (video/audio) → togglePlay via videoToggleRef
-  //   • No detail + focused item  → open that item's detail panel
-  //   • Input/textarea focused    → skip (let the field handle it)
+  // App-level keyboard handler — single canonical path for shortcuts across all
+  // views. Currently handles Space (detail/play) and Ctrl/Cmd+C (clipboard copy).
   //
   // A ref bundle avoids stale-closure issues: the window listener is installed
   // once and reads live values at event time, same pattern as AssetGrid.
-  const spaceCtxRef = useRef({ detail, focusedId, assets, view });
-  spaceCtxRef.current = { detail, focusedId, assets, view };
+  const keyCtxRef = useRef({ detail, focusedId, assets, view, selected: sel.selected });
+  keyCtxRef.current = { detail, focusedId, assets, view, selected: sel.selected };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== " ") return;
       const el = document.activeElement;
-      if (
+      const isInput =
         el instanceof HTMLInputElement ||
         el instanceof HTMLTextAreaElement ||
-        (el instanceof HTMLElement && el.isContentEditable)
-      )
+        (el instanceof HTMLElement && el.isContentEditable);
+
+      // --- Ctrl/Cmd+C: copy selected assets to system clipboard (#90) ---
+      // toLowerCase so CapsLock-on (e.key === "C") still triggers; the !shiftKey
+      // guard below still excludes Shift+Cmd+C.
+      if (e.key.toLowerCase() === "c" && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
+        // Never hijack native text copy: input fields, or user has text selected.
+        if (isInput) return;
+        const textSel = window.getSelection();
+        if (textSel && textSel.toString().length > 0) return;
+
+        const { assets: list, selected: s, focusedId: fid, view: v } = keyCtxRef.current;
+        // Immersive owns its own Ctrl+C — see ImmersiveViewer.
+        if (v === "immersive") return;
+        // No selection and no focus → nothing to copy, let browser handle it.
+        if (s.size === 0 && !fid) return;
+
+        e.preventDefault();
+        copyAssetsToClipboard(list, s, fid)
+          .then((result) => {
+            if (!result) return;
+            const label = result.type === "image"
+              ? `已复制图片${result.count > 1 ? `（含 ${result.count} 项链接）` : ""}`
+              : `已复制${result.count > 1 ? ` ${result.count} 条` : ""}链接`;
+            setNotice(label);
+          })
+          .catch((err) => {
+            setError(`复制失败: ${err instanceof Error ? err.message : String(err)}`);
+          });
         return;
-      const { detail: d, focusedId: fid, assets: list, view: v } = spaceCtxRef.current;
+      }
+
+      // --- Space: detail open / media toggle ---
+      if (e.key !== " ") return;
+      if (isInput) return;
+      const { detail: d, focusedId: fid, assets: list, view: v } = keyCtxRef.current;
       // Immersive owns its own keys — never open a detail panel over it.
       if (v === "immersive") return;
       e.preventDefault();
@@ -409,6 +438,8 @@ export default function App() {
           assets={assets}
           startIndex={immersiveIndex}
           onExit={() => setView(prevBrowse.current)}
+          onNotice={setNotice}
+          onError={setError}
         />
       )}
 
