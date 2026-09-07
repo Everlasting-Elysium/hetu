@@ -24,7 +24,7 @@
 
 ## 技术栈
 
-Go 内核(chi / slog / cobra)· SQLite(`modernc.org/sqlite`,纯 Go 无 CGO)+ sqlc · Python AI sidecar(Phase 1)· Blender headless 3D 缩略(Phase 1)· rclone/AList 把网盘当 S3(Phase 1)。详见 [docs/tech-stack.md](docs/tech-stack.md)。
+Go 内核(chi / slog / cobra)· SQLite(`modernc.org/sqlite`,纯 Go 无 CGO)+ sqlc · Python AI sidecar(Phase 1)· 3D 缩略：客户端 `<model-viewer>` 截图回传；格式转换：assimp CLI(Phase 1)· rclone/AList 把网盘当 S3(Phase 1)。详见 [docs/tech-stack.md](docs/tech-stack.md)。
 
 ## 当前状态(Phase 0 骨架)
 

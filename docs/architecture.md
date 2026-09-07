@@ -90,7 +90,7 @@ github.com/Everlasting-Elysium/hetu
 │   └── api/                      # chi server，挂载已启用插件的路由
 ├── ai/                           # Python AI sidecar（独立进程/容器）
 └── deploy/                       # Dockerfile + docker-compose
-    └── docker-compose.yml        # services: core, rclone, blender, ai
+    └── docker-compose.yml        # services: core, rclone, ai
 ```
 
 每个目录的职责说明：

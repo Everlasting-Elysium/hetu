@@ -51,7 +51,8 @@
 | 用途 | 方案 | 说明 |
 |------|------|------|
 | AI 推理 | Python sidecar | 独立进程/容器，HTTP/gRPC 通信，详见 [ai-and-3d.md](./ai-and-3d.md) |
-| 3D 缩略图 | Blender headless（`blender -b`） | sidecar，详见 [ai-and-3d.md](./ai-and-3d.md) |
+| 3D 缩略图 | 客户端 `<model-viewer>` 截图回传（`toBlob()` → `POST /api/dam/assets/{id}/thumb`） | 详见 [ai-and-3d.md](./ai-and-3d.md) |
+| 3D 格式转换 | assimp CLI 子进程（OBJ/FBX/STL/USD/PLY → GLB） | 详见 [ai-and-3d.md](./ai-and-3d.md) |
 | Web 3D 预览 | three.js / `<model-viewer>` | 前端，详见 [ai-and-3d.md](./ai-and-3d.md) |
 
 ---

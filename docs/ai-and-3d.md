@@ -46,7 +46,7 @@ hetu 的元数据分三层，借鉴 Serpent 的 vendor-adapter 模式并扩展�
 资产导入（索引完成事件）
   → JobQueue 入队 AI 打标任务
     → Go 内核调用 AI sidecar HTTP/gRPC 接口
-      → sidecar 解码图像（或接收 Blender 渲染帧）
+      → sidecar 解码图像（或接收客户端截图）
         → tagger：输出标签 + 置信度
         → captioner：输出描述文本
         → CLIP encoder：输出向量嵌入
@@ -65,31 +65,29 @@ hetu 的元数据分三层，借鉴 Serpent 的 vendor-adapter 模式并扩展�
 
 | 格式类型 | 具体格式 | 缩略图/预览 | Web 交互预览 | AI 打标 | 说明 |
 |----------|----------|-------------|--------------|---------|------|
-| 标准交换格式 | OBJ, FBX, GLB, GLTF, STL, USD, PLY | 客户端截图（默认）/ Blender（可选高质量） | `<model-viewer>`（GLB/GLTF 直出，其他格式经 assimp/Blender 转 GLB） | 渲染帧送 AI sidecar | 完全支持 |
+| 标准交换格式 | OBJ, FBX, GLB, GLTF, STL, USD, PLY | 客户端截图（`<model-viewer>` toBlob 回传） | `<model-viewer>`（GLB/GLTF 直出，其他格式经 assimp 转 GLB） | 客户端截图送 AI sidecar | 完全支持 |
 | ZBrush 原生 | .ztl, .zpr | 不可靠（见下） | 不支持 | 间接支持 | 专有闭源二进制，见下节 |
 
 ### 缩略图策略（issue #78）
 
-3D 模型缩略图采用**客户端截图优先 + 服务端可选**的分层策略：
+3D 模型缩略图由**客户端截图**唯一提供，服务端不参与渲染：
 
-1. **客户端截图缓存**（默认，零服务端依赖）：用户首次在 `<model-viewer>` 打开模型时，组件自动调用 `toBlob()` 截取当前视图，回传 `POST /api/dam/assets/{id}/thumb` 写入 `assets.thumb_path`。仅在缺缩略时执行一次，后续请求直接返回已缓存的缩略图。
-2. **Blender 服务端渲染**（可选高质量）：当 `HETU_BLENDER_ADDR` 配置后，索引期间 Blender sidecar 可渲染标准化视角的高质量缩略图。客户端截图不会覆盖 Blender 已生成的缩略。
-3. **优雅降级**：无 Blender 且用户未打开过该模型时，缩略图为空，资产照常入库。
+用户首次在 `<model-viewer>` 打开模型时，组件自动调用 `toBlob()` 截取当前视图，回传 `POST /api/dam/assets/{id}/thumb` 写入 `assets.thumb_path`。仅在缺缩略时执行一次，后续请求直接返回已缓存的缩略图。服务端的 `model3d.Handler.Thumbnail()` 始终返回 `domain.ErrNoThumbnail`，索引期间 3D 资产以无预览状态入库，客户端首次查看时自动补全。
+
+**优雅降级**：用户未打开过该模型时，缩略图为空，资产照常入库，扫描不中断。
 
 实现见 [thumb_upload.go](../internal/plugins/dam/thumb_upload.go)（后端）和 [ModelViewer.tsx](../web/src/components/ModelViewer.tsx)（前端）。
 
 ### 格式转换策略（issue #78）
 
-非 web 原生格式（OBJ/FBX/STL/USD/PLY）需转为 GLB 供 `<model-viewer>` 预览。转换后端通过 `HETU_MODEL_CONVERTER` 环境变量选择，支持可插拔切换：
+非 web 原生格式（OBJ/FBX/STL/USD/PLY）需转为 GLB 供 `<model-viewer>` 预览。转换后端通过 `HETU_MODEL_CONVERTER` 环境变量选择：
 
 | 后端 | 配置值 | 依赖 | 适用场景 |
 |------|--------|------|----------|
 | assimp | `assimp` | `assimp` CLI 在 PATH | 轻量自托管，纯 CPU，无 GPU/容器要求 |
-| Blender | `blender` | Blender headless sidecar | 高保真转换，支持更多格式特性 |
-| 自动探测 | 空（默认） | 按 assimp → Blender 顺序探测 | 开箱即用，有什么用什么 |
+| 自动探测 | 空（默认） | 探测 assimp 是否在 PATH | 开箱即用；assimp 不可用则 `/model` 端点对非 web 原生格式返回 503 |
 
 - assimp 以子进程方式调用（`assimp export <in> <out.glb>`），无需 HTTP sidecar，适合简单无状态转换（参考：[架构决策] 简单无状态格式转换工具用子进程调用）。
-- Blender 保留为 HTTP sidecar 模式，适合需要持久连接的重型渲染。
 - 转换结果按内容哈希缓存（`ModelCacheDir`），同一文件仅转换一次。
 - 并发转换通过 singleflight + 信号量限流，避免资源耗尽。
 
@@ -99,14 +97,14 @@ hetu 的元数据分三层，借鉴 Serpent 的 vendor-adapter 模式并扩展�
 
 Web 交互预览：
 - GLB/GLTF 格式：`<model-viewer>` 直接加载，零转换
-- 其他格式：经 assimp 或 Blender 转为 GLB，再由 `<model-viewer>` 渲染
+- 其他格式：经 assimp 转为 GLB，再由 `<model-viewer>` 渲染
 
 ### 3D 渲染即打标的洞察
 
 标准 3D 格式的 AI 打标不需要专门的 3D 理解模型。流程为：
 
 ```
-Blender headless 渲染转台帧（或客户端截图）
+客户端截图（<model-viewer> toBlob 回传）
   → 图像送 AI sidecar（tagger + CLIP）
   → 产出：预览图 + 标签 + 向量嵌入
 ```
@@ -130,9 +128,9 @@ Blender headless 渲染转台帧（或客户端截图）
 
 ---
 
-## 3D Sidecar 部署
+## 3D 格式转换部署
 
-### 轻量方案：assimp（推荐）
+### assimp
 
 安装 `assimp` CLI 到 hetu 镜像或宿主机 PATH 即可，无需额外容器：
 
@@ -143,33 +141,14 @@ apt-get install -y assimp-utils
 brew install assimp
 ```
 
-hetu 启动时自动探测 `assimp` 可用性。也可显式指定：`HETU_MODEL_CONVERTER=assimp`。
-
-### 高质量方案：Blender（可选）
-
-Blender sidecar 属于 `media` compose profile，默认不启动:
-
-```
-docker compose --profile media up
-```
-
-启动后设置 `HETU_BLENDER_ADDR=blender:9090`（容器内地址），或 `HETU_MODEL_CONVERTER=blender` 显式选择。配置项定义见 [config.go](../internal/config/config.go)。
-
-### 渲染脚本
-
-| 脚本 | 职责 |
-|------|------|
-| [render.py](../deploy/blender/render.py) | Blender 无头渲染:导入模型、按包围盒自动取景相机、三点布光、EEVEE 引擎渲染 512×512 透明背景 PNG。用法 `blender -b -P render.py -- <输入> <输出>`。 |
-| [server.py](../deploy/blender/server.py) | Flask HTTP 包装:`POST /render` 接收 multipart 模型文件,按魔数嗅探格式后调用 render.py,返回 PNG。监听地址由 `BLENDER_LISTEN`(默认 `:9090`)控制。 |
-
-> `linuxserver/blender` 镜像需具备 `python3` 与 `flask`;若缺失,在镜像内 `pip install flask` 或改用自建镜像。
+hetu 启动时自动探测 `assimp` 可用性。也可显式指定：`HETU_MODEL_CONVERTER=assimp`。配置项定义见 [config.go](../internal/config/config.go)。
 
 ### 优雅降级
 
 3D 处理全链路尽力而为:
-- **缩略图**：无 Blender 且用户未打开模型时 `ThumbPath` 为空，扫描不中断；用户首次查看时客户端自动补缩略。
-- **格式转换**：无 assimp 且无 Blender 时，非 web 原生格式返回 503，GLB/GLTF 不受影响。
-- **配置检测**：`HETU_MODEL_CONVERTER` 为空时自动探测（assimp → Blender），均不可用则 `ModelConverter` 为 nil。
+- **缩略图**：用户未打开模型时 `ThumbPath` 为空，扫描不中断；用户首次查看时客户端自动补缩略。
+- **格式转换**：assimp 不可用时，非 web 原生格式返回 503，GLB/GLTF 不受影响。
+- **配置检测**：`HETU_MODEL_CONVERTER` 为空时自动探测 assimp；不可用则 `ModelConverter` 为 nil。
 
 ---
 

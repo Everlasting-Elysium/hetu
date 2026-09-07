@@ -93,15 +93,14 @@
 
 ### 3D 资产处理
 
-- [ ] Blender headless sidecar 集成（`blender -b` 渲染标准格式）
-- [ ] 标准格式（OBJ/FBX/GLB/GLTF/STL/USD/PLY）缩略图生成
-- [ ] 转台动画帧渲染，帧序列送 AI sidecar 打标
-- [ ] Web 交互预览：GLB/GLTF 用 `<model-viewer>`，其他格式用 three.js
+- [ ] 标准格式（OBJ/FBX/GLB/GLTF/STL/USD/PLY）处理器：assimp 转 GLB，`<model-viewer>` 预览
+- [ ] 客户端截图缩略图：`<model-viewer>` toBlob 回传 `POST /api/dam/assets/{id}/thumb`
+- [ ] 客户端截图送 AI sidecar 打标（tagger + CLIP）
 - [ ] ZBrush 原生文件（.ztl/.zpr）原地索引，按文件名前缀自动关联导出文件
 
 ### 部署更新
 
-- [ ] `docker-compose.yml` 新增 `ai` sidecar 服务和 `blender` sidecar 服务
+- [ ] `docker-compose.yml` 新增 `ai` sidecar 服务
 
 ---
 
