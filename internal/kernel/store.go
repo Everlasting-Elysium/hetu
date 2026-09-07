@@ -69,6 +69,10 @@ type Store interface {
 	RelocateAsset(ctx context.Context, owner domain.OwnerID, id domain.AssetID, provider, newPath string) error
 	RebaseAssets(ctx context.Context, owner domain.OwnerID, provider, oldPrefix, newPrefix string) error
 
+	// UpdateAssetThumbPath repoints an asset at a client-uploaded thumbnail
+	// (issue #78: 3D thumbnails rendered browser-side, no Blender). Owner-scoped.
+	UpdateAssetThumbPath(ctx context.Context, owner domain.OwnerID, id domain.AssetID, thumbPath string) error
+
 	// Tags: CRUD plus batch (un)tagging of assets.
 	CreateTag(ctx context.Context, t domain.Tag) error
 	ListTags(ctx context.Context, owner domain.OwnerID) ([]domain.Tag, error)

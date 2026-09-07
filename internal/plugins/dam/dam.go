@@ -22,10 +22,10 @@ import (
 // Name is the plugin's config key (HETU_PLUGINS).
 const Name = "dam"
 
-// maxConcurrentConversions bounds how many Blender GLB conversions run at once.
-// A burst of viewer opens (a folder of un-cached models, a double-click, or a
-// React StrictMode double-mount) must not spawn unbounded Blender subprocesses
-// and exhaust a self-hosted host.
+// maxConcurrentConversions bounds how many GLB conversions run at once. A burst
+// of viewer opens (a folder of un-cached models, a double-click, or a React
+// StrictMode double-mount) must not spawn unbounded converter subprocesses (or
+// sidecar requests) and exhaust a self-hosted host.
 const maxConcurrentConversions = 3
 
 // Plugin implements kernel.Plugin for asset management.
@@ -34,8 +34,8 @@ type Plugin struct {
 	owner domain.OwnerID
 
 	// convertGroup dedups concurrent GLB conversions of the same model (keyed by
-	// content hash) so identical requests share one Blender job; convertSem bounds
-	// total concurrent conversions across all models. See ensureGLB.
+	// content hash) so identical requests share one conversion job; convertSem
+	// bounds total concurrent conversions across all models. See ensureGLB.
 	convertGroup singleflight.Group
 	convertSem   chan struct{}
 }
@@ -65,6 +65,9 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodGet, Pattern: "/assets", Handler: p.listAssets},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/tags", Handler: p.assetTags},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/thumb", Handler: p.serveThumb},
+		// Client-uploaded thumbnail (issue #78): the browser renders 3D previews
+		// and POSTs the PNG/JPEG, so hetu needs no Blender for model thumbnails.
+		{Method: http.MethodPost, Pattern: "/assets/{id}/thumb", Handler: p.uploadThumb},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/model", Handler: p.serveModel},
 		// /file streams the original bytes (Range-enabled) for media playback and
 		// original download; it is provider-aware, so it also serves fs-backed

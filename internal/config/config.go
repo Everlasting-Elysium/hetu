@@ -41,6 +41,11 @@ type Config struct {
 	// render 3D-model thumbnails. Empty disables 3D thumbnailing: models are
 	// still indexed, they just have no thumbnail (graceful degradation).
 	BlenderAddr string `env:"HETU_BLENDER_ADDR"`
+
+	// ModelConverter selects the 3D→GLB conversion backend for the web viewer:
+	// "assimp" (native CLI subprocess), "blender" (the sidecar above), or empty
+	// to auto-detect (assimp if on PATH, else Blender when BlenderAddr is set).
+	ModelConverter string `env:"HETU_MODEL_CONVERTER"`
 }
 
 // Load parses the environment into a Config.
