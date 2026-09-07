@@ -1,5 +1,6 @@
 import { useState } from "react";
-import type { Folder, Tag } from "../types";
+import type { AssetKind, Folder, KindCount, Tag } from "../types";
+import { FilterFacets } from "./FilterFacets";
 import { IconAlert, IconBoard, IconFolder, IconGrid, IconPlus, IconTag, IconTrash } from "./icons";
 import styles from "./Sidebar.module.css";
 
@@ -19,6 +20,12 @@ interface Props {
   missingCount: number;
   onPickMissing: () => void;
   activeMissing: boolean;
+  kindCounts: KindCount[];
+  activeKinds: AssetKind[];
+  minRating: number;
+  onToggleKind: (kind: AssetKind) => void;
+  onSetRating: (rating: number) => void;
+  onClearFilters: () => void;
 }
 
 // Inline "add" form toggled per section.
@@ -52,17 +59,20 @@ function AddForm({ placeholder, onSubmit }: { placeholder: string; onSubmit: (v:
 export function Sidebar(p: Props) {
   const [addFolder, setAddFolder] = useState(false);
   const [addTag, setAddTag] = useState(false);
-  const allActive = !p.activeFolder && !p.activeTag && !p.boardsActive && !p.activeMissing;
+  const allActive =
+    !p.activeFolder &&
+    !p.activeTag &&
+    !p.boardsActive &&
+    !p.activeMissing &&
+    p.activeKinds.length === 0 &&
+    p.minRating === 0;
 
   return (
     <aside className={styles.side}>
       <div className={styles.section}>
         <button
           className={`${styles.item} ${allActive ? styles.active : ""}`}
-          onClick={() => {
-            p.onPickFolder(null);
-            p.onPickTag(null);
-          }}
+          onClick={() => p.onClearFilters()}
         >
           <IconGrid width={15} height={15} />
           <span className={styles.txt}>全部素材</span>
@@ -166,6 +176,14 @@ export function Sidebar(p: Props) {
           </button>
         ))}
       </div>
+
+      <FilterFacets
+        counts={p.kindCounts}
+        activeKinds={p.activeKinds}
+        minRating={p.minRating}
+        onToggleKind={p.onToggleKind}
+        onSetRating={p.onSetRating}
+      />
     </aside>
   );
 }

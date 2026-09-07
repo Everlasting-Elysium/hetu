@@ -34,7 +34,7 @@ func TestUpsertAnnotation_SearchableCaption(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert annotation: %v", err)
 	}
-	hits, err := st.SearchAssets(ctx, owner, "harbour", 10, 0)
+	hits, err := st.SearchAssets(ctx, owner, "harbour", domain.AssetFilter{}, 10, 0)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}

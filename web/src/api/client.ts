@@ -3,16 +3,52 @@
 // origin serves both the SPA and the API.
 import type {
   Asset,
+  AssetKind,
   Board,
   BoardItem,
   ColorMatch,
+  Facets,
   Folder,
   NewFolder,
   NewTag,
+  Query,
   Tag,
 } from "../types";
 
 const BASE = "/api/dam";
+
+// The facet filter shared by /assets, /search, and /facets. Empty fields are
+// omitted so the server applies only the active facets (issue #75).
+export interface AssetFilterParams {
+  folder?: string | null;
+  tag?: string | null;
+  kind?: AssetKind[];
+  rating?: number;
+}
+
+// queryFilter maps the composable facets of a Query onto the wire params. It is
+// the single Query -> filter bridge shared by useAssets and useFacets, so the
+// two never drift on which fields narrow a request.
+export function queryFilter(q: Query): AssetFilterParams {
+  return { folder: q.folderId, tag: q.tagId, kind: q.kind, rating: q.minRating };
+}
+
+// Serializes the shared facets into a query string (folder/tag/kind/rating),
+// dropping empties. kind is comma-joined to match the ?kind=a,b backend parser.
+function filterParams(f: AssetFilterParams): string {
+  const p = new URLSearchParams();
+  if (f.folder) p.set("folder", f.folder);
+  if (f.tag) p.set("tag", f.tag);
+  if (f.kind && f.kind.length > 0) p.set("kind", f.kind.join(","));
+  if (f.rating && f.rating > 0) p.set("rating", String(f.rating));
+  return p.toString();
+}
+
+// Joins a base path with the facet params and pagination into one query string.
+function withFilter(prefix: string, f: AssetFilterParams, limit: number, offset: number): string {
+  const parts = [prefix, filterParams(f), `limit=${limit}`, `offset=${offset}`].filter(Boolean);
+  return parts.join("&");
+}
 
 interface ApiError {
   error?: string;
@@ -58,13 +94,20 @@ export const fileUrl = (id: string): string => `${BASE}/assets/${id}/file`;
 export const modelUrl = (id: string): string => `${BASE}/assets/${id}/model`;
 
 export const api = {
-  listAssets: (limit = 200, offset = 0) =>
-    req<Asset[]>(`/assets?limit=${limit}&offset=${offset}`),
+  // listAssets and searchKeyword push the folder/tag/kind/rating facets to the
+  // server (issue #75), so the client never filters an asset list in memory.
+  listAssets: (f: AssetFilterParams = {}, limit = 200, offset = 0) =>
+    req<Asset[]>(`/assets?${withFilter("", f, limit, offset)}`),
 
-  searchKeyword: (q: string, limit = 200, offset = 0) =>
-    req<Asset[]>(
-      `/search?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`,
-    ),
+  searchKeyword: (q: string, f: AssetFilterParams = {}, limit = 200, offset = 0) =>
+    req<Asset[]>(`/search?${withFilter(`q=${encodeURIComponent(q)}`, f, limit, offset)}`),
+
+  // facets returns per-kind counts for the format facet, narrowed by the same
+  // folder/tag/rating context (the active kind selection is ignored server-side).
+  facets: (f: AssetFilterParams = {}) => {
+    const qs = filterParams(f);
+    return req<Facets>(`/facets${qs ? `?${qs}` : ""}`);
+  },
 
   searchColor: (hex: string, tol = 12, limit = 200) =>
     req<ColorMatch[]>(

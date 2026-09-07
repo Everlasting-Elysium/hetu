@@ -234,6 +234,8 @@ SQLite FTS5 全文检索虚拟表，为**工作区级**全文检索提供支撑�
 - 存储层 `internal/store/sqlite.go` 的 `SearchAssets` 手写 SQL（sqlc 不支持 FTS5 虚拟表），`JOIN assets` 后按 `assets_fts.rank`（bm25）相关度升序返回；非法 MATCH 表达式映射为 `domain.ErrInvalidQuery`。
 - HTTP 接口 `GET /api/dam/search?q=`（`internal/plugins/dam/search.go`），空查询/非法查询返回 400，`limit` 限制在 `[1,200]`。
 
+**格式 / 星级 facet（issue #75）**：`GET /api/dam/assets` 与 `GET /api/dam/search` 均接受 `?kind=<a,b>`（逗号分隔，仅 `AssetKind` 枚举值，经 `domain.ValidKind` 白名单 + 参数化 `a.kind IN (...)` 防注入），与 `?folder=`/`?tag=`/`?rating=<最低星级>` 在服务端叠加过滤（AND 组合）。`ListAssetsFiltered` 与 `SearchAssets` 共用 `appendFacetConds`（`internal/store/sqlite_filter.go`）保证两条链路语义一致，前端不再内存过滤。新增 `GET /api/dam/facets`（`internal/plugins/dam/facets.go`）返回各 `kind` 的存量计数，受 `?folder=`/`?tag=`/`?rating=` 约束但忽略 `?kind=` 自身，供多选格式 facet 稳定驱动。
+
 **升级兼容**：`assets_fts` 与触发器由 `schema.sql` 每次 `Open` 幂等重建。`PRAGMA user_version` 门控迁移与回填：`migrateFTS` 在版本低于当前时先 DROP 旧 FTS 表和触发器，再由 `schema.sql` 重建新结构；`backfillFTS` 随后将所有已有资产（含当前 tags 和 caption）写入 FTS 索引。变更 FTS 结构（如换 tokenizer）时递增 `ftsSchemaVersion`（当前为 2）并补迁移。
 
 **已知限制 / 后续（本 issue 范围外）**：

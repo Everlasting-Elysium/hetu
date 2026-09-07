@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layer, Stage, Transformer } from "react-konva";
 import type Konva from "konva";
-import type { Asset, BoardItem } from "../types";
-import { api } from "../api/client";
+import { type Asset, type AssetKind, type BoardItem, EMPTY_QUERY, type Query, type Tag } from "../types";
+import { useAssets } from "../hooks/useAssets";
+import { useFacets } from "../hooks/useFacets";
 import { useBoard } from "../hooks/useBoards";
 import { useBoardImages } from "../hooks/useBoardImages";
 import { useCanvasViewport } from "../hooks/useCanvasViewport";
@@ -13,6 +14,7 @@ import styles from "./BoardCanvas.module.css";
 
 interface Props {
   boardId: string;
+  tags: Tag[];
   onBack: () => void;
   onError: (msg: string) => void;
 }
@@ -31,12 +33,15 @@ function dropSize(asset: Asset | undefined): { w: number; h: number } {
 // The infinite-canvas editor (ViewMode "board"): a drag-source panel on the
 // left and a Konva stage on the right. Pan/zoom come from useCanvasViewport,
 // per-item drag/resize from BoardCanvasItem, and persistence from useBoard.
-export function BoardCanvas({ boardId, onBack, onError }: Props) {
+export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
   const { board, items, addItem, updateItems, removeItem } = useBoard(boardId, onError);
   const { scale, pos, panning, onWheel, onStageDragEnd } = useCanvasViewport();
 
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [loadingAssets, setLoadingAssets] = useState(true);
+  // The drag-source panel reuses the main library's query model + hooks: search
+  // and tag/format/star facets narrow it server-side (issue #75).
+  const [boardQuery, setBoardQuery] = useState<Query>(EMPTY_QUERY);
+  const { assets, loading: loadingAssets, error: assetErr } = useAssets("grid", boardQuery, 0);
+  const kindCounts = useFacets(boardQuery, 0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
 
@@ -48,24 +53,28 @@ export function BoardCanvas({ boardId, onBack, onError }: Props) {
   const images = useBoardImages(assetIds);
   const sorted = useMemo(() => [...items].sort((a, b) => a.z - b.z), [items]);
 
+  // Surface panel asset-load failures through the board's error channel.
   useEffect(() => {
-    let alive = true;
-    api
-      .listAssets()
-      .then((a) => {
-        if (!alive) return;
-        setAssets(a);
-        setLoadingAssets(false);
-      })
-      .catch((e: unknown) => {
-        if (!alive) return;
-        onError(e instanceof Error ? e.message : String(e));
-        setLoadingAssets(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [onError]);
+    if (assetErr) onError(assetErr);
+  }, [assetErr, onError]);
+
+  // Board-local facet handlers: search + tag/format/star narrow the panel via
+  // the same query model as the main library (tag toggles off on re-pick; the
+  // star facet clears via RatingStars re-click).
+  const setKeyword = useCallback((keyword: string) => setBoardQuery((q) => ({ ...q, keyword })), []);
+  const pickTag = useCallback(
+    (tagId: string) => setBoardQuery((q) => ({ ...q, tagId: q.tagId === tagId ? null : tagId })),
+    [],
+  );
+  const toggleKind = useCallback(
+    (kind: AssetKind) =>
+      setBoardQuery((q) => ({
+        ...q,
+        kind: q.kind.includes(kind) ? q.kind.filter((k) => k !== kind) : [...q.kind, kind],
+      })),
+    [],
+  );
+  const setRating = useCallback((rating: number) => setBoardQuery((q) => ({ ...q, minRating: rating })), []);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -150,7 +159,17 @@ export function BoardCanvas({ boardId, onBack, onError }: Props) {
       </div>
 
       <div className={styles.body}>
-        <BoardAssetPanel assets={assets} loading={loadingAssets} />
+        <BoardAssetPanel
+          assets={assets}
+          loading={loadingAssets}
+          tags={tags}
+          query={boardQuery}
+          kindCounts={kindCounts}
+          onKeyword={setKeyword}
+          onPickTag={pickTag}
+          onToggleKind={toggleKind}
+          onSetRating={setRating}
+        />
         <div
           ref={wrapRef}
           className={`${styles.canvas} ${panning ? styles.panning : ""}`}

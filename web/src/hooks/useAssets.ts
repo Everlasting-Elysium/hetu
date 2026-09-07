@@ -1,15 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "../api/client";
+import { api, queryFilter } from "../api/client";
 import type { Asset, Query, ViewMode } from "../types";
-
-// Cross-references asset tags client-side: the API exposes tags per asset, so
-// tag filtering resolves the tagged asset ids once, then intersects.
-async function idsForTag(tagId: string, pool: Asset[]): Promise<Set<string>> {
-  const results = await Promise.all(
-    pool.map(async (a) => ((await api.assetTags(a.id)).some((t) => t.id === tagId) ? a.id : null)),
-  );
-  return new Set(results.filter((id): id is string => id !== null));
-}
 
 export interface AssetsState {
   assets: Asset[];
@@ -17,9 +8,11 @@ export interface AssetsState {
   error: string | null;
 }
 
-// Resolves the active view + query into a concrete asset list. Keyword/color
-// search short-circuit filters; otherwise library assets are filtered by
-// folder and tag in memory. `version` bumps force a refetch after mutations.
+// Resolves the active view + query into a concrete asset list. Color and keyword
+// search short-circuit; both keyword search and plain listing push the
+// folder/tag/kind/rating facets to the server, so no asset list is filtered in
+// memory (issue #75 — this replaces the per-asset assetTags() N+1). A `version`
+// bump forces a refetch after mutations.
 export function useAssets(view: ViewMode, query: Query, version: number): AssetsState {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,15 +33,9 @@ export function useAssets(view: ViewMode, query: Query, version: number): Assets
       if (dataset === "trash") return api.listTrash();
       if (dataset === "missing") return api.listMissing();
       if (query.colorHex) return api.searchColor(query.colorHex);
-      if (query.keyword.trim()) return api.searchKeyword(query.keyword.trim());
-
-      let list = await api.listAssets();
-      if (query.folderId) list = list.filter((a) => a.folder_id === query.folderId);
-      if (query.tagId) {
-        const ids = await idsForTag(query.tagId, list);
-        list = list.filter((a) => ids.has(a.id));
-      }
-      return list;
+      const filter = queryFilter(query);
+      if (query.keyword.trim()) return api.searchKeyword(query.keyword.trim(), filter);
+      return api.listAssets(filter);
     })()
       .then((list) => {
         if (id === reqId.current) setAssets(list);

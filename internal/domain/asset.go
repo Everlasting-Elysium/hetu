@@ -14,6 +14,22 @@ const (
 	KindOther    AssetKind = "other"
 )
 
+// AllKinds lists every AssetKind in display order. It backs the format facet
+// and the ?kind= whitelist so new kinds are added in exactly one place.
+var AllKinds = []AssetKind{KindImage, KindVideo, KindAudio, KindModel, KindDocument, KindOther}
+
+// ValidKind reports whether s is a known AssetKind. It is the whitelist behind
+// ?kind= parsing: only enum values reach the SQL layer, so kind filtering is
+// injection-safe even before the query is parameterized.
+func ValidKind(s string) bool {
+	for _, k := range AllKinds {
+		if AssetKind(s) == k {
+			return true
+		}
+	}
+	return false
+}
+
 // Asset is an indexed resource. Files are indexed in place (referenced by
 // StoragePath), never copied into hetu's own storage.
 type Asset struct {

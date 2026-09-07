@@ -1,7 +1,9 @@
 package store_test
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/Everlasting-Elysium/hetu/internal/domain"
 )
@@ -84,5 +86,85 @@ func assertNameSet(t *testing.T, got, want []string) {
 			t.Errorf("got %v, want set %v (mismatch on %q)", got, want, k)
 			return
 		}
+	}
+}
+
+// seedKindAsset upserts a live asset of the given kind (seedAsset is image-only).
+func seedKindAsset(t *testing.T, ctx context.Context, st interface {
+	UpsertAsset(context.Context, domain.Asset) error
+}, owner domain.OwnerID, id, name string, kind domain.AssetKind) domain.AssetID {
+	t.Helper()
+	aid, err := domain.NewAssetID(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := st.UpsertAsset(ctx, domain.Asset{
+		ID: aid, Owner: owner, Kind: kind, Provider: "local",
+		StoragePath: name, Name: name, Ext: "x", Size: 1, Hash: "h-" + id,
+		CreatedAt: now, IndexedAt: now,
+	}); err != nil {
+		t.Fatalf("seed %s: %v", id, err)
+	}
+	return aid
+}
+
+// TestListAssetsFilteredByKind covers the a.kind IN (...) condition, single and
+// multi-value, through the shared appendFacetConds path (issue #75).
+func TestListAssetsFilteredByKind(t *testing.T) {
+	ctx, st, owner := mustOpen(t)
+	seedKindAsset(t, ctx, st, owner, "a1", "one.png", domain.KindImage)
+	seedKindAsset(t, ctx, st, owner, "a2", "two.mp4", domain.KindVideo)
+	seedKindAsset(t, ctx, st, owner, "a3", "three.png", domain.KindImage)
+
+	count := func(kinds ...domain.AssetKind) int {
+		got, err := st.ListAssetsFiltered(ctx, owner, domain.AssetFilter{Kinds: kinds}, 50, 0)
+		if err != nil {
+			t.Fatalf("list kinds %v: %v", kinds, err)
+		}
+		return len(got)
+	}
+	if n := count(domain.KindImage); n != 2 {
+		t.Errorf("image = %d, want 2", n)
+	}
+	if n := count(domain.KindVideo); n != 1 {
+		t.Errorf("video = %d, want 1", n)
+	}
+	if n := count(domain.KindImage, domain.KindVideo); n != 3 {
+		t.Errorf("image+video = %d, want 3", n)
+	}
+	if n := count(domain.KindAudio); n != 0 {
+		t.Errorf("audio = %d, want 0", n)
+	}
+}
+
+// TestKindCounts covers the GROUP BY count query and its rule that the kind
+// facet is ignored while counting (so every format stays selectable), but other
+// facets (rating) still narrow the counts.
+func TestKindCounts(t *testing.T) {
+	ctx, st, owner := mustOpen(t)
+	seedKindAsset(t, ctx, st, owner, "a1", "one.png", domain.KindImage)
+	seedKindAsset(t, ctx, st, owner, "a2", "two.png", domain.KindImage)
+	vid := seedKindAsset(t, ctx, st, owner, "a3", "three.mp4", domain.KindVideo)
+	if err := st.BatchUpdateRating(ctx, owner, []domain.AssetID{vid}, 5); err != nil {
+		t.Fatal(err)
+	}
+
+	counts, err := st.KindCounts(ctx, owner, domain.AssetFilter{})
+	if err != nil {
+		t.Fatalf("kind counts: %v", err)
+	}
+	if counts[domain.KindImage] != 2 || counts[domain.KindVideo] != 1 {
+		t.Errorf("counts = %+v, want image:2 video:1", counts)
+	}
+	// Kinds is ignored (video still counted) while MinRating narrows images out.
+	rated, err := st.KindCounts(ctx, owner, domain.AssetFilter{
+		Kinds: []domain.AssetKind{domain.KindImage}, MinRating: 5,
+	})
+	if err != nil {
+		t.Fatalf("kind counts rated: %v", err)
+	}
+	if rated[domain.KindImage] != 0 || rated[domain.KindVideo] != 1 {
+		t.Errorf("rated counts = %+v, want image:0 video:1", rated)
 	}
 }

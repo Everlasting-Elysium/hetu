@@ -38,18 +38,7 @@ func (s *SQLite) ListAssetsFiltered(ctx context.Context, owner domain.OwnerID, f
 	}
 	conds := []string{"a.owner_id = ?", statusCond}
 	args := []any{owner.String()}
-	if f.FolderID != "" {
-		conds = append(conds, "a.folder_id = ?")
-		args = append(args, f.FolderID)
-	}
-	if f.MinRating > 0 {
-		conds = append(conds, "a.rating >= ?")
-		args = append(args, f.MinRating)
-	}
-	if f.TagID != "" {
-		conds = append(conds, "EXISTS (SELECT 1 FROM asset_tags atg WHERE atg.asset_id = a.id AND atg.tag_id = ?)")
-		args = append(args, f.TagID)
-	}
+	conds, args = appendFacetConds(conds, args, f)
 	query := "SELECT " + assetColumns + " FROM assets a" + currentVersionJoin + "WHERE " +
 		strings.Join(conds, " AND ") + " ORDER BY a.indexed_at DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
@@ -63,6 +52,70 @@ func (s *SQLite) ListAssetsFiltered(ctx context.Context, owner domain.OwnerID, f
 		return nil, err
 	}
 	return rowsToAssets(dbRows)
+}
+
+// appendFacetConds appends the folder/rating/tag/kind narrowing conditions from
+// f to conds (and their bind args to args), returning the extended slices. It is
+// shared by ListAssetsFiltered and SearchAssets so the sidebar facets narrow a
+// plain listing and a keyword search identically. Lifecycle (Status) is the
+// caller's concern — it differs, since search is always over live assets. Kinds
+// are pre-validated against the AssetKind enum by the HTTP layer and every value
+// is bound as a parameter, so a.kind IN (...) is injection-safe.
+func appendFacetConds(conds []string, args []any, f domain.AssetFilter) ([]string, []any) {
+	if f.FolderID != "" {
+		conds = append(conds, "a.folder_id = ?")
+		args = append(args, f.FolderID)
+	}
+	if f.MinRating > 0 {
+		conds = append(conds, "a.rating >= ?")
+		args = append(args, f.MinRating)
+	}
+	if f.TagID != "" {
+		conds = append(conds, "EXISTS (SELECT 1 FROM asset_tags atg WHERE atg.asset_id = a.id AND atg.tag_id = ?)")
+		args = append(args, f.TagID)
+	}
+	if len(f.Kinds) > 0 {
+		ph := make([]string, len(f.Kinds))
+		for i, k := range f.Kinds {
+			ph[i] = "?"
+			args = append(args, string(k))
+		}
+		conds = append(conds, "a.kind IN ("+strings.Join(ph, ",")+")")
+	}
+	return conds, args
+}
+
+// KindCounts returns the number of the owner's live assets of each kind,
+// narrowed by f's folder/tag/rating but NOT by f.Kinds: the format facet needs a
+// count for every format regardless of which formats are currently selected.
+// Kinds absent from the (narrowed) library are absent from the map. It drives
+// the sidebar/board format facet counts.
+func (s *SQLite) KindCounts(ctx context.Context, owner domain.OwnerID, f domain.AssetFilter) (map[domain.AssetKind]int, error) {
+	f.Kinds = nil // counts span all formats regardless of the active kind facet
+	conds := []string{"a.owner_id = ?", "a.deleted_at IS NULL"}
+	args := []any{owner.String()}
+	conds, args = appendFacetConds(conds, args, f)
+	query := "SELECT a.kind, COUNT(*) FROM assets a WHERE " +
+		strings.Join(conds, " AND ") + " GROUP BY a.kind"
+
+	rows, err := s.sqldb.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("kind counts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := make(map[domain.AssetKind]int)
+	for rows.Next() {
+		var kind string
+		var n int
+		if err := rows.Scan(&kind, &n); err != nil {
+			return nil, fmt.Errorf("scan kind count: %w", err)
+		}
+		out[domain.AssetKind(kind)] = n
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("kind count rows: %w", err)
+	}
+	return out, nil
 }
 
 // scanAssetRows scans rows selected with assetColumns into db.Asset values (the
