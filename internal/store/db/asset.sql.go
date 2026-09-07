@@ -600,6 +600,23 @@ func (q *Queries) RelocateAsset(ctx context.Context, arg RelocateAssetParams) er
 	return err
 }
 
+const updateAssetThumbPath = `-- name: UpdateAssetThumbPath :exec
+UPDATE assets SET thumb_path = ? WHERE id = ? AND owner_id = ?
+`
+
+type UpdateAssetThumbPathParams struct {
+	ThumbPath string
+	ID        string
+	OwnerID   string
+}
+
+// Repoints an asset at a client-uploaded thumbnail (issue #78: de-Blenderized
+// 3D thumbnails). Owner-scoped so a caller can only touch its own assets.
+func (q *Queries) UpdateAssetThumbPath(ctx context.Context, arg UpdateAssetThumbPathParams) error {
+	_, err := q.db.ExecContext(ctx, updateAssetThumbPath, arg.ThumbPath, arg.ID, arg.OwnerID)
+	return err
+}
+
 const upsertAsset = `-- name: UpsertAsset :exec
 INSERT INTO assets (
     id, owner_id, kind, provider, storage_path, name, ext, size, hash,

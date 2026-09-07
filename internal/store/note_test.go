@@ -10,14 +10,14 @@ import (
 
 // searchIDs runs an FTS query and returns the matched asset id set.
 func searchIDs(t *testing.T, ctx context.Context, st interface {
-	SearchAssets(context.Context, domain.OwnerID, string, int, int) ([]domain.Asset, error)
+	SearchAssets(context.Context, domain.OwnerID, string, domain.AssetFilter, int, int) ([]domain.Asset, error)
 }, owner domain.OwnerID, q string) map[string]bool {
 	t.Helper()
 	fts, err := search.Parse(q)
 	if err != nil {
 		t.Fatalf("parse query %q: %v", q, err)
 	}
-	assets, err := st.SearchAssets(ctx, owner, fts, 50, 0)
+	assets, err := st.SearchAssets(ctx, owner, fts, domain.AssetFilter{}, 50, 0)
 	if err != nil {
 		t.Fatalf("search %q: %v", q, err)
 	}

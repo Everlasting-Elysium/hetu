@@ -47,10 +47,11 @@ const modelCacheControl = "public, max-age=86400"
 // serveModel handles GET /assets/{id}/model: it returns a browser-loadable 3D
 // model (glTF/GLB) for the interactive viewer (#51). Native glTF/GLB stream
 // straight from storage with Range support; other supported formats
-// (OBJ/FBX/STL/USD/PLY) are converted to GLB via the Blender sidecar and cached
-// under ModelCacheDir keyed by content hash, so the costly conversion runs at
-// most once per unique file. Opaque/native formats (e.g. .ztl/.zpr) are not
-// indexed as models and return 404 so the UI falls back to the preview image.
+// (OBJ/FBX/STL/USD/PLY) are converted to GLB via the configured converter (see
+// kernel.ModelConverter) and cached under ModelCacheDir keyed by content hash,
+// so the costly conversion runs at most once per unique file. Opaque/native
+// formats (e.g. .ztl/.zpr) are not indexed as models and return 404 so the UI
+// falls back to the preview image.
 func (p *Plugin) serveModel(w http.ResponseWriter, r *http.Request) {
 	id, err := domain.NewAssetID(chi.URLParam(r, "id"))
 	if err != nil {
@@ -83,9 +84,9 @@ func (p *Plugin) serveModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if p.k.BlenderAddr == "" {
+	if p.k.ModelConverter == nil {
 		httpjson.WriteError(w, http.StatusServiceUnavailable,
-			fmt.Errorf("3D conversion unavailable: set HETU_BLENDER_ADDR"))
+			fmt.Errorf("3D conversion unavailable: set HETU_MODEL_CONVERTER or HETU_BLENDER_ADDR"))
 		return
 	}
 	glbPath, err := p.ensureGLB(r.Context(), provider, asset, ext)
@@ -136,10 +137,10 @@ func (p *Plugin) streamModel(w http.ResponseWriter, r *http.Request, provider ke
 }
 
 // ensureGLB returns the path to a cached GLB conversion of asset, producing it
-// via the Blender sidecar on first request. The cache is keyed by content hash
-// (see cacheKeyOf). Concurrent requests for the same model are collapsed into one
-// conversion via singleflight, and total concurrent conversions are bounded by
-// convertSem, so a burst of viewer opens cannot flood the sidecar.
+// via the configured converter on first request. The cache is keyed by content
+// hash (see cacheKeyOf). Concurrent requests for the same model are collapsed
+// into one conversion via singleflight, and total concurrent conversions are
+// bounded by convertSem, so a burst of viewer opens cannot flood the converter.
 func (p *Plugin) ensureGLB(ctx context.Context, provider kernel.StorageProvider, asset domain.Asset, ext string) (string, error) {
 	key := cacheKeyOf(asset)
 	glbPath := filepath.Join(p.k.ModelCacheDir, key+".glb")
@@ -168,10 +169,10 @@ func (p *Plugin) ensureGLB(ctx context.Context, provider kernel.StorageProvider,
 	return v.(string), nil
 }
 
-// convertToCache converts asset to GLB via the Blender sidecar and commits it to
-// glbPath atomically (temp file + rename). The output is validated as a real GLB
-// before the rename, so a sidecar that returns 200 with an empty or corrupt body
-// never lands in the cache.
+// convertToCache converts asset to GLB via the configured converter and commits
+// it to glbPath atomically (temp file + rename). The output is validated as a
+// real GLB before the rename, so a converter that yields an empty or corrupt
+// result never lands in the cache.
 func (p *Plugin) convertToCache(ctx context.Context, provider kernel.StorageProvider, asset domain.Asset, ext, glbPath string) error {
 	if err := os.MkdirAll(p.k.ModelCacheDir, 0o755); err != nil {
 		return fmt.Errorf("create model cache dir: %w", err)
@@ -189,7 +190,7 @@ func (p *Plugin) convertToCache(ctx context.Context, provider kernel.StorageProv
 	tmpPath := tmp.Name()
 	defer func() { _ = os.Remove(tmpPath) }() // no-op once renamed
 
-	convErr := model3d.ConvertToGLB(ctx, p.k.BlenderAddr, ext, src, tmp)
+	convErr := p.k.ModelConverter.ConvertToGLB(ctx, ext, src, tmp)
 	closeErr := tmp.Close()
 	if convErr != nil {
 		return convErr

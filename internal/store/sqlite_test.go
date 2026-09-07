@@ -113,7 +113,7 @@ func TestSQLite_SearchAssets(t *testing.T) {
 
 	find := func(q string) []domain.Asset {
 		t.Helper()
-		got, err := st.SearchAssets(ctx, owner, q, 50, 0)
+		got, err := st.SearchAssets(ctx, owner, q, domain.AssetFilter{}, 50, 0)
 		if err != nil {
 			t.Fatalf("search %q: %v", q, err)
 		}
@@ -211,7 +211,7 @@ func TestSQLite_SearchAssets_LegacyBackfill(t *testing.T) {
 	}
 	find := func(q string) []domain.Asset {
 		t.Helper()
-		got, err := st.SearchAssets(ctx, owner, q, 50, 0)
+		got, err := st.SearchAssets(ctx, owner, q, domain.AssetFilter{}, 50, 0)
 		if err != nil {
 			t.Fatalf("search %q: %v", q, err)
 		}
@@ -267,7 +267,7 @@ func TestSQLite_SearchAssets_Tags(t *testing.T) {
 
 	find := func(q string) []domain.Asset {
 		t.Helper()
-		got, err := st.SearchAssets(ctx, owner, q, 50, 0)
+		got, err := st.SearchAssets(ctx, owner, q, domain.AssetFilter{}, 50, 0)
 		if err != nil {
 			t.Fatalf("search %q: %v", q, err)
 		}
@@ -301,7 +301,7 @@ func TestSQLite_SearchAssets_Description(t *testing.T) {
 
 	find := func(q string) []domain.Asset {
 		t.Helper()
-		got, err := st.SearchAssets(ctx, owner, q, 50, 0)
+		got, err := st.SearchAssets(ctx, owner, q, domain.AssetFilter{}, 50, 0)
 		if err != nil {
 			t.Fatalf("search %q: %v", q, err)
 		}
@@ -344,7 +344,7 @@ func TestSQLite_SearchAssets_TagRemoval(t *testing.T) {
 
 	find := func(q string) []domain.Asset {
 		t.Helper()
-		got, err := st.SearchAssets(ctx, owner, q, 50, 0)
+		got, err := st.SearchAssets(ctx, owner, q, domain.AssetFilter{}, 50, 0)
 		if err != nil {
 			t.Fatalf("search %q: %v", q, err)
 		}
@@ -384,7 +384,7 @@ func TestSQLite_SearchAssets_InvalidQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, q := range []string{`"a" AND`, `*`} {
-		if _, err := st.SearchAssets(ctx, owner, q, 10, 0); !errors.Is(err, domain.ErrInvalidQuery) {
+		if _, err := st.SearchAssets(ctx, owner, q, domain.AssetFilter{}, 10, 0); !errors.Is(err, domain.ErrInvalidQuery) {
 			t.Errorf("SearchAssets(%q) err = %v, want ErrInvalidQuery", q, err)
 		}
 	}

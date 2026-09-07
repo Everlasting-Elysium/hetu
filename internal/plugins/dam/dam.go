@@ -22,10 +22,10 @@ import (
 // Name is the plugin's config key (HETU_PLUGINS).
 const Name = "dam"
 
-// maxConcurrentConversions bounds how many Blender GLB conversions run at once.
-// A burst of viewer opens (a folder of un-cached models, a double-click, or a
-// React StrictMode double-mount) must not spawn unbounded Blender subprocesses
-// and exhaust a self-hosted host.
+// maxConcurrentConversions bounds how many GLB conversions run at once. A burst
+// of viewer opens (a folder of un-cached models, a double-click, or a React
+// StrictMode double-mount) must not spawn unbounded converter subprocesses (or
+// sidecar requests) and exhaust a self-hosted host.
 const maxConcurrentConversions = 3
 
 // Plugin implements kernel.Plugin for asset management.
@@ -34,8 +34,8 @@ type Plugin struct {
 	owner domain.OwnerID
 
 	// convertGroup dedups concurrent GLB conversions of the same model (keyed by
-	// content hash) so identical requests share one Blender job; convertSem bounds
-	// total concurrent conversions across all models. See ensureGLB.
+	// content hash) so identical requests share one conversion job; convertSem
+	// bounds total concurrent conversions across all models. See ensureGLB.
 	convertGroup singleflight.Group
 	convertSem   chan struct{}
 }
@@ -65,6 +65,9 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodGet, Pattern: "/assets", Handler: p.listAssets},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/tags", Handler: p.assetTags},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/thumb", Handler: p.serveThumb},
+		// Client-uploaded thumbnail (issue #78): the browser renders 3D previews
+		// and POSTs the PNG/JPEG, so hetu needs no Blender for model thumbnails.
+		{Method: http.MethodPost, Pattern: "/assets/{id}/thumb", Handler: p.uploadThumb},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/model", Handler: p.serveModel},
 		// /file streams the original bytes (Range-enabled) for media playback and
 		// original download; it is provider-aware, so it also serves fs-backed
@@ -79,7 +82,11 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodDelete, Pattern: "/assets/{id}/versions/{no}", Handler: p.deleteVersion},
 
 		// /search dispatches on query params: ?q= full-text (FTS5), ?color= palette.
+		// It also accepts the same ?folder=/?tag=/?rating=/?kind= facets as /assets.
 		{Method: http.MethodGet, Pattern: "/search", Handler: p.search},
+		// /facets returns per-kind counts for the format facet, narrowed by the
+		// same ?folder=/?tag=/?rating= context as /assets.
+		{Method: http.MethodGet, Pattern: "/facets", Handler: p.facets},
 
 		{Method: http.MethodPost, Pattern: "/batch/rate", Handler: p.batchRate},
 		{Method: http.MethodPost, Pattern: "/batch/color", Handler: p.batchColor},
@@ -130,20 +137,14 @@ func (p *Plugin) Routes() []kernel.Route {
 	}
 }
 
-// listAssets lists the owner's live assets, optionally narrowed by
-// ?folder=<id>, ?tag=<id>, and ?rating=<min> (0-5, keeps that many stars and
-// up). ?status=missing switches to the missing-file view (issue #45). Paged by
-// ?limit=/?offset=.
+// listAssets lists the owner's live assets, optionally narrowed by ?folder=<id>,
+// ?tag=<id>, ?rating=<min> (0-5, keeps that many stars and up), and ?kind=<a,b>
+// (comma-separated AssetKind values; unknown values are ignored). ?status=missing
+// switches to the missing-file view (issue #45). Paged by ?limit=/?offset=.
 func (p *Plugin) listAssets(w http.ResponseWriter, r *http.Request) {
 	limit := httpjson.QueryInt(r, "limit", 50)
 	offset := httpjson.QueryInt(r, "offset", 0)
-	filter := domain.AssetFilter{
-		FolderID:  r.URL.Query().Get("folder"),
-		TagID:     r.URL.Query().Get("tag"),
-		MinRating: httpjson.QueryInt(r, "rating", 0),
-		Status:    r.URL.Query().Get("status"),
-	}
-	assets, err := p.k.Store.ListAssetsFiltered(r.Context(), p.owner, filter, limit, offset)
+	assets, err := p.k.Store.ListAssetsFiltered(r.Context(), p.owner, parseAssetFilter(r), limit, offset)
 	if err != nil {
 		httpjson.WriteError(w, http.StatusInternalServerError, err)
 		return

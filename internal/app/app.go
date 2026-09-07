@@ -63,6 +63,16 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		JobBuffer:     64,
 		BlenderAddr:   cfg.BlenderAddr,
 	})
+	// Wire the pluggable 3D→GLB converter (assimp/blender/auto). A nil converter
+	// is valid — the DAM viewer degrades to 503 for non-web-friendly models — so
+	// only an invalid backend name is fatal here.
+	conv, err := model3d.NewConverter(cfg.ModelConverter, cfg.BlenderAddr)
+	if err != nil {
+		_ = st.Close()
+		return nil, fmt.Errorf("build model converter: %w", err)
+	}
+	k.ModelConverter = conv
+	log.Info("registered 3D model converter", slog.String("backend", converterBackend(conv)))
 	k.Storage.Register(local.New(cfg.LibraryDir))
 	// The fs provider addresses files by absolute path so assets migrated in
 	// place from an external library (Eagle/Billfish) resolve after a restart.
@@ -127,4 +137,17 @@ func buildPlugins(names []string, owner domain.OwnerID, nasProvider string) ([]k
 		}
 	}
 	return plugins, nil
+}
+
+// converterBackend names the active 3D converter for logging: "assimp",
+// "blender", or "none" when conversion is unavailable (nil converter).
+func converterBackend(conv kernel.ModelConverter) string {
+	switch conv.(type) {
+	case *model3d.AssimpConverter:
+		return "assimp"
+	case *model3d.BlenderConverter:
+		return "blender"
+	default:
+		return "none"
+	}
 }

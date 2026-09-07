@@ -126,6 +126,9 @@ type Querier interface {
 	// Uses the natural key (owner_id, provider, storage_path) so the canonical
 	// row is resolved even after a re-scan discarded a fresh id on upsert.
 	UpdateAssetCreatedAt(ctx context.Context, arg UpdateAssetCreatedAtParams) error
+	// Repoints an asset at a client-uploaded thumbnail (issue #78: de-Blenderized
+	// 3D thumbnails). Owner-scoped so a caller can only touch its own assets.
+	UpdateAssetThumbPath(ctx context.Context, arg UpdateAssetThumbPathParams) error
 	UpdateBoardName(ctx context.Context, arg UpdateBoardNameParams) error
 	// Updates status and payload together so a long-running job (e.g. a migration
 	// import) can persist progress counts in the payload JSON without a schema

@@ -13,6 +13,7 @@ import (
 type assetItem struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
+	Kind     string `json:"kind"`
 	Rating   int    `json:"rating"`
 	FolderID string `json:"folder_id"`
 }

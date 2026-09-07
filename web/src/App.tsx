@@ -3,14 +3,14 @@ import { api } from "./api/client";
 import {
   type Asset,
   type BrowseLayout,
-  EMPTY_QUERY,
   isBrowseLayout,
   isLibraryView,
-  type Query,
   type Tag,
   type ViewMode,
 } from "./types";
 import { useAssets } from "./hooks/useAssets";
+import { useFacets } from "./hooks/useFacets";
+import { useLibraryQuery } from "./hooks/useLibraryQuery";
 import { useLibrary } from "./hooks/useLibrary";
 import { useBoards } from "./hooks/useBoards";
 import { useSelection } from "./hooks/useSelection";
@@ -32,7 +32,11 @@ import styles from "./App.module.css";
 
 export default function App() {
   const [view, setView] = useViewMode();
-  const [query, setQuery] = useState<Query>(EMPTY_QUERY);
+  // useLibraryQuery owns the composable filter/search query; filterFx bridges its
+  // facet handlers to the composer's browse-restore + selection-clear, which
+  // depend on view/selection defined below (issue #75).
+  const filterFx = useRef<() => void>(() => {});
+  const lq = useLibraryQuery(() => filterFx.current());
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -40,11 +44,19 @@ export default function App() {
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Asset | null>(null);
   const [immersiveIndex, setImmersiveIndex] = useState(0);
+  // Keyboard cursor: tracks which card is "current" for Space-to-open-detail and
+  // arrow-key navigation. Distinct from `sel.selected` (batch selection set).
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+
+  // Ref populated by VideoPlayer / AudioPlayer when detail is open. App's Space
+  // handler calls it so media toggles even when the player container lacks focus.
+  const videoToggleRef = useRef<(() => void) | null>(null);
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
   const lib = useLibrary(setError);
   const boards = useBoards(setError);
-  const { assets, loading, error: loadErr } = useAssets(view, query, version);
+  const { assets, loading, error: loadErr } = useAssets(view, lq.query, version);
+  const kindCounts = useFacets(lq.query, version);
   const ids = useMemo(() => assets.map((a) => a.id), [assets]);
   const sel = useSelection(ids);
 
@@ -63,6 +75,14 @@ export default function App() {
   useEffect(() => {
     if (isBrowseLayout(view)) prevBrowse.current = view;
   }, [view]);
+
+  // Latest-value callback for facet changes: restore a browse layout (from a
+  // special view) and clear the selection. Reassigned each render so it always
+  // sees the current view/selection.
+  filterFx.current = () => {
+    setView(isBrowseLayout(view) ? view : prevBrowse.current);
+    sel.clear();
+  };
 
   useEffect(() => {
     if (error) {
@@ -106,7 +126,10 @@ export default function App() {
       if (targets.length === 0) return;
       try {
         await fn(targets);
-        if (!override) sel.clear();
+        if (!override) {
+          sel.clear();
+          setFocusedId(null);
+        }
         bump();
         lib.refreshTrash();
         lib.refreshMissing();
@@ -116,15 +139,6 @@ export default function App() {
     },
     [sel, bump, lib],
   );
-
-  // Filtering keeps the current browse layout (or restores it from a special view).
-  const applyFilter = (patch: Partial<Query>) => {
-    setView(isBrowseLayout(view) ? view : prevBrowse.current);
-    sel.clear();
-    setQuery({ ...EMPTY_QUERY, ...patch });
-  };
-  const setFolder = (folderId: string | null) => applyFilter({ folderId });
-  const setTag = (tagId: string | null) => applyFilter({ tagId });
 
   const changeView = (v: ViewMode) => {
     if (v === "immersive") {
@@ -142,7 +156,7 @@ export default function App() {
     // between grid/waterfall/gallery keeps the current library filter intact.
     if (v === "trash" || v === "missing") {
       sel.clear();
-      setQuery(EMPTY_QUERY);
+      lq.reset();
     }
     setView(v);
   };
@@ -180,12 +194,14 @@ export default function App() {
     if (created) await sendToBoard(created.id, created.name);
   };
 
+  // An active narrowing (search or a facet) means an empty grid is "no match",
+  // not "empty library" — so the hint nudges toward relaxing the filter.
   const emptyHint =
     view === "trash"
       ? "回收站是空的。"
       : view === "missing"
         ? "没有丢失文件，所有索引文件均可访问。"
-        : query.keyword || query.colorHex
+        : lq.hasFilter
           ? "没有匹配的素材，换个条件试试。"
           : "运行 `bin/hetu scan` 索引素材目录后即可浏览。";
 
@@ -193,8 +209,55 @@ export default function App() {
   const color = (id: string, hex: string) => void run((t) => api.colorLabel(t, hex), [id])();
   const openDetail = (id: string) => setDetail(assets.find((a) => a.id === id) ?? null);
 
+  // App-level Space handler — single canonical path for Space across all views:
+  //   • Immersive open            → skip (immersive owns its own keys)
+  //   • Detail open (video/audio) → togglePlay via videoToggleRef
+  //   • No detail + focused item  → open that item's detail panel
+  //   • Input/textarea focused    → skip (let the field handle it)
+  //
+  // A ref bundle avoids stale-closure issues: the window listener is installed
+  // once and reads live values at event time, same pattern as AssetGrid.
+  const spaceCtxRef = useRef({ detail, focusedId, assets, view });
+  spaceCtxRef.current = { detail, focusedId, assets, view };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== " ") return;
+      const el = document.activeElement;
+      if (
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLTextAreaElement ||
+        (el instanceof HTMLElement && el.isContentEditable)
+      )
+        return;
+      const { detail: d, focusedId: fid, assets: list, view: v } = spaceCtxRef.current;
+      // Immersive owns its own keys — never open a detail panel over it.
+      if (v === "immersive") return;
+      e.preventDefault();
+      if (d && (d.kind === "video" || d.kind === "audio")) {
+        videoToggleRef.current?.();
+      } else if (!d && fid) {
+        setDetail(list.find((a) => a.id === fid) ?? null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []); // empty deps: reads ref bundle at event time
+
+  // The keyboard cursor is scoped to the current view + filter; drop it on either
+  // change so Space/arrows never act on an item that has scrolled out of context.
+  useEffect(() => {
+    setFocusedId(null);
+  }, [view, lq.query]);
+
   return (
-    <div className={`app ${isAssetView && inspectedAsset ? "inspect" : ""}`} onClick={() => sel.clear()}>
+    <div
+      className={`app ${isAssetView && inspectedAsset ? "inspect" : ""}`}
+      onClick={() => {
+        sel.clear();
+        setFocusedId(null);
+      }}
+    >
       <div className={brand.brand}>
         <span className={brand.logo}>河</span>
         <span className={brand.brandName}>
@@ -205,11 +268,11 @@ export default function App() {
       <Sidebar
         folders={lib.folders}
         tags={lib.tags}
-        activeFolder={query.folderId}
-        activeTag={query.tagId}
+        activeFolder={lq.query.folderId}
+        activeTag={lq.query.tagId}
         boardsActive={view === "boards" || view === "board"}
-        onPickFolder={setFolder}
-        onPickTag={setTag}
+        onPickFolder={lq.setFolder}
+        onPickTag={lq.setTag}
         onViewBoards={() => changeView("boards")}
         onCreateFolder={(n) => void lib.createFolder(n)}
         onDeleteFolder={(id) => void lib.deleteFolder(id)}
@@ -218,6 +281,12 @@ export default function App() {
         missingCount={lib.missingCount}
         onPickMissing={setMissing}
         activeMissing={view === "missing"}
+        kindCounts={kindCounts}
+        activeKinds={lq.query.kind}
+        minRating={lq.query.minRating}
+        onToggleKind={lq.toggleKind}
+        onSetRating={lq.setRating}
+        onClearFilters={lq.clearFilters}
       />
 
       {isAssetView && (
@@ -225,8 +294,8 @@ export default function App() {
           view={view}
           trashCount={lib.trashCount}
           missingCount={lib.missingCount}
-          onKeyword={(q) => setQuery((p) => ({ ...EMPTY_QUERY, folderId: p.folderId, tagId: p.tagId, keyword: q }))}
-          onColor={(hex) => setQuery((p) => ({ ...EMPTY_QUERY, folderId: p.folderId, tagId: p.tagId, colorHex: hex }))}
+          onKeyword={lq.setKeyword}
+          onColor={lq.setColor}
           onViewChange={changeView}
         />
       )}
@@ -241,7 +310,12 @@ export default function App() {
             onDelete={(id) => void boards.deleteBoard(id)}
           />
         ) : view === "board" && activeBoardId ? (
-          <BoardCanvas boardId={activeBoardId} onBack={() => changeView("boards")} onError={setError} />
+          <BoardCanvas
+            boardId={activeBoardId}
+            tags={lib.tags}
+            onBack={() => changeView("boards")}
+            onError={setError}
+          />
         ) : (
           <>
             {view === "trash" && (
@@ -254,6 +328,10 @@ export default function App() {
                   loading={loading}
                   error={loadErr}
                   emptyHint={emptyHint}
+                  selection={sel}
+                  focusedId={focusedId}
+                  onFocusChange={setFocusedId}
+                  onDetail={openDetail}
                   onRate={rate}
                   onColor={color}
                 />
@@ -263,6 +341,8 @@ export default function App() {
                   loading={loading}
                   error={loadErr}
                   selection={sel}
+                  focusedId={focusedId}
+                  onFocusChange={setFocusedId}
                   emptyHint={emptyHint}
                   onRate={rate}
                   onColor={color}
@@ -274,6 +354,8 @@ export default function App() {
                   loading={loading}
                   error={loadErr}
                   selection={sel}
+                  focusedId={focusedId}
+                  onFocusChange={setFocusedId}
                   emptyHint={emptyHint}
                   onRate={rate}
                   onColor={color}
@@ -307,7 +389,10 @@ export default function App() {
           folders={lib.folders}
           tags={lib.tags}
           boards={boards.list}
-          onClear={sel.clear}
+          onClear={() => {
+            sel.clear();
+            setFocusedId(null);
+          }}
           onTag={(tagId) => void run((t) => api.tag(t, [tagId]))()}
           onRate={(rating) => void run((t) => api.rate(t, rating))()}
           onColor={(hex) => void run((t) => api.colorLabel(t, hex))()}
@@ -327,7 +412,14 @@ export default function App() {
         />
       )}
 
-      <AssetDetail asset={detail} onClose={() => setDetail(null)} />
+      <AssetDetail
+        asset={detail}
+        toggleRef={videoToggleRef}
+        onClose={() => {
+          videoToggleRef.current = null;
+          setDetail(null);
+        }}
+      />
 
       {error && <div className={styles.toast}>{error}</div>}
       {notice && <div className={`${styles.toast} ${styles.notice}`}>{notice}</div>}
