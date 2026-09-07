@@ -30,6 +30,14 @@ func ValidKind(s string) bool {
 	return false
 }
 
+// SupportsColorPalette reports whether extracted-color palette and color search
+// apply to this kind. Audio is excluded: its thumbnail is a synthetic waveform
+// whose colors describe the render style, not the asset, so audio must not carry
+// an extracted palette, appear in color search, or show color swatches (#88).
+func (k AssetKind) SupportsColorPalette() bool {
+	return k != KindAudio
+}
+
 // Asset is an indexed resource. Files are indexed in place (referenced by
 // StoragePath), never copied into hetu's own storage.
 type Asset struct {

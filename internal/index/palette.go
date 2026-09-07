@@ -41,6 +41,12 @@ func (ix *Indexer) indexPalette(ctx context.Context, p kernel.StorageProvider, p
 // thumbnail yields a nil palette with no error: the asset simply has no color
 // yet (e.g. a 3D model whose client screenshot has not been uploaded).
 func (ix *Indexer) extractPalette(ctx context.Context, p kernel.StorageProvider, path, thumbPath string, h kernel.AssetHandler) (color.Palette, error) {
+	// Audio (and any non-color-bearing kind) is skipped: a waveform thumbnail's
+	// colors describe the render, not the asset, so it must not enter the color
+	// index or show swatches (issue #88).
+	if !h.Kind().SupportsColorPalette() {
+		return nil, nil
+	}
 	if pe, ok := h.(kernel.PaletteExtractor); ok {
 		rc, err := p.Open(ctx, path)
 		if err != nil {

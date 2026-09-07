@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Everlasting-Elysium/hetu/internal/color"
+	"github.com/Everlasting-Elysium/hetu/internal/domain"
 )
 
 // swatchResult mirrors the {hex,weight} objects GET /assets/{id}/colors returns,
@@ -94,4 +96,35 @@ func TestAssetColors_NotFound(t *testing.T) {
 
 	// Given no asset with this id, When fetched, Then 404 (GetAsset -> ErrNotFound).
 	getColorsRaw(t, srv.URL+"/api/dam/assets/no-such-asset/colors", http.StatusNotFound)
+}
+
+func TestAssetColors_AudioExcluded(t *testing.T) {
+	srv, owner, st := newTestServer(t)
+
+	// Given an audio asset that still carries palette rows from an earlier scan
+	// (its waveform thumbnail), ...
+	aid, err := domain.NewAssetID("audio-asset")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := st.UpsertAsset(context.Background(), domain.Asset{
+		ID: aid, Owner: owner, Kind: domain.KindAudio, Provider: "local",
+		StoragePath: "song.mp3", Name: "song.mp3", Ext: "mp3", Size: 1, Hash: "h-audio",
+		CreatedAt: now, IndexedAt: now,
+	}); err != nil {
+		t.Fatalf("upsert audio: %v", err)
+	}
+	if err := st.IndexPaletteByID(context.Background(), owner, aid, color.Palette{
+		{RGB: color.RGB{R: 0xff}, Weight: 1},
+	}); err != nil {
+		t.Fatalf("seed palette: %v", err)
+	}
+
+	// When the palette is fetched, Then 200 with [] — audio never shows color
+	// swatches, even with stale rows, so it cannot drive a color filter (#88).
+	body := getColorsRaw(t, srv.URL+"/api/dam/assets/audio-asset/colors", http.StatusOK)
+	if body != "[]" {
+		t.Fatalf("audio colors body = %q, want %q (audio excluded from color)", body, "[]")
+	}
 }
