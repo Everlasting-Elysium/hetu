@@ -13,6 +13,12 @@
   border-color: var(--border-strong);
   box-shadow: var(--shadow-1);
 }
+/* Keyboard cursor. Defined before `.selected` so selected's stronger ring wins
+ * when a card is both focused and selected (equal specificity, source order). */
+.focused {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
 .selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-soft);
@@ -72,11 +78,10 @@
   backdrop-filter: blur(4px);
   display: grid;
   place-items: center;
-  opacity: 0;
+  opacity: 1;
   color: #fff;
   transition: opacity var(--t-fast), background var(--t-fast);
 }
-.card:hover .check,
 .selected .check {
   opacity: 1;
 }

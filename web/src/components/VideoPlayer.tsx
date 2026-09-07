@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Asset } from "../types";
 import { fileUrl, thumbUrl } from "../api/client";
 import styles from "./VideoPlayer.module.css";
@@ -42,7 +42,16 @@ const IconVolume = ({ off }: { off: boolean }) => (
   </svg>
 );
 
-export function VideoPlayer({ asset }: { asset: Asset }) {
+interface VideoPlayerProps {
+  asset: Asset;
+  // App-level Space handler populates this ref so it can call togglePlay without
+  // the player having focus. When the player *does* have focus, onKeyDown handles
+  // Space and calls nativeEvent.stopPropagation() to prevent the App handler from
+  // seeing the same event — single-trigger guaranteed either way.
+  toggleRef?: React.RefObject<(() => void) | null> | undefined;
+}
+
+export function VideoPlayer({ asset, toggleRef }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
@@ -86,12 +95,22 @@ export function VideoPlayer({ asset }: { asset: Asset }) {
     return () => pairs.forEach(([e, h]) => v.removeEventListener(e, h));
   }, []);
 
-  const togglePlay = () => {
+  // Stable ref so toggleRef assignment only runs once (no deps).
+  const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) void v.play();
     else v.pause();
-  };
+  }, []);
+
+  // Expose togglePlay to App so the App-level Space handler can call it even when
+  // the player container doesn't have focus (e.g. user clicked elsewhere in modal).
+  useEffect(() => {
+    if (toggleRef) toggleRef.current = togglePlay;
+    return () => {
+      if (toggleRef) toggleRef.current = null;
+    };
+  }, [togglePlay, toggleRef]);
   const seekTo = (t: number) => {
     const v = videoRef.current;
     if (!v) return;
@@ -187,6 +206,9 @@ export function VideoPlayer({ asset }: { asset: Asset }) {
     const act = actions[e.key];
     if (!act) return;
     e.preventDefault();
+    // Stop Space from reaching the App-level window listener to prevent double
+    // trigger (App would also call togglePlay via toggleRef).
+    if (e.key === " ") e.nativeEvent.stopPropagation();
     act();
   };
   const pct = duration > 0 ? (current / duration) * 100 : 0;

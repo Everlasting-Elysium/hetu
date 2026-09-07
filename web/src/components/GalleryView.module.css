@@ -82,6 +82,12 @@
 .thumbActive {
   border-color: var(--accent);
 }
+/* Part of the batch selection — an inset accent ring reads as "selected",
+ * distinct from `.thumbActive` (the single asset shown on the stage). */
+.thumbSelected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
 .thumbFallback {
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
