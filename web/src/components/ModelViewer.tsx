@@ -72,7 +72,12 @@ export function ModelViewer({ asset }: { asset: Asset }) {
   // Enable orbit controls once (reflected boolean property).
   useEffect(() => {
     const el = ref.current;
-    if (el) el.cameraControls = true;
+    if (!el) return;
+    el.cameraControls = true;
+    // Force model-viewer's built-in "neutral" IBL. Without an environment-image
+    // WebKit/Safari renders the model fully black (Chromium falls back to a
+    // default light, hiding the bug); "neutral" guarantees cross-browser lighting.
+    el.setAttribute("environment-image", "neutral");
   }, []);
 
   // Snapshot original materials on load; surface load failures for the fallback.
