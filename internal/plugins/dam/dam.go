@@ -64,6 +64,7 @@ func (p *Plugin) Routes() []kernel.Route {
 	return []kernel.Route{
 		{Method: http.MethodGet, Pattern: "/assets", Handler: p.listAssets},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/tags", Handler: p.assetTags},
+		{Method: http.MethodGet, Pattern: "/assets/{id}/colors", Handler: p.assetColors},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/thumb", Handler: p.serveThumb},
 		// Client-uploaded thumbnail (issue #78): the browser renders 3D previews
 		// and POSTs the PNG/JPEG, so hetu needs no Blender for model thumbnails.

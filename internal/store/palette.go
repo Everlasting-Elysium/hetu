@@ -34,23 +34,56 @@ func (s *SQLite) IndexPalette(ctx context.Context, owner domain.OwnerID, provide
 	if err != nil {
 		return fmt.Errorf("resolve asset %q: %w", path, err)
 	}
-	if err := upsertPaletteAnnotations(ctx, qtx, id, pal); err != nil {
+	if err := writePaletteTx(ctx, qtx, owner, id, pal); err != nil {
 		return err
 	}
-	if err := qtx.DeleteAssetColors(ctx, id); err != nil {
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit palette: %w", err)
+	}
+	return nil
+}
+
+// IndexPaletteByID persists pal for the asset addressed by its canonical row id
+// rather than its natural key. The thumb-upload handler uses it to re-extract
+// the palette when a client-rendered thumbnail replaces the scanned one (issue
+// #88); it shares writePaletteTx and the same all-or-nothing transaction.
+func (s *SQLite) IndexPaletteByID(ctx context.Context, owner domain.OwnerID, id domain.AssetID, pal color.Palette) error {
+	if len(pal) == 0 {
+		return nil
+	}
+	tx, err := s.sqldb.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin palette tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := writePaletteTx(ctx, s.q.WithTx(tx), owner, id.String(), pal); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit palette: %w", err)
+	}
+	return nil
+}
+
+// writePaletteTx writes pal for the asset with row id aid inside q's transaction:
+// palette and dominant-color annotations, then a full refresh of the asset's
+// asset_colors rows. Shared by the natural-key (IndexPalette) and row-id
+// (IndexPaletteByID) writers so both stay consistent.
+func writePaletteTx(ctx context.Context, q *db.Queries, owner domain.OwnerID, aid string, pal color.Palette) error {
+	if err := upsertPaletteAnnotations(ctx, q, aid, pal); err != nil {
+		return err
+	}
+	if err := q.DeleteAssetColors(ctx, aid); err != nil {
 		return fmt.Errorf("clear colors: %w", err)
 	}
 	for ord, sw := range pal {
 		lab := sw.Lab()
-		if err := qtx.InsertAssetColor(ctx, db.InsertAssetColorParams{
-			AssetID: id, OwnerID: owner.String(), Ord: int64(ord), Hex: sw.Hex(),
+		if err := q.InsertAssetColor(ctx, db.InsertAssetColorParams{
+			AssetID: aid, OwnerID: owner.String(), Ord: int64(ord), Hex: sw.Hex(),
 			L: lab.L, A: lab.A, B: lab.B, Weight: sw.Weight,
 		}); err != nil {
 			return fmt.Errorf("insert color: %w", err)
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit palette: %w", err)
 	}
 	return nil
 }
@@ -140,4 +173,26 @@ func (s *SQLite) SearchByColor(ctx context.Context, owner domain.OwnerID, target
 		}
 	}
 	return matches, nil
+}
+
+// ListAssetColors returns an asset's extracted palette swatches, dominant first
+// (ordered by ord). It returns an empty slice — never an error — when the asset
+// has no palette, so the /colors endpoint can answer 200 with []. A swatch whose
+// stored hex fails to parse is skipped rather than failing the whole read.
+func (s *SQLite) ListAssetColors(ctx context.Context, owner domain.OwnerID, id domain.AssetID) ([]color.Swatch, error) {
+	rows, err := s.q.GetAssetColors(ctx, db.GetAssetColorsParams{
+		AssetID: id.String(), OwnerID: owner.String(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list asset colors %s: %w", id, err)
+	}
+	out := make([]color.Swatch, 0, len(rows))
+	for _, r := range rows {
+		rgb, err := color.ParseHex(r.Hex)
+		if err != nil {
+			continue // stored hex is always canonical; skip if somehow malformed
+		}
+		out = append(out, color.Swatch{RGB: rgb, Weight: r.Weight})
+	}
+	return out, nil
 }

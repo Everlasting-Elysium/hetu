@@ -99,6 +99,24 @@
   border-radius: var(--r-full);
   flex: none;
 }
+.paletteRow {
+  display: flex;
+  height: 20px;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  gap: 0;
+}
+.paletteSwatch {
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  min-width: 8px;
+  transition: opacity var(--t-fast);
+}
+.paletteSwatch:hover {
+  opacity: 0.75;
+}
+
 .empty {
   font-size: var(--fs-sm);
   color: var(--text-muted);

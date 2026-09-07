@@ -1,15 +1,19 @@
 package dam
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 
+	"github.com/disintegration/imaging"
 	"github.com/go-chi/chi/v5"
 
+	"github.com/Everlasting-Elysium/hetu/internal/color"
 	"github.com/Everlasting-Elysium/hetu/internal/domain"
 	"github.com/Everlasting-Elysium/hetu/internal/httpjson"
 )
@@ -60,7 +64,36 @@ func (p *Plugin) uploadThumb(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusInternalServerError, fmt.Errorf("update thumb path: %w", err))
 		return
 	}
+	// Re-extract palette from the uploaded thumbnail (issue #88). Failures are
+	// logged and swallowed: the thumbnail save already succeeded, so a palette
+	// error must not roll back the upload.
+	p.reindexPaletteFromThumb(r.Context(), id, thumbPath)
 	httpjson.WriteJSON(w, http.StatusOK, map[string]string{"thumb": thumbPath})
+}
+
+// reindexPaletteFromThumb re-extracts and stores an asset's palette from a
+// client-uploaded thumbnail (issue #88). It is best-effort: the thumbnail was
+// already saved and repointed, so every failure is logged and swallowed rather
+// than surfaced to the client or rolled back.
+func (p *Plugin) reindexPaletteFromThumb(ctx context.Context, id domain.AssetID, thumbPath string) {
+	f, err := os.Open(thumbPath)
+	if err != nil {
+		p.k.Log.WarnContext(ctx, "palette: open thumb", slog.String("id", id.String()), slog.Any("err", err))
+		return
+	}
+	defer func() { _ = f.Close() }()
+	img, err := imaging.Decode(f)
+	if err != nil {
+		p.k.Log.WarnContext(ctx, "palette: decode thumb", slog.String("id", id.String()), slog.Any("err", err))
+		return
+	}
+	pal := color.ExtractPalette(img, color.DefaultSampleMaxDim, color.DefaultPaletteSize)
+	if len(pal) == 0 {
+		return
+	}
+	if err := p.k.Store.IndexPaletteByID(ctx, p.owner, id, pal); err != nil {
+		p.k.Log.WarnContext(ctx, "palette: store", slog.String("id", id.String()), slog.Any("err", err))
+	}
 }
 
 // saveThumb writes src to <ThumbDir>/<id>.png, overwriting any existing

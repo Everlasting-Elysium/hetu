@@ -35,6 +35,14 @@ type Store interface {
 	// asset is addressed by its natural key so the canonical row id is resolved
 	// even when a re-scan generated a fresh id that was discarded on upsert.
 	IndexPalette(ctx context.Context, owner domain.OwnerID, provider, path string, pal color.Palette) error
+	// ListAssetColors returns the extracted palette swatches for one asset,
+	// ordered by ord (dominant first). Returns an empty slice when the asset
+	// has no extracted palette (never an error for "no colors").
+	ListAssetColors(ctx context.Context, owner domain.OwnerID, id domain.AssetID) ([]color.Swatch, error)
+	// IndexPaletteByID stores pal for the asset identified by its row id (not the
+	// natural key). Used by the thumb-upload handler to re-extract palette when a
+	// client-rendered thumbnail replaces the Blender-rendered one.
+	IndexPaletteByID(ctx context.Context, owner domain.OwnerID, id domain.AssetID, pal color.Palette) error
 	// SearchByColor returns assets whose palette contains a swatch within tol
 	// (CIEDE2000) of target, nearest first, capped at limit.
 	SearchByColor(ctx context.Context, owner domain.OwnerID, target color.Lab, tol float64, limit int) ([]domain.ColorMatch, error)

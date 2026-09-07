@@ -152,6 +152,46 @@ func (q *Queries) DeleteAssetColors(ctx context.Context, assetID string) error {
 	return err
 }
 
+const getAssetColors = `-- name: GetAssetColors :many
+SELECT ord, hex, weight FROM asset_colors
+WHERE asset_id = ? AND owner_id = ?
+ORDER BY ord ASC
+`
+
+type GetAssetColorsParams struct {
+	AssetID string
+	OwnerID string
+}
+
+type GetAssetColorsRow struct {
+	Ord    int64
+	Hex    string
+	Weight float64
+}
+
+func (q *Queries) GetAssetColors(ctx context.Context, arg GetAssetColorsParams) ([]GetAssetColorsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAssetColors, arg.AssetID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetAssetColorsRow{}
+	for rows.Next() {
+		var i GetAssetColorsRow
+		if err := rows.Scan(&i.Ord, &i.Hex, &i.Weight); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertAssetColor = `-- name: InsertAssetColor :exec
 INSERT INTO asset_colors (asset_id, owner_id, ord, hex, l, a, b, weight)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)

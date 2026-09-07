@@ -142,6 +142,13 @@ export const EMPTY_QUERY: Query = {
   colorHex: null,
 };
 
+// One swatch from an asset's extracted palette (GET /assets/{id}/colors).
+// Not to be confused with Asset.color, which is the manual Finder-style label.
+export interface Swatch {
+  hex: string;
+  weight: number;
+}
+
 // Standard DAM color labels — value maps to a CSS var in variables.css.
 export interface ColorLabel {
   name: string;

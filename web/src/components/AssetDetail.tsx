@@ -1,7 +1,7 @@
-import { Suspense, lazy, useEffect, useRef } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import type React from "react";
-import type { Asset, AssetKind } from "../types";
-import { fileUrl, thumbUrl } from "../api/client";
+import type { Asset, AssetKind, Swatch } from "../types";
+import { api, fileUrl, thumbUrl } from "../api/client";
 import { IconClose, KindIcon } from "./icons";
 import { VideoPlayer } from "./VideoPlayer";
 import styles from "./AssetDetail.module.css";
@@ -19,6 +19,8 @@ interface Props {
   // App-level Space handler uses this to toggle play/pause without the media
   // element needing focus. Populated by VideoPlayer / AudioPlayer on mount.
   toggleRef?: React.RefObject<(() => void) | null> | undefined;
+  // Clicking an extracted palette swatch triggers a color search (issue #88).
+  onColorSearch?: (hex: string) => void;
 }
 
 const KIND_LABELS: Record<AssetKind, string> = {
@@ -140,7 +142,9 @@ export function AssetMedia({
   }
 }
 
-export function AssetDetail({ asset, onClose, toggleRef }: Props) {
+export function AssetDetail({ asset, onClose, toggleRef, onColorSearch }: Props) {
+  const [palette, setPalette] = useState<Swatch[]>([]);
+
   // Escape-to-close. Effect runs unconditionally (rules-of-hooks); the guard
   // keeps the listener off while no asset is open.
   useEffect(() => {
@@ -151,6 +155,15 @@ export function AssetDetail({ asset, onClose, toggleRef }: Props) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [asset, onClose]);
+
+  // Fetch extracted palette when the detail asset changes.
+  useEffect(() => {
+    setPalette([]);
+    if (!asset) return;
+    let stale = false;
+    api.assetColors(asset.id).then((s) => { if (!stale) setPalette(s); }).catch(() => {});
+    return () => { stale = true; };
+  }, [asset?.id]);
 
   if (!asset) return null;
 
@@ -172,6 +185,21 @@ export function AssetDetail({ asset, onClose, toggleRef }: Props) {
         <div className={styles.media}>
           <AssetMedia asset={asset} toggleRef={toggleRef} />
         </div>
+
+        {palette.length > 0 && (
+          <div className={styles.palette}>
+            {palette.map((s, i) => (
+              <button
+                key={`${s.hex}-${i}`}
+                type="button"
+                title={s.hex}
+                className={styles.paletteSwatch}
+                style={{ background: s.hex, flex: s.weight }}
+                onClick={() => onColorSearch?.(s.hex)}
+              />
+            ))}
+          </div>
+        )}
 
         <dl className={styles.info}>
           <dt>类型</dt>

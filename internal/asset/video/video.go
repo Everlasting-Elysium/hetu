@@ -106,14 +106,29 @@ func (h *Handler) Extract(ctx context.Context, src io.ReadSeeker) (domain.Meta, 
 // Thumbnail renders one representative keyframe as JPEG into w, or returns
 // domain.ErrNoThumbnail if the tools are missing or ffmpeg fails.
 func (h *Handler) Thumbnail(ctx context.Context, src io.ReadSeeker, w io.Writer) error {
+	out, err := h.frame(ctx, src)
+	if err != nil {
+		return err
+	}
+	if _, err := w.Write(out); err != nil {
+		return fmt.Errorf("write thumbnail: %w", err)
+	}
+	return nil
+}
+
+// frame extracts one representative keyframe as JPEG bytes, scaled to fit
+// thumbMaxDim. It is the shared tail of Thumbnail and Palette (issue #88):
+// missing ffmpeg/ffprobe, a temp-copy failure, or an ffmpeg error all degrade
+// to domain.ErrNoThumbnail so a scan never blocks on a video.
+func (h *Handler) frame(ctx context.Context, src io.ReadSeeker) ([]byte, error) {
 	if !h.available() {
 		h.warnMissing(ctx)
-		return domain.ErrNoThumbnail
+		return nil, domain.ErrNoThumbnail
 	}
 	path, cleanup, err := mediaproc.TempCopy(src, ".video")
 	if err != nil {
 		h.log.DebugContext(ctx, "video temp copy failed", slog.Any("err", err))
-		return domain.ErrNoThumbnail
+		return nil, domain.ErrNoThumbnail
 	}
 	defer cleanup()
 
@@ -129,16 +144,13 @@ func (h *Handler) Thumbnail(ctx context.Context, src io.ReadSeeker, w io.Writer)
 		"-frames:v", "1", "-vf", scale,
 		"-f", "image2", "-vcodec", "mjpeg", "pipe:1")
 	if err != nil {
-		h.log.DebugContext(ctx, "video thumbnail failed", slog.Any("err", err))
-		return domain.ErrNoThumbnail
+		h.log.DebugContext(ctx, "video keyframe failed", slog.Any("err", err))
+		return nil, domain.ErrNoThumbnail
 	}
 	if len(out) == 0 {
-		return domain.ErrNoThumbnail
+		return nil, domain.ErrNoThumbnail
 	}
-	if _, err := w.Write(out); err != nil {
-		return fmt.Errorf("write thumbnail: %w", err)
-	}
-	return nil
+	return out, nil
 }
 
 type probeResult struct {

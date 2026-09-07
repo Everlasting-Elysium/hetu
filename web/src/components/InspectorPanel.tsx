@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import type { Asset, AssetKind, Tag } from "../types";
+import type { Asset, AssetKind, Swatch, Tag } from "../types";
 import { COLOR_LABELS } from "../types";
+import { api } from "../api/client";
 import { RatingStars } from "./RatingStars";
 import { ColorPopover } from "./ColorPicker";
 import { AssetMedia } from "./AssetDetail";
@@ -11,6 +12,7 @@ interface InspectorProps {
   tags: Tag[];
   onRate: (rating: number) => void;
   onColor: (hex: string) => void;
+  onColorSearch: (hex: string) => void;
   onNoteChange: (text: string) => void;
   onNoteDelete: () => void;
 }
@@ -48,14 +50,24 @@ export function InspectorPanel({
   tags,
   onRate,
   onColor,
+  onColorSearch,
   onNoteChange,
   onNoteDelete,
 }: InspectorProps) {
   const [colorOpen, setColorOpen] = useState(false);
   const [note, setNote] = useState(asset.note);
+  const [palette, setPalette] = useState<Swatch[]>([]);
 
   // Re-sync the note draft when the asset changes (also after a save refetches).
   useEffect(() => setNote(asset.note), [asset.id, asset.note]);
+
+  // Fetch extracted palette when the inspected asset changes.
+  useEffect(() => {
+    setPalette([]);
+    let stale = false;
+    api.assetColors(asset.id).then((s) => { if (!stale) setPalette(s); }).catch(() => {});
+    return () => { stale = true; };
+  }, [asset.id]);
 
   const label = asset.display_name || asset.name;
   const ext = asset.ext.replace(".", "");
@@ -130,6 +142,24 @@ export function InspectorPanel({
           <span className={styles.value}>{colorName(asset.color)}</span>
         </div>
       </div>
+
+      {palette.length > 0 && (
+        <div className={styles.section}>
+          <div className={styles.label}>提取调色板</div>
+          <div className={styles.paletteRow}>
+            {palette.map((s, i) => (
+              <button
+                key={`${s.hex}-${i}`}
+                type="button"
+                title={s.hex}
+                className={styles.paletteSwatch}
+                style={{ background: s.hex, flex: s.weight }}
+                onClick={() => onColorSearch(s.hex)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className={styles.section}>
         <div className={styles.label}>标签</div>
