@@ -32,7 +32,6 @@ type Kernel struct {
 	Jobs          *JobQueue
 	ThumbDir      string   // directory where generated thumbnails are written
 	ModelCacheDir string   // directory where web-friendly GLB conversions are cached
-	BlenderAddr   string   // host:port of the Blender sidecar; empty = disabled
 	Embedder      Embedder // optional CLIP embedder; nil = semantic search disabled
 	// ModelConverter converts non-web-friendly 3D models to GLB for the viewer.
 	// nil = conversion unavailable; the DAM plugin gates on it (see serveModel).
@@ -46,7 +45,6 @@ type Deps struct {
 	ThumbDir       string
 	ModelCacheDir  string
 	JobBuffer      int
-	BlenderAddr    string
 	ModelConverter ModelConverter
 }
 
@@ -61,7 +59,6 @@ func New(d Deps) *Kernel {
 		Jobs:           NewJobQueue(d.Log, d.JobBuffer),
 		ThumbDir:       d.ThumbDir,
 		ModelCacheDir:  d.ModelCacheDir,
-		BlenderAddr:    d.BlenderAddr,
 		ModelConverter: d.ModelConverter,
 	}
 }
