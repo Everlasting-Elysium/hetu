@@ -1,4 +1,5 @@
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect, useRef } from "react";
+import type React from "react";
 import type { Asset, AssetKind } from "../types";
 import { fileUrl, thumbUrl } from "../api/client";
 import { IconClose, KindIcon } from "./icons";
@@ -15,6 +16,9 @@ const ModelViewer = lazy(() =>
 interface Props {
   asset: Asset | null;
   onClose: () => void;
+  // App-level Space handler uses this to toggle play/pause without the media
+  // element needing focus. Populated by VideoPlayer / AudioPlayer on mount.
+  toggleRef?: React.RefObject<(() => void) | null> | undefined;
 }
 
 const KIND_LABELS: Record<AssetKind, string> = {
@@ -38,11 +42,56 @@ function formatSize(bytes: number): string {
   return `${value.toFixed(1)} ${units[unit]}`;
 }
 
+// Wraps <audio controls> so the App-level Space handler can toggle it via
+// toggleRef even when the element doesn't have focus.
+function AudioPlayer({
+  asset,
+  toggleRef,
+}: {
+  asset: Asset;
+  toggleRef?: React.RefObject<(() => void) | null> | undefined;
+}) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const label = asset.display_name || asset.name;
+
+  useEffect(() => {
+    if (!toggleRef) return;
+    toggleRef.current = () => {
+      const a = audioRef.current;
+      if (!a) return;
+      if (a.paused) void a.play();
+      else a.pause();
+    };
+    return () => {
+      if (toggleRef) toggleRef.current = null;
+    };
+  }, [toggleRef]);
+
+  return (
+    <div className={styles.audio}>
+      {asset.thumb ? (
+        <img className={styles.waveform} src={thumbUrl(asset.id)} alt={label} />
+      ) : (
+        <div className={styles.audioCover}>
+          <KindIcon kind="audio" width={72} height={72} />
+        </div>
+      )}
+      <audio ref={audioRef} className={styles.audioPlayer} src={fileUrl(asset.id)} controls />
+    </div>
+  );
+}
+
 // Kind-specific preview. Video uses the custom VideoPlayer; audio/image use
 // native elements. Media streams from the Range-enabled DAM /file endpoint
 // (by asset id) so scrubbing/seeking works.
 // Exported so gallery + immersive views reuse the exact same media rendering.
-export function AssetMedia({ asset }: { asset: Asset }) {
+export function AssetMedia({
+  asset,
+  toggleRef,
+}: {
+  asset: Asset;
+  toggleRef?: React.RefObject<(() => void) | null> | undefined;
+}) {
   const label = asset.display_name || asset.name;
   switch (asset.kind) {
     case "image":
@@ -58,20 +107,9 @@ export function AssetMedia({ asset }: { asset: Asset }) {
         </a>
       );
     case "video":
-      return <VideoPlayer asset={asset} />;
+      return <VideoPlayer asset={asset} toggleRef={toggleRef} />;
     case "audio":
-      return (
-        <div className={styles.audio}>
-          {asset.thumb ? (
-            <img className={styles.waveform} src={thumbUrl(asset.id)} alt={label} />
-          ) : (
-            <div className={styles.audioCover}>
-              <KindIcon kind="audio" width={72} height={72} />
-            </div>
-          )}
-          <audio className={styles.audioPlayer} src={fileUrl(asset.id)} controls />
-        </div>
-      );
+      return <AudioPlayer asset={asset} toggleRef={toggleRef} />;
     case "model":
       return (
         <Suspense
@@ -102,7 +140,7 @@ export function AssetMedia({ asset }: { asset: Asset }) {
   }
 }
 
-export function AssetDetail({ asset, onClose }: Props) {
+export function AssetDetail({ asset, onClose, toggleRef }: Props) {
   // Escape-to-close. Effect runs unconditionally (rules-of-hooks); the guard
   // keeps the listener off while no asset is open.
   useEffect(() => {
@@ -132,7 +170,7 @@ export function AssetDetail({ asset, onClose }: Props) {
         </h2>
 
         <div className={styles.media}>
-          <AssetMedia asset={asset} />
+          <AssetMedia asset={asset} toggleRef={toggleRef} />
         </div>
 
         <dl className={styles.info}>

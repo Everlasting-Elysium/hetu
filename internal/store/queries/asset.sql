@@ -134,3 +134,8 @@ SET storage_path = ? || SUBSTR(storage_path, LENGTH(?) + 1),
     missing_at = NULL
 WHERE owner_id = ? AND provider = ? AND storage_path LIKE ? || '%'
     AND deleted_at IS NULL;
+
+-- name: UpdateAssetThumbPath :exec
+-- Repoints an asset at a client-uploaded thumbnail (issue #78: de-Blenderized
+-- 3D thumbnails). Owner-scoped so a caller can only touch its own assets.
+UPDATE assets SET thumb_path = ? WHERE id = ? AND owner_id = ?;

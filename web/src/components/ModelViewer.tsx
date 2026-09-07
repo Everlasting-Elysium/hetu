@@ -9,7 +9,7 @@ import {
   type HTMLAttributes,
   type Ref,
 } from "react";
-import { fileUrl, modelUrl, thumbUrl } from "../api/client";
+import { api, fileUrl, modelUrl, thumbUrl } from "../api/client";
 import type { Asset } from "../types";
 import styles from "./ModelViewer.module.css";
 
@@ -86,17 +86,28 @@ export function ModelViewer({ asset }: { asset: Asset }) {
     const el = ref.current;
     if (!el) return;
     const onLoad = () => {
-      const mats = el.model?.materials ?? [];
-      snapshot.current = mats.map((m) => {
-        const pbr = m.pbrMetallicRoughness;
-        return {
-          base: [...pbr.baseColorFactor] as [number, number, number, number],
-          metallic: pbr.metallicFactor,
-          roughness: pbr.roughnessFactor,
-        };
-      });
-      setStatus("ready");
-    };
+       const mats = el.model?.materials ?? [];
+       snapshot.current = mats.map((m) => {
+         const pbr = m.pbrMetallicRoughness;
+         return {
+           base: [...pbr.baseColorFactor] as [number, number, number, number],
+           metallic: pbr.metallicFactor,
+           roughness: pbr.roughnessFactor,
+         };
+       });
+       setStatus("ready");
+
+       // Auto-capture thumbnail for models without one (issue #78).
+       if (!asset.thumb) {
+         el.toBlob({ idealAspect: true })
+           .then((blob: Blob | null) => {
+             if (blob) return api.uploadThumb(asset.id, blob);
+           })
+           .catch(() => {
+             // Best-effort: a failed capture is not worth blocking the viewer.
+           });
+       }
+     };
     const onError = () => setStatus("error");
     el.addEventListener("load", onLoad);
     el.addEventListener("error", onError);

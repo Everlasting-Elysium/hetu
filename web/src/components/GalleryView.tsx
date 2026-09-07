@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { Asset } from "../types";
+import type { Selection } from "../hooks/useSelection";
 import { thumbUrl } from "../api/client";
 import { AssetMedia } from "./AssetDetail";
 import { GridEmpty, GridError, GridSpinner } from "./GridStates";
@@ -13,6 +14,11 @@ interface Props {
   loading: boolean;
   error: string | null;
   emptyHint: string;
+  selection: Selection;
+  // App-level keyboard cursor. Gallery syncs active→focusedId on every active change.
+  focusedId: string | null;
+  onFocusChange: (id: string) => void;
+  onDetail: (id: string) => void;
   onRate: (id: string, rating: number) => void;
   onColor: (id: string, hex: string) => void;
 }
@@ -23,7 +29,18 @@ const STRIP_PAD = 16;
 
 // Gallery: a large preview of the active asset above a horizontally virtualized
 // filmstrip. Clicking a thumb or pressing ←/→ changes the active asset.
-export function GalleryView({ assets, loading, error, emptyHint, onRate, onColor }: Props) {
+export function GalleryView({
+  assets,
+  loading,
+  error,
+  emptyHint,
+  selection,
+  focusedId,
+  onFocusChange,
+  onDetail,
+  onRate,
+  onColor,
+}: Props) {
   const [active, setActive] = useState(0);
   const [colorOpen, setColorOpen] = useState(false);
   const stripRef = useRef<HTMLDivElement>(null);
@@ -47,6 +64,22 @@ export function GalleryView({ assets, loading, error, emptyHint, onRate, onColor
     if (assets.length) virtualizer.scrollToIndex(active, { align: "center" });
   }, [active, assets.length, virtualizer]);
 
+  // Sync active asset → App-level focusedId so the App Space handler knows which
+  // item to open when detail is closed.
+  useEffect(() => {
+    const a = assets[active];
+    if (a) onFocusChange(a.id);
+  }, [active, assets, onFocusChange]);
+
+  // If focusedId changes from outside (e.g. another view set it), align active.
+  useEffect(() => {
+    if (!focusedId) return;
+    const idx = assets.findIndex((a) => a.id === focusedId);
+    if (idx !== -1 && idx !== active) setActive(idx);
+    // Only run when focusedId or asset list identity changes, not on every `active` update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedId, assets]);
+
   // ←/→ move the active asset (ignore while typing in a field).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -68,7 +101,11 @@ export function GalleryView({ assets, loading, error, emptyHint, onRate, onColor
 
   return (
     <div className={styles.gallery} data-testid="gallery-view">
-      <div className={styles.stage}>
+      <div
+        className={styles.stage}
+        // Double-click the stage area to open detail for the active asset.
+        onDoubleClick={() => onDetail(current.id)}
+      >
         <AssetMedia asset={current} />
       </div>
 
@@ -102,13 +139,19 @@ export function GalleryView({ assets, loading, error, emptyHint, onRate, onColor
           {virtualizer.getVirtualItems().map((item) => {
             const a = assets[item.index];
             if (!a) return null;
+            const isActive = item.index === active;
+            const isSelected = selection.isSelected(a.id);
             return (
               <button
                 key={item.key}
                 type="button"
-                className={`${styles.thumb} ${item.index === active ? styles.thumbActive : ""}`}
+                className={`${styles.thumb} ${isActive ? styles.thumbActive : ""} ${isSelected ? styles.thumbSelected : ""}`}
                 style={{ width: item.size, transform: `translateX(${item.start + STRIP_PAD}px)` }}
-                onClick={() => setActive(item.index)}
+                onClick={(e) => {
+                  setActive(item.index);
+                  // Plain click = replace-select + set active; Cmd/Ctrl = add to selection.
+                  selection.select(a.id, e);
+                }}
                 title={a.display_name || a.name}
               >
                 {a.thumb ? (

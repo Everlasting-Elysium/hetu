@@ -9,6 +9,8 @@ import styles from "./AssetCard.module.css";
 interface Props {
   asset: Asset | ColorMatch;
   selected: boolean;
+  // Keyboard cursor: a lighter highlight than `selected`, driven by arrow-key nav.
+  focused?: boolean;
   onSelect: (e: React.MouseEvent) => void;
   onToggleCheck: () => void;
   onRate: (rating: number) => void;
@@ -20,7 +22,7 @@ interface Props {
 
 const isMatch = (a: Asset | ColorMatch): a is ColorMatch => "match_hex" in a;
 
-export function AssetCard({ asset, selected, onSelect, onToggleCheck, onRate, onColor, onDetail, aspectRatio }: Props) {
+export function AssetCard({ asset, selected, focused, onSelect, onToggleCheck, onRate, onColor, onDetail, aspectRatio }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
@@ -54,7 +56,7 @@ export function AssetCard({ asset, selected, onSelect, onToggleCheck, onRate, on
 
   return (
     <div
-      className={`${styles.card} ${selected ? styles.selected : ""}`}
+      className={`${styles.card} ${selected ? styles.selected : ""} ${focused ? styles.focused : ""}`}
       data-testid="asset-card"
       onClick={onSelect}
       onDoubleClick={onDetail}
