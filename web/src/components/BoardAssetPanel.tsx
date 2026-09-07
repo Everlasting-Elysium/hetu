@@ -49,27 +49,15 @@ export function BoardAssetPanel(p: Props) {
           )}
         </div>
 
-        {p.tags.length > 0 && (
-          <div className={styles.tagChips}>
-            {p.tags.map((t) => (
-              <button
-                key={t.id}
-                className={`${styles.chip} ${p.query.tagId === t.id ? styles.chipOn : ""}`}
-                onClick={() => p.onPickTag(t.id)}
-              >
-                {t.color && <i className={styles.chipDot} style={{ background: t.color }} />}
-                {t.name}
-              </button>
-            ))}
-          </div>
-        )}
-
         <FilterFacets
           counts={p.kindCounts}
           activeKinds={p.query.kind}
           minRating={p.query.minRating}
           onToggleKind={p.onToggleKind}
           onSetRating={p.onSetRating}
+          tags={p.tags}
+          activeTag={p.query.tagId}
+          onPickTag={p.onPickTag}
         />
       </div>
 
