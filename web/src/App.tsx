@@ -15,6 +15,7 @@ import { useLibrary } from "./hooks/useLibrary";
 import { useBoards } from "./hooks/useBoards";
 import { useSelection } from "./hooks/useSelection";
 import { useViewMode } from "./hooks/useViewMode";
+import { useImport } from "./hooks/useImport";
 import { Sidebar } from "./components/Sidebar";
 import { SearchBar } from "./components/SearchBar";
 import { AssetGrid } from "./components/AssetGrid";
@@ -60,6 +61,17 @@ export default function App() {
   const kindCounts = useFacets(lq.query, version);
   const ids = useMemo(() => assets.map((a) => a.id), [assets]);
   const sel = useSelection(ids);
+
+  // Paste (Ctrl/⌘+V) + external file drag-drop import for the asset page (#89).
+  // Enabled only on the browse layouts; imports land in the active folder when
+  // one is selected. Both entry points funnel through the hook's importFiles.
+  const { dragging, dropHandlers } = useImport({
+    folderId: lq.query.folderId,
+    enabled: isBrowseLayout(view),
+    onDone: bump,
+    onNotice: setNotice,
+    onError: setError,
+  });
 
   // The inspector shows for a single selection; resolve it from the loaded list.
   const inspectedId = sel.count === 1 ? ([...sel.selected][0] ?? null) : null;
@@ -350,7 +362,12 @@ export default function App() {
             {view === "trash" && (
               <TrashView count={lib.trashCount} onEmpty={() => void run(() => api.purgeTrash(0))()} />
             )}
-            <div className={styles.gridWrap}>
+            <div className={styles.gridWrap} {...dropHandlers}>
+              {dragging && (
+                <div className={styles.dropHint} data-testid="drop-overlay">
+                  松开以导入到当前库
+                </div>
+              )}
               {view === "gallery" ? (
                 <GalleryView
                   assets={assets}
