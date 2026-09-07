@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { Asset } from "../types";
 import type { Selection } from "../hooks/useSelection";
@@ -21,6 +21,8 @@ interface Props {
   loading: boolean;
   error: string | null;
   selection: Selection;
+  focusedId: string | null;
+  onFocusChange: (id: string) => void;
   emptyHint: string;
   onRate: (id: string, rating: number) => void;
   onColor: (id: string, hex: string) => void;
@@ -35,6 +37,8 @@ export function WaterfallGrid({
   loading,
   error,
   selection,
+  focusedId,
+  onFocusChange,
   emptyHint,
   onRate,
   onColor,
@@ -61,6 +65,44 @@ export function WaterfallGrid({
   useEffect(() => {
     virtualizer.measure();
   }, [columns, columnWidth, assets, virtualizer]);
+
+  // Arrow keys move the keyboard cursor (focusedId): ←/→ by one, ↑/↓ by a full
+  // masonry row (`columns`). A ref carries the latest focus so the listener only
+  // re-subscribes on dataset/column changes. Scroll targets the item index (the
+  // waterfall virtualizer counts items across lanes, not rows).
+  const focusRef = useRef(focusedId);
+  focusRef.current = focusedId;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement;
+      if (
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLTextAreaElement ||
+        (el instanceof HTMLElement && el.isContentEditable)
+      )
+        return;
+      if (assets.length === 0) return;
+      const focus = focusRef.current;
+      const cur = focus ? assets.findIndex((a) => a.id === focus) : -1;
+      let next: number;
+      switch (e.key) {
+        case "ArrowRight": next = cur < 0 ? 0 : cur + 1; break;
+        case "ArrowLeft": next = cur < 0 ? 0 : cur - 1; break;
+        case "ArrowDown": next = cur < 0 ? 0 : cur + columns; break;
+        case "ArrowUp": next = cur < 0 ? 0 : cur - columns; break;
+        default: return;
+      }
+      e.preventDefault();
+      next = Math.min(assets.length - 1, Math.max(0, next));
+      const target = assets[next];
+      if (target && next !== cur) {
+        onFocusChange(target.id);
+        virtualizer.scrollToIndex(next, { align: "auto" });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [assets, columns, onFocusChange, virtualizer]);
 
   const busy = loading && assets.length === 0;
 
@@ -91,7 +133,11 @@ export function WaterfallGrid({
                   asset={a}
                   aspectRatio={aspectRatio}
                   selected={selection.isSelected(a.id)}
-                  onSelect={(e) => selection.select(a.id, e)}
+                  focused={focusedId === a.id}
+                  onSelect={(e) => {
+                    selection.select(a.id, e);
+                    onFocusChange(a.id);
+                  }}
                   onToggleCheck={() => selection.toggle(a.id)}
                   onRate={(r) => onRate(a.id, r)}
                   onColor={(hex) => onColor(a.id, hex)}

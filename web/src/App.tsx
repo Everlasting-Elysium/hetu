@@ -39,6 +39,13 @@ export default function App() {
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Asset | null>(null);
   const [immersiveIndex, setImmersiveIndex] = useState(0);
+  // Keyboard cursor: tracks which card is "current" for Space-to-open-detail and
+  // arrow-key navigation. Distinct from `sel.selected` (batch selection set).
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+
+  // Ref populated by VideoPlayer / AudioPlayer when detail is open. App's Space
+  // handler calls it so media toggles even when the player container lacks focus.
+  const videoToggleRef = useRef<(() => void) | null>(null);
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
   const lib = useLibrary(setError);
@@ -98,7 +105,10 @@ export default function App() {
       if (targets.length === 0) return;
       try {
         await fn(targets);
-        if (!override) sel.clear();
+        if (!override) {
+          sel.clear();
+          setFocusedId(null);
+        }
         bump();
         lib.refreshTrash();
         lib.refreshMissing();
@@ -162,8 +172,55 @@ export default function App() {
   const color = (id: string, hex: string) => void run((t) => api.colorLabel(t, hex), [id])();
   const openDetail = (id: string) => setDetail(assets.find((a) => a.id === id) ?? null);
 
+  // App-level Space handler — single canonical path for Space across all views:
+  //   • Immersive open            → skip (immersive owns its own keys)
+  //   • Detail open (video/audio) → togglePlay via videoToggleRef
+  //   • No detail + focused item  → open that item's detail panel
+  //   • Input/textarea focused    → skip (let the field handle it)
+  //
+  // A ref bundle avoids stale-closure issues: the window listener is installed
+  // once and reads live values at event time, same pattern as AssetGrid.
+  const spaceCtxRef = useRef({ detail, focusedId, assets, view });
+  spaceCtxRef.current = { detail, focusedId, assets, view };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== " ") return;
+      const el = document.activeElement;
+      if (
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLTextAreaElement ||
+        (el instanceof HTMLElement && el.isContentEditable)
+      )
+        return;
+      const { detail: d, focusedId: fid, assets: list, view: v } = spaceCtxRef.current;
+      // Immersive owns its own keys — never open a detail panel over it.
+      if (v === "immersive") return;
+      e.preventDefault();
+      if (d && (d.kind === "video" || d.kind === "audio")) {
+        videoToggleRef.current?.();
+      } else if (!d && fid) {
+        setDetail(list.find((a) => a.id === fid) ?? null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []); // empty deps: reads ref bundle at event time
+
+  // The keyboard cursor is scoped to the current view + filter; drop it on either
+  // change so Space/arrows never act on an item that has scrolled out of context.
+  useEffect(() => {
+    setFocusedId(null);
+  }, [view, query]);
+
   return (
-    <div className={`app ${isAssetView && inspectedAsset ? "inspect" : ""}`} onClick={() => sel.clear()}>
+    <div
+      className={`app ${isAssetView && inspectedAsset ? "inspect" : ""}`}
+      onClick={() => {
+        sel.clear();
+        setFocusedId(null);
+      }}
+    >
       <div className={brand.brand}>
         <span className={brand.logo}>河</span>
         <span className={brand.brandName}>
@@ -223,6 +280,10 @@ export default function App() {
                   loading={loading}
                   error={loadErr}
                   emptyHint={emptyHint}
+                  selection={sel}
+                  focusedId={focusedId}
+                  onFocusChange={setFocusedId}
+                  onDetail={openDetail}
                   onRate={rate}
                   onColor={color}
                 />
@@ -232,6 +293,8 @@ export default function App() {
                   loading={loading}
                   error={loadErr}
                   selection={sel}
+                  focusedId={focusedId}
+                  onFocusChange={setFocusedId}
                   emptyHint={emptyHint}
                   onRate={rate}
                   onColor={color}
@@ -243,6 +306,8 @@ export default function App() {
                   loading={loading}
                   error={loadErr}
                   selection={sel}
+                  focusedId={focusedId}
+                  onFocusChange={setFocusedId}
                   emptyHint={emptyHint}
                   onRate={rate}
                   onColor={color}
@@ -275,7 +340,10 @@ export default function App() {
           view={view}
           folders={lib.folders}
           tags={lib.tags}
-          onClear={sel.clear}
+          onClear={() => {
+            sel.clear();
+            setFocusedId(null);
+          }}
           onTag={(tagId) => void run((t) => api.tag(t, [tagId]))()}
           onRate={(rating) => void run((t) => api.rate(t, rating))()}
           onColor={(hex) => void run((t) => api.colorLabel(t, hex))()}
@@ -293,7 +361,14 @@ export default function App() {
         />
       )}
 
-      <AssetDetail asset={detail} onClose={() => setDetail(null)} />
+      <AssetDetail
+        asset={detail}
+        toggleRef={videoToggleRef}
+        onClose={() => {
+          videoToggleRef.current = null;
+          setDetail(null);
+        }}
+      />
 
       {error && <div className={styles.toast}>{error}</div>}
     </div>
