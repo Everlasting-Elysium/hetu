@@ -91,7 +91,11 @@ type Board struct {
 type BoardItem struct {
 	ID        string
 	BoardID   string
-	AssetID   string
+	Kind      string
+	AssetID   sql.NullString
+	Text      string
+	FrameMs   sql.NullInt64
+	View      string
 	X         float64
 	Y         float64
 	W         float64

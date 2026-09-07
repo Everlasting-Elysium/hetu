@@ -42,7 +42,11 @@ type boardDetailResult struct {
 
 type boardItemResult struct {
 	ID       string  `json:"id"`
+	Kind     string  `json:"kind"`
 	AssetID  string  `json:"asset_id"`
+	Text     string  `json:"text"`
+	FrameMS  *int64  `json:"frame_ms"`
+	View     string  `json:"view"`
 	X        float64 `json:"x"`
 	Y        float64 `json:"y"`
 	W        float64 `json:"w"`
@@ -223,5 +227,23 @@ func TestBoardItems(t *testing.T) {
 	resp7.Body.Close()
 	if len(afterDel.Items) != 0 {
 		t.Fatalf("after item delete = %d, want 0", len(afterDel.Items))
+	}
+
+	// Add a note item (kind=note, text, no asset_id).
+	noteBody, _ := json.Marshal(map[string]any{
+		"kind": "note", "text": "Hello note", "x": 5.0, "y": 6.0, "w": 150.0, "h": 80.0,
+	})
+	respN, err := http.Post(boardURL+"/items", "application/json", bytes.NewReader(noteBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer respN.Body.Close()
+	if respN.StatusCode != http.StatusCreated {
+		t.Fatalf("add note status = %d, want 201", respN.StatusCode)
+	}
+	var note boardItemResult
+	json.NewDecoder(respN.Body).Decode(&note)
+	if note.Kind != "note" || note.Text != "Hello note" || note.AssetID != "" {
+		t.Fatalf("note = %+v", note)
 	}
 }

@@ -82,11 +82,17 @@ export interface Board {
   items?: BoardItem[];
 }
 
-// One asset placed on a board, with canvas geometry. Field names match the
-// boardItemDTO json tags in internal/plugins/dam/boards.go exactly.
+// One item placed on a board, with canvas geometry. Field names match the
+// boardItemDTO json tags in internal/plugins/dam/boards.go exactly. `kind`
+// distinguishes an asset thumbnail from a free-text note (absent == "asset");
+// `text` holds note content; `frame_ms`/`view` pin a video frame / 3D camera.
 export interface BoardItem {
   id: string;
+  kind?: "asset" | "note";
   asset_id: string;
+  text?: string;
+  frame_ms?: number | null;
+  view?: string;
   x: number;
   y: number;
   w: number;

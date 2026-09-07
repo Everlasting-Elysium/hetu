@@ -34,7 +34,25 @@ func mkBoardItem(t *testing.T, id, boardID, assetID string, x, y float64, z int)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	return domain.BoardItem{
-		ID: iid, BoardID: bid, AssetID: aid,
+		ID: iid, BoardID: bid, Kind: domain.BoardItemAsset, AssetID: aid,
+		X: x, Y: y, W: 200, H: 200, Rotation: 0, Z: z, CreatedAt: now,
+	}
+}
+
+// mkBoardNoteItem builds a note-kind board item (no asset_id, carries text).
+func mkBoardNoteItem(t *testing.T, id, boardID, text string, x, y float64, z int) domain.BoardItem {
+	t.Helper()
+	iid, err := domain.NewBoardItemID(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bid, err := domain.NewBoardID(boardID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	return domain.BoardItem{
+		ID: iid, BoardID: bid, Kind: domain.BoardItemNote, Text: text,
 		X: x, Y: y, W: 200, H: 200, Rotation: 0, Z: z, CreatedAt: now,
 	}
 }

@@ -106,7 +106,7 @@ func (p *Plugin) planBatchAddItems(ctx context.Context, bid domain.BoardID, ids 
 		iid, _ := domain.NewBoardItemID(id)
 		n := len(items)
 		items = append(items, domain.BoardItem{
-			ID: iid, BoardID: bid, AssetID: aid,
+			ID: iid, BoardID: bid, Kind: domain.BoardItemAsset, AssetID: aid,
 			X:         float64(n%boardBatchCols) * stride,
 			Y:         startY + float64(n/boardBatchCols)*stride,
 			W:         boardItemDefaultSize,
