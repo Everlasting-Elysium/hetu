@@ -64,7 +64,7 @@
 | [#21](https://github.com/Everlasting-Elysium/hetu/issues/21) | 批量操作:重命名/打标/评分/移动/回收站+恢复 | deep / [programming] | #1,#2 |
 | [#9](https://github.com/Everlasting-Elysium/hetu/issues/9) | AI 自动打标流水线(痛点①) | deep / [programming] | #8,#1 |
 | [#11](https://github.com/Everlasting-Elysium/hetu/issues/11) | Python AI sidecar 模型实现 | deep / [programming] | #8 |
-| [#12](https://github.com/Everlasting-Elysium/hetu/issues/12) | 3D 标准格式处理器 + Blender 缩略 + 预览(痛点②) | deep / [programming, frontend] | #5 |
+| [#12](https://github.com/Everlasting-Elysium/hetu/issues/12) | 3D 标准格式处理器 + 客户端截图缩略 + 预览(痛点②) | deep / [programming, frontend] | #5 |
 | [#10](https://github.com/Everlasting-Elysium/hetu/issues/10) | CLIP 嵌入 + 语义/视觉相似搜索 | ultrabrain / [programming] | #9,#11 |
 | [#15](https://github.com/Everlasting-Elysium/hetu/issues/15) | 3D 渲染打标 + ZBrush 资产关联 | deep / [programming] | #12,#9 |
 | [#23](https://github.com/Everlasting-Elysium/hetu/issues/23) | DAM Web UI 完整交互(详情/标签/智能夹/批量/颜色搜索) | visual-engineering / [frontend, playwright] | #6 + 各 API |

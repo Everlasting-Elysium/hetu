@@ -12,26 +12,20 @@ import (
 // aliased here where the concrete backends live so the package reads naturally.
 type Converter = kernel.ModelConverter
 
-// Compile-time proof that both backends satisfy the Converter contract.
-var (
-	_ Converter = (*BlenderConverter)(nil)
-	_ Converter = (*AssimpConverter)(nil)
-)
+// Compile-time proof that the assimp backend satisfies the Converter contract.
+var _ Converter = (*AssimpConverter)(nil)
 
 // NewConverter builds the 3D→GLB converter selected by backend:
 //
-//   - "blender": the Blender headless sidecar at blenderAddr.
-//   - "assimp":  the assimp CLI subprocess; errors when assimp is not on PATH.
-//   - "":        auto-detect — assimp when on PATH, else Blender when
-//     blenderAddr is set, else no converter (returns nil, nil so conversion
-//     degrades gracefully instead of failing startup).
+//   - "assimp": the assimp CLI subprocess; errors when assimp is not on PATH.
+//   - "":       auto-detect — assimp when on PATH, else no converter (returns
+//     nil, nil so conversion degrades gracefully instead of failing startup).
 //
 // Only an unknown backend name is a configuration error; every other case
-// either returns a converter or a nil converter.
-func NewConverter(backend, blenderAddr string) (Converter, error) {
+// either returns a converter or a nil converter. assimp is a pure-native,
+// no-GPU importer, so hetu no longer ships a Blender sidecar for 3D (issue #78).
+func NewConverter(backend string) (Converter, error) {
 	switch backend {
-	case "blender":
-		return &BlenderConverter{addr: blenderAddr}, nil
 	case "assimp":
 		if !assimpAvailable() {
 			return nil, fmt.Errorf("model3d: assimp backend requested but %q not found on PATH", assimpBinary)
@@ -40,9 +34,6 @@ func NewConverter(backend, blenderAddr string) (Converter, error) {
 	case "":
 		if assimpAvailable() {
 			return &AssimpConverter{}, nil
-		}
-		if blenderAddr != "" {
-			return &BlenderConverter{addr: blenderAddr}, nil
 		}
 		return nil, nil
 	default:

@@ -11,7 +11,7 @@ import (
 )
 
 func TestHandler_Match(t *testing.T) {
-	h := New("")
+	h := New()
 	for _, ext := range []string{"obj", "fbx", "glb", "gltf", "stl", "usd", "usdz", "ply"} {
 		if !h.Match(ext) {
 			t.Errorf("Match(%q) = false, want true", ext)
@@ -25,7 +25,7 @@ func TestHandler_Match(t *testing.T) {
 }
 
 func TestHandler_Kind(t *testing.T) {
-	if got := New("").Kind(); got != domain.KindModel {
+	if got := New().Kind(); got != domain.KindModel {
 		t.Errorf("Kind() = %q, want %q", got, domain.KindModel)
 	}
 }
@@ -58,7 +58,7 @@ func TestWebFriendly(t *testing.T) {
 }
 
 func TestHandler_Extract(t *testing.T) {
-	meta, err := New("").Extract(context.Background(), strings.NewReader(""))
+	meta, err := New().Extract(context.Background(), strings.NewReader(""))
 	if err != nil {
 		t.Fatalf("Extract() error = %v", err)
 	}
@@ -70,8 +70,11 @@ func TestHandler_Extract(t *testing.T) {
 	}
 }
 
-func TestHandler_ThumbnailNoSidecar(t *testing.T) {
-	err := New("").Thumbnail(context.Background(), strings.NewReader("x"), io.Discard)
+// TestHandler_ThumbnailAlwaysNone asserts 3D thumbnails are never rendered
+// server-side: the handler always reports ErrNoThumbnail so the client-uploaded
+// screenshot is the sole source of a 3D preview (issue #78).
+func TestHandler_ThumbnailAlwaysNone(t *testing.T) {
+	err := New().Thumbnail(context.Background(), strings.NewReader("x"), io.Discard)
 	if !errors.Is(err, domain.ErrNoThumbnail) {
 		t.Fatalf("Thumbnail() error = %v, want ErrNoThumbnail", err)
 	}

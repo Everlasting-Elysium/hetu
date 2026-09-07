@@ -86,7 +86,7 @@ func (p *Plugin) serveModel(w http.ResponseWriter, r *http.Request) {
 
 	if p.k.ModelConverter == nil {
 		httpjson.WriteError(w, http.StatusServiceUnavailable,
-			fmt.Errorf("3D conversion unavailable: set HETU_MODEL_CONVERTER or HETU_BLENDER_ADDR"))
+			fmt.Errorf("3D conversion unavailable: install assimp on the server (or set HETU_MODEL_CONVERTER=assimp)"))
 		return
 	}
 	glbPath, err := p.ensureGLB(r.Context(), provider, asset, ext)

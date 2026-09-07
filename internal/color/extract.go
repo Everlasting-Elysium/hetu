@@ -26,9 +26,9 @@ func ExtractPalette(img image.Image, maxDim, size int) Palette {
 
 // ExtractPaletteFromReader decodes an encoded image from r and returns its
 // default palette. It is the shared entry point for palette sources whose pixels
-// live in an already-rendered raster — a video/3D thumbnail (ffmpeg keyframe,
-// client screenshot, or an optional Blender render) — so neither the indexer nor
-// the thumbnail-upload handler re-decodes or re-renders on its own.
+// live in an already-rendered raster — a video/3D thumbnail (an ffmpeg keyframe
+// or a client screenshot) — so neither the indexer nor the thumbnail-upload
+// handler re-decodes or re-renders on its own.
 func ExtractPaletteFromReader(r io.Reader) (Palette, error) {
 	img, err := imaging.Decode(r)
 	if err != nil {

@@ -170,7 +170,7 @@ func TestIndexer_ScanModel(t *testing.T) {
 	})
 	k.Storage.Register(local.New(lib))
 	k.Assets.Register(assetimage.New())
-	k.Assets.Register(model3d.New(""))
+	k.Assets.Register(model3d.New())
 
 	owner, err := domain.NewOwnerID("t")
 	if err != nil {
@@ -196,7 +196,7 @@ func TestIndexer_ScanModel(t *testing.T) {
 		t.Fatalf("kind = %q, want %q", a.Kind, domain.KindModel)
 	}
 	if a.ThumbPath != "" {
-		t.Fatalf("thumb path = %q, want empty (no blender)", a.ThumbPath)
+		t.Fatalf("thumb path = %q, want empty (3D previews are client-uploaded)", a.ThumbPath)
 	}
 	if a.Width != 0 {
 		t.Fatalf("width = %d, want 0", a.Width)

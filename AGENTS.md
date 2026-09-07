@@ -25,7 +25,7 @@ plugins enabled via `HETU_PLUGINS`. Design docs live in `docs/` (Chinese).
 - `internal/api/` — chi router, mounts plugins under `/api/<name>`
 - `internal/app/` — composition root
 - `ai/` — Python AI sidecar (Phase 1 stub)
-- `deploy/` — Dockerfile + docker-compose (core + rclone/blender/ai sidecars)
+- `deploy/` — Dockerfile + docker-compose (core + rclone/ai sidecars)
 
 ## Conventions
 - `slog` for all logs; never `log.*` / `fmt.Println`

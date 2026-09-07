@@ -20,7 +20,7 @@ hetu（河图）是一个自托管、AI 原生的平台，通过微内核加插�
 | 标签体系 | 层级标签 + 颜色 + 评分 + 智能集合 | 无 | 无 | 完整借鉴 Billfish 的标签模型 |
 | 索引方式 | 原地索引，不复制文件 | 复制/转码入库 | 文件系统直接访问 | 原地索引（来自 Billfish） |
 | AI 打标 | 无 | 部分（人脸识别） | 无 | 本地 AI 优先，批量自动打标 |
-| 3D 支持 | 无 | 无 | 无 | hetu 独有，Blender headless 渲染 |
+| 3D 支持 | 无 | 无 | 无 | hetu 独有，客户端 `<model-viewer>` 预览 + assimp 格式转换 |
 | 分层元数据 | 无 | vendor-adapter 模式区分来源 | 无 | 借鉴 Serpent 的三层元数据设计 |
 | 远程访问 | 无 | 无 | WebRTC P2P，无需端口转发 | Phase 2 借鉴 NasCabOS 方案 |
 | 网盘挂载 | 无 | 无 | 部分 | rclone/AList 统一存储层 |
@@ -44,7 +44,7 @@ hetu 同时面向两类用户：
 | 痛点 | 当前状况 | hetu 的解法 |
 |------|----------|-------------|
 | 手动逐一打标太慢 | 无工具支持批量 AI 打标 | Phase 1 本地 AI 批量自动打标，写入 AI 元数据层 |
-| 无 3D 资产管理工具 | Billfish 不支持 3D，ZBrush 文件无法预览 | Blender headless 渲染标准格式；ZBrush 原生文件作为托管资产关联预览 |
+| 无 3D 资产管理工具 | Billfish 不支持 3D，ZBrush 文件无法预览 | 客户端 `<model-viewer>` 预览标准格式（assimp 转 GLB）；ZBrush 原生文件作为托管资产关联预览 |
 | DAM 与 NAS 割裂 | 两套工具，数据不互通 | 同一平台，同一索引，同一搜索 |
 | 语义检索缺失 | 只能按文件名/标签搜索 | Phase 1 CLIP 向量搜索 + FTS5 全文检索 |
 

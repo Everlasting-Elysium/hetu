@@ -37,14 +37,10 @@ type Config struct {
 	RcloneUser   string `env:"HETU_RCLONE_USER"`
 	RclonePass   string `env:"HETU_RCLONE_PASS"`
 
-	// BlenderAddr is the host:port of the Blender headless sidecar used to
-	// render 3D-model thumbnails. Empty disables 3D thumbnailing: models are
-	// still indexed, they just have no thumbnail (graceful degradation).
-	BlenderAddr string `env:"HETU_BLENDER_ADDR"`
-
 	// ModelConverter selects the 3D→GLB conversion backend for the web viewer:
-	// "assimp" (native CLI subprocess), "blender" (the sidecar above), or empty
-	// to auto-detect (assimp if on PATH, else Blender when BlenderAddr is set).
+	// "assimp" (native CLI subprocess) or empty to auto-detect (assimp if on
+	// PATH, else no conversion). 3D previews are rendered client-side, so hetu
+	// ships no Blender sidecar (issue #78).
 	ModelConverter string `env:"HETU_MODEL_CONVERTER"`
 }
 

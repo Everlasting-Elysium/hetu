@@ -1,6 +1,7 @@
 // Package image implements kernel.AssetHandler for raster images: it reads
 // dimensions and renders JPEG thumbnails with the pure-Go imaging library
-// (no CGO). Video (ffmpeg) and 3D (Blender headless) handlers come later.
+// (no CGO). Video thumbnails come from ffmpeg; 3D previews are rendered and
+// captured client-side (see internal/asset/video and internal/asset/model3d).
 package image
 
 import (

@@ -190,7 +190,7 @@ export function ModelViewer({ asset }: { asset: Asset }) {
         src={modelUrl(asset.id)}
         alt={label}
         // Only set a poster when a thumbnail exists; a missing 3D thumbnail
-        // (no Blender sidecar) would otherwise 404 and noise the console.
+        // (before the client uploads one) would otherwise 404 and noise the console.
         {...(asset.thumb ? { poster: thumbUrl(asset.id) } : {})}
       />
       {status === "loading" && (
