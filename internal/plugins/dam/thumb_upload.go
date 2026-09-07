@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/disintegration/imaging"
 	"github.com/go-chi/chi/v5"
 
 	"github.com/Everlasting-Elysium/hetu/internal/color"
@@ -82,12 +81,11 @@ func (p *Plugin) reindexPaletteFromThumb(ctx context.Context, id domain.AssetID,
 		return
 	}
 	defer func() { _ = f.Close() }()
-	img, err := imaging.Decode(f)
+	pal, err := color.ExtractPaletteFromReader(f)
 	if err != nil {
 		p.k.Log.WarnContext(ctx, "palette: decode thumb", slog.String("id", id.String()), slog.Any("err", err))
 		return
 	}
-	pal := color.ExtractPalette(img, color.DefaultSampleMaxDim, color.DefaultPaletteSize)
 	if len(pal) == 0 {
 		return
 	}

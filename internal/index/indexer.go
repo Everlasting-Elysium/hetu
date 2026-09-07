@@ -191,8 +191,10 @@ func (ix *Indexer) indexOne(ctx context.Context, p kernel.StorageProvider, e dom
 		return false, err
 	}
 	// Palette and pHash extraction run after upsert so the asset row exists;
-	// they enhance the record and never fail the index.
-	ix.indexPalette(ctx, p, e.Path, handler)
+	// they enhance the record and never fail the index. Palette reads the
+	// generated thumbnail for non-raster sources (video/3D), so it takes the
+	// thumb path produced above.
+	ix.indexPalette(ctx, p, e.Path, thumbPath, handler)
 	ix.indexPHash(ctx, p, e.Path, handler)
 	// Metadata extraction (EXIF/IPTC/XMP) runs after upsert for the same
 	// reason; embedded capture time may update asset.created_at.
