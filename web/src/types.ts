@@ -35,6 +35,18 @@ export interface ColorMatch extends Asset {
   color_distance: number;
 }
 
+// One row of the format facet: an asset kind and its live count in the current
+// folder/tag/rating context. Mirrors the kindCount json in internal/plugins/dam.
+export interface KindCount {
+  kind: AssetKind;
+  count: number;
+}
+
+// GET /facets response driving the format facet.
+export interface Facets {
+  kinds: KindCount[];
+}
+
 export interface Folder {
   id: string;
   name: string;
@@ -108,10 +120,15 @@ export const isLibraryView = (v: ViewMode): boolean =>
 export const isBrowseLayout = (v: ViewMode): v is BrowseLayout =>
   (BROWSE_LAYOUTS as readonly string[]).includes(v);
 
-// Active filter/search state driving the asset query.
+// Active filter/search state driving the asset query. folderId/tagId/kind/
+// minRating compose (AND) and narrow server-side; keyword and colorHex are the
+// two search modes. kind is the format facet (empty = all formats) and minRating
+// is the rating facet (0 = any rating).
 export interface Query {
   folderId: string | null;
   tagId: string | null;
+  kind: AssetKind[];
+  minRating: number;
   keyword: string;
   colorHex: string | null;
 }
@@ -119,6 +136,8 @@ export interface Query {
 export const EMPTY_QUERY: Query = {
   folderId: null,
   tagId: null,
+  kind: [],
+  minRating: 0,
   keyword: "",
   colorHex: null,
 };

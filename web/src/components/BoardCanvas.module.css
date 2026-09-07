@@ -49,6 +49,71 @@
   font-weight: var(--fw-semibold);
   border-bottom: 1px solid var(--border);
 }
+
+/* Board-panel filter header: search + tag chips + the shared FilterFacets. Fixed
+   above the scrollable draggable strip (issue #75). */
+.panelFilters {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-1) var(--sp-2);
+  border-bottom: 1px solid var(--border);
+}
+.panelSearch {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-2);
+  color: var(--text-muted);
+}
+.searchField {
+  flex: 1;
+  height: 30px;
+  min-width: 0;
+}
+.searchClear {
+  flex: none;
+  color: var(--text-muted);
+  padding: 2px;
+  line-height: 0;
+  border-radius: var(--r-sm);
+}
+.searchClear:hover {
+  color: var(--text);
+}
+.tagChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px var(--sp-2);
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+.chip:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.chipOn {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent-hover);
+}
+.chipDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+  flex: none;
+}
 .panelBody {
   flex: 1;
   min-height: 0;

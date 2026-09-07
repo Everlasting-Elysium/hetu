@@ -57,6 +57,7 @@ export function AssetCard({ asset, selected, focused, onSelect, onToggleCheck, o
   return (
     <div
       className={`${styles.card} ${selected ? styles.selected : ""} ${focused ? styles.focused : ""}`}
+      data-testid="asset-card"
       onClick={onSelect}
       onDoubleClick={onDetail}
       onMouseEnter={startHover}

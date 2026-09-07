@@ -45,7 +45,8 @@ func (p *Plugin) search(w http.ResponseWriter, r *http.Request) {
 
 // searchByText handles the ?q= branch: full-text search with field qualifiers
 // (name:, tag:, desc:) and boolean operators (AND, OR, NOT), ordered by FTS5
-// relevance rank.
+// relevance rank. It also honors the ?folder=/?tag=/?rating=/?kind= facets so
+// keyword search composes with the sidebar/board filters server-side.
 func (p *Plugin) searchByText(w http.ResponseWriter, r *http.Request) {
 	ftsQuery, err := search.Parse(r.URL.Query().Get("q"))
 	if err != nil {
@@ -63,7 +64,7 @@ func (p *Plugin) searchByText(w http.ResponseWriter, r *http.Request) {
 		offset = 0
 	}
 
-	assets, err := p.k.Store.SearchAssets(r.Context(), p.owner, ftsQuery, limit, offset)
+	assets, err := p.k.Store.SearchAssets(r.Context(), p.owner, ftsQuery, parseAssetFilter(r), limit, offset)
 	if err != nil {
 		// A malformed FTS5 query is client error; anything else is a server fault.
 		if errors.Is(err, domain.ErrInvalidQuery) {

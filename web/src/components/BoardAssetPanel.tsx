@@ -1,26 +1,85 @@
-import type { Asset } from "../types";
+import { useEffect, useState } from "react";
+import type { Asset, AssetKind, KindCount, Query, Tag } from "../types";
 import { thumbUrl } from "../api/client";
-import { KindIcon } from "./icons";
+import { FilterFacets } from "./FilterFacets";
+import { IconClose, IconSearch, KindIcon } from "./icons";
 import styles from "./BoardCanvas.module.css";
 
 interface Props {
   assets: Asset[];
   loading: boolean;
+  tags: Tag[];
+  query: Query;
+  kindCounts: KindCount[];
+  onKeyword: (keyword: string) => void;
+  onPickTag: (tagId: string) => void;
+  onToggleKind: (kind: AssetKind) => void;
+  onSetRating: (rating: number) => void;
 }
 
-// Drag source for the canvas: a scrollable strip of asset thumbnails. Each row
-// carries its asset id on the native HTML5 drag payload; BoardCanvas reads it
-// on drop and places a board item at the drop point.
-export function BoardAssetPanel({ assets, loading }: Props) {
+// Drag source for the canvas: a search box + the shared tag/format/star facets
+// on top of a scrollable strip of asset thumbnails. The panel owns only the
+// search input's local text (debounced to onKeyword); every other filter is the
+// board query, resolved server-side by the same useAssets/useFacets the main
+// library uses (issue #75). Each row carries its asset id on the native drag
+// payload; BoardCanvas reads it on drop.
+export function BoardAssetPanel(p: Props) {
+  const [text, setText] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => p.onKeyword(text), 300);
+    return () => clearTimeout(t);
+  }, [text, p.onKeyword]);
+
   return (
     <aside className={styles.panel}>
-      <div className={styles.panelHead}>素材 · {assets.length}</div>
-      <div className={styles.panelBody}>
-        {loading && <div className={styles.panelHint}>加载中…</div>}
-        {!loading && assets.length === 0 && (
-          <div className={styles.panelHint}>暂无素材，先运行 scan 索引素材目录。</div>
+      <div className={styles.panelFilters}>
+        <div className={styles.panelSearch}>
+          <IconSearch width={14} height={14} />
+          <input
+            className={`input ${styles.searchField}`}
+            placeholder="搜索素材…"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          {text && (
+            <button className={styles.searchClear} title="清除" onClick={() => setText("")}>
+              <IconClose width={13} height={13} />
+            </button>
+          )}
+        </div>
+
+        {p.tags.length > 0 && (
+          <div className={styles.tagChips}>
+            {p.tags.map((t) => (
+              <button
+                key={t.id}
+                className={`${styles.chip} ${p.query.tagId === t.id ? styles.chipOn : ""}`}
+                onClick={() => p.onPickTag(t.id)}
+              >
+                {t.color && <i className={styles.chipDot} style={{ background: t.color }} />}
+                {t.name}
+              </button>
+            ))}
+          </div>
         )}
-        {assets.map((a) => {
+
+        <FilterFacets
+          counts={p.kindCounts}
+          activeKinds={p.query.kind}
+          minRating={p.query.minRating}
+          onToggleKind={p.onToggleKind}
+          onSetRating={p.onSetRating}
+        />
+      </div>
+
+      <div className={styles.panelHead}>素材 · {p.assets.length}</div>
+      <div className={styles.panelBody}>
+        {p.loading && <div className={styles.panelHint}>加载中…</div>}
+        {!p.loading && p.assets.length === 0 && (
+          <div className={styles.panelHint}>没有匹配的素材，调整搜索或筛选试试。</div>
+        )}
+        {p.assets.map((a) => {
           const label = a.display_name || a.name;
           return (
             <div

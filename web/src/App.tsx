@@ -3,14 +3,14 @@ import { api } from "./api/client";
 import {
   type Asset,
   type BrowseLayout,
-  EMPTY_QUERY,
   isBrowseLayout,
   isLibraryView,
-  type Query,
   type Tag,
   type ViewMode,
 } from "./types";
 import { useAssets } from "./hooks/useAssets";
+import { useFacets } from "./hooks/useFacets";
+import { useLibraryQuery } from "./hooks/useLibraryQuery";
 import { useLibrary } from "./hooks/useLibrary";
 import { useBoards } from "./hooks/useBoards";
 import { useSelection } from "./hooks/useSelection";
@@ -32,7 +32,11 @@ import styles from "./App.module.css";
 
 export default function App() {
   const [view, setView] = useViewMode();
-  const [query, setQuery] = useState<Query>(EMPTY_QUERY);
+  // useLibraryQuery owns the composable filter/search query; filterFx bridges its
+  // facet handlers to the composer's browse-restore + selection-clear, which
+  // depend on view/selection defined below (issue #75).
+  const filterFx = useRef<() => void>(() => {});
+  const lq = useLibraryQuery(() => filterFx.current());
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [inspectorTags, setInspectorTags] = useState<Tag[]>([]);
@@ -50,7 +54,8 @@ export default function App() {
   const bump = useCallback(() => setVersion((v) => v + 1), []);
   const lib = useLibrary(setError);
   const boards = useBoards(setError);
-  const { assets, loading, error: loadErr } = useAssets(view, query, version);
+  const { assets, loading, error: loadErr } = useAssets(view, lq.query, version);
+  const kindCounts = useFacets(lq.query, version);
   const ids = useMemo(() => assets.map((a) => a.id), [assets]);
   const sel = useSelection(ids);
 
@@ -69,6 +74,14 @@ export default function App() {
   useEffect(() => {
     if (isBrowseLayout(view)) prevBrowse.current = view;
   }, [view]);
+
+  // Latest-value callback for facet changes: restore a browse layout (from a
+  // special view) and clear the selection. Reassigned each render so it always
+  // sees the current view/selection.
+  filterFx.current = () => {
+    setView(isBrowseLayout(view) ? view : prevBrowse.current);
+    sel.clear();
+  };
 
   useEffect(() => {
     if (error) {
@@ -119,15 +132,6 @@ export default function App() {
     [sel, bump, lib],
   );
 
-  // Filtering keeps the current browse layout (or restores it from a special view).
-  const applyFilter = (patch: Partial<Query>) => {
-    setView(isBrowseLayout(view) ? view : prevBrowse.current);
-    sel.clear();
-    setQuery({ ...EMPTY_QUERY, ...patch });
-  };
-  const setFolder = (folderId: string | null) => applyFilter({ folderId });
-  const setTag = (tagId: string | null) => applyFilter({ tagId });
-
   const changeView = (v: ViewMode) => {
     if (v === "immersive") {
       // Only derive the start index from the selection when the current dataset is
@@ -144,7 +148,7 @@ export default function App() {
     // between grid/waterfall/gallery keeps the current library filter intact.
     if (v === "trash" || v === "missing") {
       sel.clear();
-      setQuery(EMPTY_QUERY);
+      lq.reset();
     }
     setView(v);
   };
@@ -159,12 +163,14 @@ export default function App() {
   };
   const setMissing = () => changeView("missing");
 
+  // An active narrowing (search or a facet) means an empty grid is "no match",
+  // not "empty library" — so the hint nudges toward relaxing the filter.
   const emptyHint =
     view === "trash"
       ? "回收站是空的。"
       : view === "missing"
         ? "没有丢失文件，所有索引文件均可访问。"
-        : query.keyword || query.colorHex
+        : lq.hasFilter
           ? "没有匹配的素材，换个条件试试。"
           : "运行 `bin/hetu scan` 索引素材目录后即可浏览。";
 
@@ -211,7 +217,7 @@ export default function App() {
   // change so Space/arrows never act on an item that has scrolled out of context.
   useEffect(() => {
     setFocusedId(null);
-  }, [view, query]);
+  }, [view, lq.query]);
 
   return (
     <div
@@ -231,11 +237,11 @@ export default function App() {
       <Sidebar
         folders={lib.folders}
         tags={lib.tags}
-        activeFolder={query.folderId}
-        activeTag={query.tagId}
+        activeFolder={lq.query.folderId}
+        activeTag={lq.query.tagId}
         boardsActive={view === "boards" || view === "board"}
-        onPickFolder={setFolder}
-        onPickTag={setTag}
+        onPickFolder={lq.setFolder}
+        onPickTag={lq.setTag}
         onViewBoards={() => changeView("boards")}
         onCreateFolder={(n) => void lib.createFolder(n)}
         onDeleteFolder={(id) => void lib.deleteFolder(id)}
@@ -244,6 +250,12 @@ export default function App() {
         missingCount={lib.missingCount}
         onPickMissing={setMissing}
         activeMissing={view === "missing"}
+        kindCounts={kindCounts}
+        activeKinds={lq.query.kind}
+        minRating={lq.query.minRating}
+        onToggleKind={lq.toggleKind}
+        onSetRating={lq.setRating}
+        onClearFilters={lq.clearFilters}
       />
 
       {isAssetView && (
@@ -251,8 +263,8 @@ export default function App() {
           view={view}
           trashCount={lib.trashCount}
           missingCount={lib.missingCount}
-          onKeyword={(q) => setQuery((p) => ({ ...EMPTY_QUERY, folderId: p.folderId, tagId: p.tagId, keyword: q }))}
-          onColor={(hex) => setQuery((p) => ({ ...EMPTY_QUERY, folderId: p.folderId, tagId: p.tagId, colorHex: hex }))}
+          onKeyword={lq.setKeyword}
+          onColor={lq.setColor}
           onViewChange={changeView}
         />
       )}
@@ -267,7 +279,12 @@ export default function App() {
             onDelete={(id) => void boards.deleteBoard(id)}
           />
         ) : view === "board" && activeBoardId ? (
-          <BoardCanvas boardId={activeBoardId} onBack={() => changeView("boards")} onError={setError} />
+          <BoardCanvas
+            boardId={activeBoardId}
+            tags={lib.tags}
+            onBack={() => changeView("boards")}
+            onError={setError}
+          />
         ) : (
           <>
             {view === "trash" && (

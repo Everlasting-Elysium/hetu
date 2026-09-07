@@ -13,18 +13,22 @@ type Store interface {
 	EnsureOwner(ctx context.Context, owner domain.OwnerID) error
 	UpsertAsset(ctx context.Context, a domain.Asset) error
 	ListAssets(ctx context.Context, owner domain.OwnerID, limit, offset int) ([]domain.Asset, error)
-	// ListAssetsFiltered narrows ListAssets by folder, tag, and minimum rating
-	// (see domain.AssetFilter); zero-value filter fields are ignored.
+	// ListAssetsFiltered narrows ListAssets by folder, tag, minimum rating, and
+	// format/kind (see domain.AssetFilter); zero-value filter fields are ignored.
 	ListAssetsFiltered(ctx context.Context, owner domain.OwnerID, f domain.AssetFilter, limit, offset int) ([]domain.Asset, error)
+	// KindCounts returns the owner's live-asset count per kind, narrowed by f's
+	// folder/tag/rating (f.Kinds is ignored). It drives the format facet counts.
+	KindCounts(ctx context.Context, owner domain.OwnerID, f domain.AssetFilter) (map[domain.AssetKind]int, error)
 	GetAsset(ctx context.Context, owner domain.OwnerID, id domain.AssetID) (domain.Asset, error)
 	// GetAssetByPath resolves an asset by its natural key (owner, provider,
 	// storage_path). Callers that index a single file use it to obtain the
 	// canonical row id, which UpsertAsset's ON CONFLICT clause preserves.
 	GetAssetByPath(ctx context.Context, owner domain.OwnerID, provider, path string) (domain.Asset, error)
 
-	// SearchAssets performs FTS5 full-text search. ftsQuery is a pre-built
-	// FTS5 MATCH expression (produced by the search package parser).
-	SearchAssets(ctx context.Context, owner domain.OwnerID, ftsQuery string, limit, offset int) ([]domain.Asset, error)
+	// SearchAssets performs FTS5 full-text search, narrowed by f (folder/tag/
+	// rating/kind) so keyword search composes with the sidebar facets. ftsQuery
+	// is a pre-built FTS5 MATCH expression (produced by the search package parser).
+	SearchAssets(ctx context.Context, owner domain.OwnerID, ftsQuery string, f domain.AssetFilter, limit, offset int) ([]domain.Asset, error)
 
 	// IndexPalette stores an asset's extracted palette: the palette and dominant
 	// color as extracted-layer annotations, plus the searchable color index. The

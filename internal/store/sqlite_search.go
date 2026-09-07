@@ -9,15 +9,18 @@ import (
 	"github.com/Everlasting-Elysium/hetu/internal/store/db"
 )
 
-// searchAssetsSQL is hand-written because sqlc does not support FTS5 virtual
-// tables. The query joins assets_fts (matched by MATCH) with assets via rowid,
-// filters to the owner's live (non-trashed) assets, and orders by FTS5 bm25
-// rank (ascending = best first). The column list mirrors db.Asset field order
-// so the Scan below and rowToAsset stay aligned with sqlc's ListAssets.
+// searchAssetsSelect is the SELECT + JOIN + base WHERE for FTS search; the
+// facet conditions, ORDER, and LIMIT are appended dynamically (see SearchAssets)
+// so the sidebar facets narrow keyword search exactly like ListAssetsFiltered.
+// It is hand-written because sqlc does not support FTS5 virtual tables. The
+// query joins assets_fts (matched by MATCH) with assets via rowid, filters to
+// the owner's live (non-trashed) assets, and orders by FTS5 bm25 rank
+// (ascending = best first). The column list mirrors db.Asset field order so the
+// Scan below and rowToAsset stay aligned with sqlc's ListAssets.
 // thumb_path/width/height resolve to the current version (issue #58) via the
 // LEFT JOIN on current_version_id, so search results reflect the current
 // revision's thumbnail; storage_path/hash stay anchored to the original.
-const searchAssetsSQL = `
+const searchAssetsSelect = `
 SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext,
        a.size, a.hash,
        COALESCE(cv.thumb_path, a.thumb_path) AS thumb_path,
@@ -29,14 +32,21 @@ SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext,
 FROM assets_fts
 JOIN assets a ON a.rowid = assets_fts.rowid
 LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
-WHERE assets_fts MATCH ? AND a.owner_id = ? AND a.deleted_at IS NULL
-ORDER BY assets_fts.rank
-LIMIT ? OFFSET ?`
+WHERE assets_fts MATCH ? AND a.owner_id = ? AND a.deleted_at IS NULL`
 
-// SearchAssets performs FTS5 full-text search. ftsQuery must be a valid FTS5
-// MATCH expression (produced by the search package parser).
-func (s *SQLite) SearchAssets(ctx context.Context, owner domain.OwnerID, ftsQuery string, limit, offset int) ([]domain.Asset, error) {
-	rows, err := s.sqldb.QueryContext(ctx, searchAssetsSQL, ftsQuery, owner.String(), limit, offset)
+// SearchAssets performs FTS5 full-text search, narrowed by f (folder/tag/rating/
+// kind) so keyword search composes with the sidebar facets server-side. ftsQuery
+// must be a valid FTS5 MATCH expression (produced by the search package parser).
+func (s *SQLite) SearchAssets(ctx context.Context, owner domain.OwnerID, ftsQuery string, f domain.AssetFilter, limit, offset int) ([]domain.Asset, error) {
+	conds, args := appendFacetConds(nil, []any{ftsQuery, owner.String()}, f)
+	query := searchAssetsSelect
+	if len(conds) > 0 {
+		query += " AND " + strings.Join(conds, " AND ")
+	}
+	query += " ORDER BY assets_fts.rank LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
+	rows, err := s.sqldb.QueryContext(ctx, query, args...)
 	if err != nil {
 		if isFTSQueryError(err) {
 			return nil, fmt.Errorf("%w: %s", domain.ErrInvalidQuery, err.Error())

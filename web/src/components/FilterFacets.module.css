@@ -1,0 +1,83 @@
+/* Facet rows mirror the sidebar tag/folder items (Sidebar.module.css) via the
+   shared design tokens, so format + star filters read as one filter language in
+   both the main sidebar and the board asset panel. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-3);
+}
+.head span {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  font-weight: var(--fw-semibold);
+}
+.clear {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  padding: 2px var(--sp-1);
+  border-radius: var(--r-sm);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.clear:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  color: var(--text-dim);
+  font-size: var(--fs-md);
+  text-align: left;
+  width: 100%;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.active {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+.active svg {
+  color: var(--accent);
+}
+.txt {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.count {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.rating {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3) var(--sp-2);
+}
+.ratingLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.empty {
+  padding: var(--sp-1) var(--sp-3) var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
