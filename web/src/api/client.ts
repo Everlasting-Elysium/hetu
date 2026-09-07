@@ -26,6 +26,14 @@ export interface AssetFilterParams {
   rating?: number;
 }
 
+// Result of a multipart POST /import (issue #89): the stored asset, or
+// skipped=true when a content duplicate was skipped. Mirrors importResp in
+// internal/plugins/dam/import.go.
+export interface ImportResult {
+  asset?: Asset;
+  skipped: boolean;
+}
+
 // queryFilter maps the composable facets of a Query onto the wire params. It is
 // the single Query -> filter bridge shared by useAssets and useFacets, so the
 // two never drift on which fields narrow a request.
@@ -211,4 +219,25 @@ export const api = {
        throw new Error(msg);
      }
    },
+
+  // Imports one file into the library via multipart POST /import: the backend
+  // copies it in, indexes, thumbnails, and dedupes (issue #18 pipeline). The
+  // `filename` carries the extension so the server infers kind/ext — essential
+  // for nameless clipboard blobs, which the caller names pasted-<ts>.<ext>
+  // (issue #89). destSubdir is a filesystem subdir, NOT the virtual folder_id.
+  importAsset: async (file: Blob, filename: string, destSubdir?: string): Promise<ImportResult> => {
+    const form = new FormData();
+    form.append("file", file, filename);
+    if (destSubdir) form.append("dest_subdir", destSubdir);
+    const res = await fetch(`${BASE}/import`, { method: "POST", body: form });
+    if (!res.ok) {
+      let msg = `${res.status} ${res.statusText}`;
+      try {
+        const body = (await res.json()) as { error?: string };
+        if (body.error) msg = body.error;
+      } catch { /* non-JSON error body */ }
+      throw new Error(msg);
+    }
+    return (await res.json()) as ImportResult;
+  },
 };

@@ -9,6 +9,24 @@
 .gridWrap {
   flex: 1;
   min-height: 0;
+  position: relative; /* anchors the drag-import overlay (#89) */
+}
+/* Drop highlight shown while an external file drag is over the asset grid (#89).
+   pointer-events:none so drop/dragleave keep reaching the grid underneath. */
+.dropHint {
+  position: absolute;
+  inset: var(--sp-3);
+  z-index: var(--z-pop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  border: 2px dashed var(--accent);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
 }
 .toast {
   position: fixed;
