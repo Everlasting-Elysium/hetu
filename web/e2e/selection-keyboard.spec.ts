@@ -10,13 +10,15 @@ const API = "/api/dam";
 test.describe("Selection & keyboard smoke (#77)", () => {
   let assetCount = 0;
   let hasVideo = false;
+  let hasAudio = false;
 
   test.beforeAll(async ({ request }) => {
-    const res = await request.get(`${API}/assets?limit=20`);
+    const res = await request.get(`${API}/assets?limit=50`);
     if (!res.ok()) return;
     const assets = (await res.json()) as { id: string; kind: string }[];
     assetCount = Array.isArray(assets) ? assets.length : 0;
     hasVideo = assets.some((a) => a.kind === "video");
+    hasAudio = assets.some((a) => a.kind === "audio");
   });
 
   test.beforeEach(async ({ page }) => {
@@ -127,54 +129,70 @@ test.describe("Selection & keyboard smoke (#77)", () => {
     await page.screenshot({ path: "e2e/screenshots/selection-focused-vs-selected.png" });
   });
 
-  test("Space plays/pauses video in detail panel", async ({ page }) => {
-    test.skip(!hasVideo, "needs at least 1 video asset");
-
-    // Navigate to the first video asset by using keyboard + Space.
-    // First, query the API to find the first video's position.
+  // Opens the detail for the first asset of `kind` by focusing its card with the
+  // grid arrow-key cursor and pressing Space, then returns the media selector.
+  // Requires the App to hide the inspector while the detail is open, so exactly
+  // one <video>/<audio> element exists — the detail's.
+  async function openMediaDetail(page: import("@playwright/test").Page, kind: "video" | "audio") {
     const res = await page.request.get(`${API}/assets?limit=50`);
     const assets = (await res.json()) as { id: string; kind: string }[];
-    const videoIdx = assets.findIndex((a) => a.kind === "video");
-    test.skip(videoIdx < 0, "no video found in first 50 assets");
-
-    // Focus the video card by pressing ArrowRight videoIdx+1 times (0→first item).
+    const idx = assets.findIndex((a) => a.kind === kind);
+    if (idx < 0) return null;
     const grid = page.getByTestId("grid-view");
     await expect(grid.getByTitle("选择").first()).toBeVisible();
-    for (let i = 0; i <= videoIdx; i++) {
-      await page.keyboard.press("ArrowRight");
-    }
+    // ArrowRight idx+1 times: the first press focuses item 0, then one per step.
+    for (let i = 0; i <= idx; i++) await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("Space"); // Space with a focused item opens its detail.
+    await expect(page.getByTitle("关闭")).toBeVisible();
+    return kind === "video" ? "video" : "audio";
+  }
 
-    // Open detail with Space.
-    await page.keyboard.press("Space");
-    const closeBtn = page.getByTitle("关闭");
-    await expect(closeBtn).toBeVisible();
+  // Reads the (single) detail media element's live `paused` property.
+  const pausedOf = (page: import("@playwright/test").Page, sel: string) =>
+    page.evaluate((s) => {
+      const el = document.querySelector(s) as HTMLMediaElement | null;
+      return el ? el.paused : null;
+    }, sel);
 
-    // Wait for the video player to mount.
-    const player = page.locator("video");
-    await expect(player).toBeVisible();
+  for (const kind of ["video", "audio"] as const) {
+    test(`${kind}: Space toggles play (body + player focus), Esc closes with player focused`, async ({
+      page,
+    }) => {
+      const has = kind === "video" ? hasVideo : hasAudio;
+      test.skip(!has, `needs at least 1 ${kind} asset`);
 
-    // Give the video a moment to load metadata.
-    await page.waitForTimeout(1000);
+      const sel = await openMediaDetail(page, kind);
+      test.skip(sel === null, `no ${kind} found`);
+      const media = sel as string;
 
-    // Space should toggle play. Use the exact aria-label to avoid matching the
-    // "播放速度" (playback rate) button which also contains "播放".
-    const playBtn = page.getByRole("button", { name: "播放", exact: true }).or(
-      page.getByRole("button", { name: "暂停", exact: true }),
-    );
-    await expect(playBtn.first()).toBeVisible();
+      // Media mounts paused (preload=metadata, no autoplay). Wait for the element.
+      await expect(page.locator(media)).toHaveCount(1);
+      await page.waitForTimeout(600);
+      expect(await pausedOf(page, media), "media should start paused").toBe(true);
 
-    // Press Space to play.
-    await page.keyboard.press("Space");
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: "e2e/screenshots/selection-video-play.png" });
+      // 1) Body-focus Space → toggles via the App-level videoToggleRef path.
+      await page.keyboard.press("Space");
+      await expect
+        .poll(() => pausedOf(page, media), { message: "Space (body focus) should play" })
+        .toBe(false);
+      await page.keyboard.press("Space");
+      await expect
+        .poll(() => pausedOf(page, media), { message: "Space again should pause" })
+        .toBe(true);
 
-    // Press Space again to pause.
-    await page.keyboard.press("Space");
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: "e2e/screenshots/selection-video-pause.png" });
+      // 2) Player-focus Space → focus the custom player wrapper (never the native
+      // media element, which would swallow keys), then Space toggles via onKeyDown.
+      // Clicking the visible surface focuses the tabIndex=0 wrapper div.
+      await page.locator(kind === "video" ? "video" : "[class*='cover']").first().click();
+      await expect
+        .poll(() => pausedOf(page, media), { message: "Space (player focus) should play" })
+        .toBe(false);
+      await page.screenshot({ path: `e2e/screenshots/${kind}-playing.png` });
 
-    // Esc closes the detail.
-    await page.keyboard.press("Escape");
-    await expect(closeBtn).toBeHidden();
-  });
+      // 3) Esc while the PLAYER has focus must still close the detail. This is the
+      // regression that a native <audio controls> broke (it swallowed Escape).
+      await page.keyboard.press("Escape");
+      await expect(page.getByTitle("关闭")).toBeHidden();
+    });
+  }
 });
