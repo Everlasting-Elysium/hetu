@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { type AssetKind, EMPTY_QUERY, type Query } from "../types";
 
 export interface LibraryQuery {
@@ -19,35 +19,78 @@ export interface LibraryQuery {
 // the others; keyword/color are the two mutually exclusive search modes. Facet
 // changes run `onFilter` (the composer restores a browse layout); keyword/color
 // edits preserve the current view, matching the topbar's in-place search.
+//
+// Every returned callback is referentially stable (useCallback). This is load-
+// bearing: SearchBar's keyword debounce lists onKeyword in its effect deps, so an
+// unstable setter re-ran that effect on every render and fired onKeyword("") in a
+// ~300ms loop — which cleared a color picked from a palette swatch right after it
+// applied ("回闪没", issue #88). onFilter is read through a ref so the setters stay
+// stable even when the caller passes a fresh onFilter each render.
 export function useLibraryQuery(onFilter: () => void): LibraryQuery {
   const [query, setQuery] = useState<Query>(EMPTY_QUERY);
 
-  const filter = (next: (q: Query) => Query) => {
-    onFilter();
-    setQuery(next);
-  };
+  const onFilterRef = useRef(onFilter);
+  onFilterRef.current = onFilter;
 
-  return {
-    query,
-    hasFilter: Boolean(
-      query.keyword ||
-        query.colorHex ||
-        query.folderId ||
-        query.tagId ||
-        query.kind.length > 0 ||
-        query.minRating > 0,
-    ),
-    reset: () => setQuery(EMPTY_QUERY),
-    setFolder: (folderId) => filter((q) => ({ ...q, folderId })),
-    setTag: (tagId) => filter((q) => ({ ...q, tagId })),
-    toggleKind: (kind) =>
+  const filter = useCallback((next: (q: Query) => Query) => {
+    onFilterRef.current();
+    setQuery(next);
+  }, []);
+
+  const reset = useCallback(() => setQuery(EMPTY_QUERY), []);
+  const setFolder = useCallback(
+    (folderId: string | null) => filter((q) => ({ ...q, folderId })),
+    [filter],
+  );
+  const setTag = useCallback(
+    (tagId: string | null) => filter((q) => ({ ...q, tagId })),
+    [filter],
+  );
+  const toggleKind = useCallback(
+    (kind: AssetKind) =>
       filter((q) => ({
         ...q,
         kind: q.kind.includes(kind) ? q.kind.filter((k) => k !== kind) : [...q.kind, kind],
       })),
-    setRating: (minRating) => filter((q) => ({ ...q, minRating })),
-    clearFilters: () => filter(() => EMPTY_QUERY),
-    setKeyword: (keyword) => setQuery((q) => ({ ...q, keyword, colorHex: null })),
-    setColor: (colorHex) => setQuery((q) => ({ ...q, colorHex, keyword: "" })),
+    [filter],
+  );
+  const setRating = useCallback(
+    (minRating: number) => filter((q) => ({ ...q, minRating })),
+    [filter],
+  );
+  const clearFilters = useCallback(() => filter(() => EMPTY_QUERY), [filter]);
+  // An empty keyword is not a search, so it must not clear an active color filter:
+  // otherwise the keyword debounce firing onKeyword("") wipes a color picked from
+  // a palette swatch (issue #88). A real keyword still switches off color search.
+  const setKeyword = useCallback(
+    (keyword: string) =>
+      setQuery((q) => ({ ...q, keyword, colorHex: keyword.trim() ? null : q.colorHex })),
+    [],
+  );
+  const setColor = useCallback(
+    (colorHex: string | null) => setQuery((q) => ({ ...q, colorHex, keyword: "" })),
+    [],
+  );
+
+  const hasFilter = Boolean(
+    query.keyword ||
+      query.colorHex ||
+      query.folderId ||
+      query.tagId ||
+      query.kind.length > 0 ||
+      query.minRating > 0,
+  );
+
+  return {
+    query,
+    hasFilter,
+    reset,
+    setFolder,
+    setTag,
+    toggleKind,
+    setRating,
+    clearFilters,
+    setKeyword,
+    setColor,
   };
 }
