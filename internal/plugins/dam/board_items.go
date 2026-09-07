@@ -1,8 +1,10 @@
 package dam
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -32,20 +34,26 @@ func (p *Plugin) requireBoard(w http.ResponseWriter, r *http.Request) (domain.Bo
 
 // boardItemDTO is the wire form of a placed board item — either an asset
 // placement or a text note (see domain.BoardItemKind). Text, FrameMS, and View
-// are omitted from the response when unused.
+// are omitted from the response when unused. AssetKind/AssetName/AssetThumb are
+// server-resolved from the asset table (issue #86) so the frontend can identify
+// a placed video/model/image without querying the asset panel; they are only
+// populated for asset items and stay empty for notes.
 type boardItemDTO struct {
-	ID       string  `json:"id"`
-	Kind     string  `json:"kind"`
-	AssetID  string  `json:"asset_id"`
-	Text     string  `json:"text,omitempty"`
-	FrameMS  *int64  `json:"frame_ms,omitempty"`
-	View     string  `json:"view,omitempty"`
-	X        float64 `json:"x"`
-	Y        float64 `json:"y"`
-	W        float64 `json:"w"`
-	H        float64 `json:"h"`
-	Rotation float64 `json:"rotation"`
-	Z        int     `json:"z"`
+	ID         string  `json:"id"`
+	Kind       string  `json:"kind"`
+	AssetID    string  `json:"asset_id"`
+	Text       string  `json:"text,omitempty"`
+	FrameMS    *int64  `json:"frame_ms,omitempty"`
+	View       string  `json:"view,omitempty"`
+	AssetKind  string  `json:"asset_kind,omitempty"`
+	AssetName  string  `json:"asset_name,omitempty"`
+	AssetThumb string  `json:"asset_thumb,omitempty"`
+	X          float64 `json:"x"`
+	Y          float64 `json:"y"`
+	W          float64 `json:"w"`
+	H          float64 `json:"h"`
+	Rotation   float64 `json:"rotation"`
+	Z          int     `json:"z"`
 }
 
 func toBoardItemDTO(it domain.BoardItem) boardItemDTO {
@@ -55,6 +63,40 @@ func toBoardItemDTO(it domain.BoardItem) boardItemDTO {
 		X: it.X, Y: it.Y, W: it.W, H: it.H,
 		Rotation: it.Rotation, Z: it.Z,
 	}
+}
+
+// enrichItemAssets fills asset_kind/asset_name/asset_thumb on every asset item
+// so the frontend can identify a placed video/model/image without querying the
+// asset panel (issue #86). Note items are left untouched. Each distinct asset_id
+// is resolved at most once; an asset that no longer exists (deleted) leaves that
+// item's asset fields empty rather than failing the whole request.
+func (p *Plugin) enrichItemAssets(ctx context.Context, dtos []boardItemDTO) []boardItemDTO {
+	type assetMeta struct{ kind, name, thumb string }
+	resolved := make(map[string]assetMeta)
+	for i := range dtos {
+		item := &dtos[i]
+		if item.Kind != string(domain.BoardItemAsset) || item.AssetID == "" {
+			continue
+		}
+		meta, done := resolved[item.AssetID]
+		if !done {
+			if aid, err := domain.NewAssetID(item.AssetID); err == nil {
+				if a, err := p.k.Store.GetAsset(ctx, p.owner, aid); err == nil {
+					name := a.DisplayName
+					if name == "" {
+						name = a.Name
+					}
+					meta = assetMeta{kind: string(a.Kind), name: name, thumb: a.ThumbPath}
+				} else if !errors.Is(err, domain.ErrNotFound) {
+					p.k.Log.WarnContext(ctx, "enrich board item: get asset",
+						slog.String("asset", item.AssetID), slog.Any("err", err))
+				}
+			}
+			resolved[item.AssetID] = meta
+		}
+		item.AssetKind, item.AssetName, item.AssetThumb = meta.kind, meta.name, meta.thumb
+	}
+	return dtos
 }
 
 func (p *Plugin) addBoardItem(w http.ResponseWriter, r *http.Request) {
@@ -113,7 +155,10 @@ func (p *Plugin) addBoardItem(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
-	httpjson.WriteJSON(w, http.StatusCreated, toBoardItemDTO(got))
+	// Enrich so a freshly dropped video/model is immediately re-editable without
+	// the frontend re-querying the asset panel (issue #86). Notes pass through.
+	enriched := p.enrichItemAssets(r.Context(), []boardItemDTO{toBoardItemDTO(got)})
+	httpjson.WriteJSON(w, http.StatusCreated, enriched[0])
 }
 
 func (p *Plugin) updateBoardItems(w http.ResponseWriter, r *http.Request) {

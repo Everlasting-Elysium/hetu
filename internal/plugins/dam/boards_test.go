@@ -29,6 +29,24 @@ func seedTestAsset(t *testing.T, ctx context.Context, st kernel.Store, owner dom
 	}
 }
 
+// seedTestVideoAsset upserts a video asset with a thumbnail so board item
+// enrichment tests can assert asset_kind/asset_name/asset_thumb (issue #86).
+func seedTestVideoAsset(t *testing.T, ctx context.Context, st kernel.Store, owner domain.OwnerID, id, name string) {
+	t.Helper()
+	aid, err := domain.NewAssetID(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := st.UpsertAsset(ctx, domain.Asset{
+		ID: aid, Owner: owner, Kind: domain.KindVideo, Provider: "local",
+		StoragePath: name, Name: name, Ext: "mp4", Size: 1, Hash: "h-" + id,
+		ThumbPath: "thumbs/" + id + ".jpg", CreatedAt: now, IndexedAt: now,
+	}); err != nil {
+		t.Fatalf("seed video asset %s: %v", id, err)
+	}
+}
+
 type boardResult struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -41,18 +59,21 @@ type boardDetailResult struct {
 }
 
 type boardItemResult struct {
-	ID       string  `json:"id"`
-	Kind     string  `json:"kind"`
-	AssetID  string  `json:"asset_id"`
-	Text     string  `json:"text"`
-	FrameMS  *int64  `json:"frame_ms"`
-	View     string  `json:"view"`
-	X        float64 `json:"x"`
-	Y        float64 `json:"y"`
-	W        float64 `json:"w"`
-	H        float64 `json:"h"`
-	Rotation float64 `json:"rotation"`
-	Z        int     `json:"z"`
+	ID         string  `json:"id"`
+	Kind       string  `json:"kind"`
+	AssetID    string  `json:"asset_id"`
+	Text       string  `json:"text"`
+	FrameMS    *int64  `json:"frame_ms"`
+	View       string  `json:"view"`
+	AssetKind  string  `json:"asset_kind"`
+	AssetName  string  `json:"asset_name"`
+	AssetThumb string  `json:"asset_thumb"`
+	X          float64 `json:"x"`
+	Y          float64 `json:"y"`
+	W          float64 `json:"w"`
+	H          float64 `json:"h"`
+	Rotation   float64 `json:"rotation"`
+	Z          int     `json:"z"`
 }
 
 func TestBoardCRUD(t *testing.T) {
@@ -245,5 +266,54 @@ func TestBoardItems(t *testing.T) {
 	json.NewDecoder(respN.Body).Decode(&note)
 	if note.Kind != "note" || note.Text != "Hello note" || note.AssetID != "" {
 		t.Fatalf("note = %+v", note)
+	}
+}
+
+// TestBoardItemAssetEnrichment verifies the board item response carries the
+// asset's kind/name/thumb (issue #86) so the frontend can re-edit a placed
+// video/model without depending on the asset panel's current query results.
+func TestBoardItemAssetEnrichment(t *testing.T) {
+	srv, owner, st := newTestServer(t)
+	ctx := t.Context()
+	seedTestVideoAsset(t, ctx, st, owner, "v1", "clip.mp4")
+
+	body, _ := json.Marshal(map[string]string{"name": "Board"})
+	resp, _ := http.Post(srv.URL+"/api/dam/boards", "application/json", bytes.NewReader(body))
+	var board boardResult
+	json.NewDecoder(resp.Body).Decode(&board)
+	resp.Body.Close()
+	boardURL := srv.URL + "/api/dam/boards/" + board.ID
+
+	// The POST response must already carry the asset kind so a freshly dropped
+	// video is immediately re-editable.
+	itemBody, _ := json.Marshal(map[string]any{"asset_id": "v1", "x": 1.0, "y": 2.0, "w": 3.0, "h": 4.0})
+	resp2, err := http.Post(boardURL+"/items", "application/json", bytes.NewReader(itemBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	var item boardItemResult
+	json.NewDecoder(resp2.Body).Decode(&item)
+	if item.AssetKind != "video" || item.AssetName != "clip.mp4" || item.AssetThumb != "thumbs/v1.jpg" {
+		t.Fatalf("POST item = %+v, want asset_kind=video name=clip.mp4 thumb=thumbs/v1.jpg", item)
+	}
+
+	// GET board returns the same enrichment for every placed asset item.
+	resp3, _ := http.Get(boardURL)
+	var detail boardDetailResult
+	json.NewDecoder(resp3.Body).Decode(&detail)
+	resp3.Body.Close()
+	if len(detail.Items) != 1 || detail.Items[0].AssetKind != "video" || detail.Items[0].AssetName != "clip.mp4" {
+		t.Fatalf("GET items = %+v, want 1 enriched video item", detail.Items)
+	}
+
+	// A note item carries no asset fields.
+	noteBody, _ := json.Marshal(map[string]any{"kind": "note", "text": "hi", "x": 5.0, "y": 6.0, "w": 7.0, "h": 8.0})
+	respN, _ := http.Post(boardURL+"/items", "application/json", bytes.NewReader(noteBody))
+	var note boardItemResult
+	json.NewDecoder(respN.Body).Decode(&note)
+	respN.Body.Close()
+	if note.AssetKind != "" || note.AssetName != "" || note.AssetThumb != "" {
+		t.Fatalf("note = %+v, want empty asset fields", note)
 	}
 }

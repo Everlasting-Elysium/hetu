@@ -1,43 +1,41 @@
-import type { Asset, BoardItem } from "../types";
-import { useBoardPickers } from "../hooks/useBoardPickers";
-import type { BoardCaptures } from "../hooks/useBoardCaptures";
+import type { BoardItem } from "../types";
+import type { BoardPickers } from "../hooks/useBoardPickers";
 import { VideoFramePicker } from "./VideoFramePicker";
 import { ModelAnglePicker } from "./ModelAnglePicker";
 
 interface Props {
   selectedItems: BoardItem[];
-  assetById: Map<string, Asset>;
-  patchItem: (id: string, patch: Partial<BoardItem>) => void;
-  captures: BoardCaptures;
+  pickers: BoardPickers;
 }
 
-// The per-item frame/angle actions for the board (#86): a "选取帧"/"选取角度" button
-// shown when exactly one video/model item is selected, plus the picker modal it
-// opens. The two live together so the whole feature is one unit; the button
-// flows into the toolbar while the modal (position:fixed) overlays the viewport,
-// so a single fragment mounted in the toolbar renders both correctly.
-export function BoardItemActions({ selectedItems, assetById, patchItem, captures }: Props) {
-  const pickers = useBoardPickers(patchItem, captures);
+// The per-item frame/angle actions for the board (#86): a "选取帧"/"选取角度"
+// button shown when exactly one video/model item is selected, plus the picker
+// modals. Picker state lives in the parent (BoardCanvas) so a double-click on
+// the canvas item opens the very same modal — this component only renders the
+// toolbar buttons and the modals. The item kind comes from the item's own
+// asset_kind (resolved server-side in the board response), so the button shows
+// even when the asset panel's query has not loaded that asset.
+export function BoardItemActions({ selectedItems, pickers }: Props) {
   const sole = selectedItems.length === 1 ? selectedItems[0] : undefined;
-  const asset = sole && sole.kind !== "note" ? assetById.get(sole.asset_id) : undefined;
+  const soleKind = sole && sole.kind !== "note" ? sole.asset_kind : undefined;
   const { frame, angle } = pickers;
 
   return (
     <>
-      {asset?.kind === "video" && sole && (
+      {sole && soleKind === "video" && (
         <button
           className="btn btn-ghost"
           data-testid="pick-frame-btn"
-          onClick={() => pickers.open(sole, asset)}
+          onClick={() => pickers.open(sole)}
         >
           选取帧
         </button>
       )}
-      {asset?.kind === "model" && sole && (
+      {sole && soleKind === "model" && (
         <button
           className="btn btn-ghost"
           data-testid="pick-angle-btn"
-          onClick={() => pickers.open(sole, asset)}
+          onClick={() => pickers.open(sole)}
         >
           选取角度
         </button>
