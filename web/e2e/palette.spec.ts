@@ -63,6 +63,14 @@ async function openDetailAndFilter(
   // The grid is now color-filtered: result cards carry a ΔE distance badge.
   await expect(distanceBadges(page).first()).toBeVisible({ timeout: 10_000 });
   await page.screenshot({ path: `${SHOT}/${shotPrefix}-filtered.png` });
+
+  // Regression (issue #88 "回闪没"): the color filter must PERSIST past the
+  // keyword-search debounce (~300ms). A prior bug re-ran SearchBar's keyword
+  // debounce on every render and cleared colorHex right after the swatch applied,
+  // so the filtered grid flashed then reverted to the full list. Wait past the
+  // debounce window and re-assert the filter still holds.
+  await page.waitForTimeout(700);
+  await expect(distanceBadges(page).first()).toBeVisible();
 }
 
 test("image detail: palette swatch → red grid filter", async ({ page }) => {
@@ -108,4 +116,10 @@ test("inspector: single-click shows palette swatches", async ({ page }) => {
   await expect(card(page, "img-green.png")).toBeVisible();
   await expect(card(page, "img-red-1.png")).toHaveCount(0);
   await page.screenshot({ path: `${SHOT}/inspector-green-filtered.png` });
+
+  // Regression (issue #88 "回闪没"): the filter must persist past the keyword
+  // debounce window instead of flashing then reverting to the full list.
+  await page.waitForTimeout(700);
+  await expect(distanceBadges(page).first()).toBeVisible();
+  await expect(card(page, "img-red-1.png")).toHaveCount(0);
 });
