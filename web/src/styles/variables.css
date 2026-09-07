@@ -32,6 +32,10 @@
   --danger-soft: rgba(242, 85, 90, 0.14);
   --ok: #46a758;
 
+  /* Board sticky notes — warm amber paper with dark ink (canvas-only). */
+  --note-bg: #fef3c7;
+  --note-text: #78350f;
+
   /* Standard DAM color labels (Bridge / Lightroom set) */
   --label-red: #e5484d;
   --label-orange: #f76b15;

@@ -69,7 +69,9 @@ export interface ActiveBoard {
   board: Board | null;
   items: BoardItem[];
   addItem: (assetId: string, box: ItemBox) => Promise<void>;
+  addNote: (text: string, box: ItemBox) => Promise<BoardItem | null>;
   updateItems: (next: BoardItem[]) => void;
+  patchItem: (id: string, patch: Partial<BoardItem>) => void;
   removeItem: (itemId: string) => Promise<void>;
 }
 
@@ -141,6 +143,20 @@ export function useBoard(boardId: string | null, onError: (msg: string) => void)
     [scheduleSave],
   );
 
+  // Merge a partial patch into one item by id, using a functional updater so
+  // concurrent Konva transform callbacks (one per selected node, fired
+  // synchronously) each read the latest state instead of a stale closure.
+  const patchItem = useCallback(
+    (id: string, patch: Partial<BoardItem>) => {
+      setItems((prev) => {
+        const next = prev.map((it) => (it.id === id ? { ...it, ...patch } : it));
+        scheduleSave(next);
+        return next;
+      });
+    },
+    [scheduleSave],
+  );
+
   const addItem = useCallback(
     async (assetId: string, box: ItemBox) => {
       if (!boardId) return;
@@ -160,6 +176,23 @@ export function useBoard(boardId: string | null, onError: (msg: string) => void)
     [boardId, onError],
   );
 
+  // A note is persisted eagerly like addItem, but returns the created item so
+  // the canvas can drop the caret straight into it for editing.
+  const addNote = useCallback(
+    async (text: string, box: ItemBox): Promise<BoardItem | null> => {
+      if (!boardId) return null;
+      try {
+        const created = await api.addBoardNote(boardId, { text, ...box });
+        setItems((prev) => [...prev, created]);
+        return created;
+      } catch (e) {
+        onError(errMsg(e));
+        return null;
+      }
+    },
+    [boardId, onError],
+  );
+
   const removeItem = useCallback(
     async (itemId: string) => {
       if (!boardId) return;
@@ -173,5 +206,5 @@ export function useBoard(boardId: string | null, onError: (msg: string) => void)
     [boardId, onError],
   );
 
-  return { board, items, addItem, updateItems, removeItem };
+  return { board, items, addItem, addNote, updateItems, patchItem, removeItem };
 }

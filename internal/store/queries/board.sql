@@ -24,12 +24,12 @@ DELETE FROM boards WHERE id = ? AND owner_id = ?;
 UPDATE boards SET updated_at = ? WHERE id = ?;
 
 -- name: CreateBoardItem :one
-INSERT INTO board_items (id, board_id, asset_id, x, y, w, h, rotation, z, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, board_id, asset_id, x, y, w, h, rotation, z, created_at;
+INSERT INTO board_items (id, board_id, kind, asset_id, text, frame_ms, view, x, y, w, h, rotation, z, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, board_id, kind, asset_id, text, frame_ms, view, x, y, w, h, rotation, z, created_at;
 
 -- name: ListBoardItems :many
-SELECT id, board_id, asset_id, x, y, w, h, rotation, z, created_at
+SELECT id, board_id, kind, asset_id, text, frame_ms, view, x, y, w, h, rotation, z, created_at
 FROM board_items
 WHERE board_id = ?
 ORDER BY z ASC, created_at ASC;

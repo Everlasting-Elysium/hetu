@@ -274,12 +274,20 @@ CREATE TABLE IF NOT EXISTS boards (
 );
 CREATE INDEX IF NOT EXISTS idx_boards_owner ON boards (owner_id);
 
--- board_items places an asset onto a board at a specific position, size,
--- rotation, and z-order. All spatial values are floating-point canvas units.
+-- board_items places either an asset or a text note onto a board at a specific
+-- position, size, rotation, and z-order. All spatial values are floating-point
+-- canvas units. kind discriminates 'asset' vs 'note': asset items carry a
+-- non-null asset_id and empty text; note items carry text and a null asset_id.
+-- frame_ms pins a video frame time; view holds a model's camera orbit/target
+-- JSON. Both are unused (null/empty) for plain image placements.
 CREATE TABLE IF NOT EXISTS board_items (
     id         TEXT PRIMARY KEY,
     board_id   TEXT NOT NULL,
-    asset_id   TEXT NOT NULL,
+    kind       TEXT NOT NULL DEFAULT 'asset',
+    asset_id   TEXT,
+    text       TEXT NOT NULL DEFAULT '',
+    frame_ms   INTEGER,
+    view       TEXT NOT NULL DEFAULT '',
     x          REAL NOT NULL DEFAULT 0,
     y          REAL NOT NULL DEFAULT 0,
     w          REAL NOT NULL DEFAULT 200,

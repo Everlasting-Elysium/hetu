@@ -1,15 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layer, Stage, Transformer } from "react-konva";
 import type Konva from "konva";
-import { type Asset, type AssetKind, type BoardItem, EMPTY_QUERY, type Query, type Tag } from "../types";
+import type { Asset, BoardItem, Tag } from "../types";
 import { useAssets } from "../hooks/useAssets";
 import { useFacets } from "../hooks/useFacets";
 import { useBoard } from "../hooks/useBoards";
 import { useBoardImages } from "../hooks/useBoardImages";
+import { useBoardCaptures } from "../hooks/useBoardCaptures";
+import { useBoardPanelQuery } from "../hooks/useBoardPanelQuery";
+import { useBoardSelection } from "../hooks/useBoardSelection";
 import { useCanvasViewport } from "../hooks/useCanvasViewport";
+import { useFullscreen } from "../hooks/useFullscreen";
 import { BoardAssetPanel } from "./BoardAssetPanel";
 import { BoardCanvasItem } from "./BoardCanvasItem";
-import { IconArrowLeft } from "./icons";
+import { BoardAlignToolbar } from "./BoardAlignToolbar";
+import { BoardExportDialog } from "./BoardExportDialog";
+import { BoardNoteEditor } from "./BoardNoteEditor";
+import { BoardToolbar } from "./BoardToolbar";
+import { boardContentRect, exportBoard } from "./boardExport";
 import styles from "./BoardCanvas.module.css";
 
 interface Props {
@@ -20,9 +28,11 @@ interface Props {
 }
 
 // A dropped item's initial box: scale the asset's natural size into DROP_MAX,
-// falling back to a sensible box when dimensions are unknown.
+// falling back to a sensible box when dimensions are unknown. Notes drop at a
+// fixed box since they have no intrinsic size.
 const DROP_MAX = 240;
 const FALLBACK = { w: 200, h: 150 };
+const NOTE_BOX = { w: 200, h: 150 };
 
 function dropSize(asset: Asset | undefined): { w: number; h: number } {
   if (!asset || asset.width <= 0 || asset.height <= 0) return FALLBACK;
@@ -32,49 +42,41 @@ function dropSize(asset: Asset | undefined): { w: number; h: number } {
 
 // The infinite-canvas editor (ViewMode "board"): a drag-source panel on the
 // left and a Konva stage on the right. Pan/zoom come from useCanvasViewport,
-// per-item drag/resize from BoardCanvasItem, and persistence from useBoard.
+// multi-selection + Transformer from useBoardSelection, per-item drag/resize
+// from BoardCanvasItem, and persistence from useBoard. Fullscreen, the arrange
+// toolbar, note editing, and PNG export layer on top.
 export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
-  const { board, items, addItem, updateItems, removeItem } = useBoard(boardId, onError);
+  const { board, items, addItem, addNote, updateItems, patchItem, removeItem } = useBoard(boardId, onError);
   const { scale, pos, panning, onWheel, onStageDragEnd } = useCanvasViewport();
-
-  // The drag-source panel reuses the main library's query model + hooks: search
-  // and tag/format/star facets narrow it server-side (issue #75).
-  const [boardQuery, setBoardQuery] = useState<Query>(EMPTY_QUERY);
+  const { boardQuery, setKeyword, pickTag, toggleKind, setRating } = useBoardPanelQuery();
   const { assets, loading: loadingAssets, error: assetErr } = useAssets("grid", boardQuery, 0);
   const kindCounts = useFacets(boardQuery, 0);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [size, setSize] = useState({ w: 0, h: 0 });
 
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+
+  const viewRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const trRef = useRef<Konva.Transformer>(null);
 
-  const assetIds = useMemo(() => items.map((it) => it.asset_id), [items]);
-  const images = useBoardImages(assetIds);
+  const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(viewRef);
+
+  // Per-item captured stills (frame/angle picker) override an item's default
+  // thumbnail; useBoardImages resolves the rest (pinned frame -> frameUrl, else
+  // the asset thumb) and skips notes internally.
+  const captures = useBoardCaptures();
+  const images = useBoardImages(items, captures.urls);
   const sorted = useMemo(() => [...items].sort((a, b) => a.z - b.z), [items]);
 
-  // Surface panel asset-load failures through the board's error channel.
+  // asset_id -> Asset, resolved from the panel's query results so a selected
+  // video/model item can find its kind and file/model URL for the pickers.
+  const assetById = useMemo(() => new Map(assets.map((a) => [a.id, a])), [assets]);
+
   useEffect(() => {
     if (assetErr) onError(assetErr);
   }, [assetErr, onError]);
-
-  // Board-local facet handlers: search + tag/format/star narrow the panel via
-  // the same query model as the main library (tag toggles off on re-pick; the
-  // star facet clears via RatingStars re-click).
-  const setKeyword = useCallback((keyword: string) => setBoardQuery((q) => ({ ...q, keyword })), []);
-  const pickTag = useCallback(
-    (tagId: string) => setBoardQuery((q) => ({ ...q, tagId: q.tagId === tagId ? null : tagId })),
-    [],
-  );
-  const toggleKind = useCallback(
-    (kind: AssetKind) =>
-      setBoardQuery((q) => ({
-        ...q,
-        kind: q.kind.includes(kind) ? q.kind.filter((k) => k !== kind) : [...q.kind, kind],
-      })),
-    [],
-  );
-  const setRating = useCallback((rating: number) => setBoardQuery((q) => ({ ...q, minRating: rating })), []);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -86,43 +88,26 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
     return () => ro.disconnect();
   }, []);
 
-  // Keep the Transformer bound to the selected node as items re-render.
-  useEffect(() => {
-    const tr = trRef.current;
-    const stage = stageRef.current;
-    if (!tr || !stage) return;
-    const node = selectedId ? stage.findOne(`#${selectedId}`) : undefined;
-    tr.nodes(node ? [node] : []);
-    tr.getLayer()?.batchDraw();
-  }, [selectedId, items]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Delete" && e.key !== "Backspace") return;
-      if (!selectedId) return;
-      const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      void removeItem(selectedId);
-      setSelectedId(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selectedId, removeItem]);
-
-  const patchItem = useCallback(
-    (id: string, patch: Partial<BoardItem>) =>
-      updateItems(items.map((it) => (it.id === id ? { ...it, ...patch } : it))),
-    [items, updateItems],
+  const { selectedIds, selectItem, clear } = useBoardSelection({
+    items,
+    patchItem,
+    removeItem,
+    stageRef,
+    trRef,
+  });
+  const selectedItems = useMemo(
+    () => items.filter((it) => selectedIds.has(it.id)),
+    [items, selectedIds],
   );
 
-  const selectItem = useCallback(
-    (id: string) => {
-      setSelectedId(id);
-      const maxZ = items.reduce((m, it) => Math.max(m, it.z), 0);
-      const target = items.find((it) => it.id === id);
-      if (target && target.z < maxZ) patchItem(id, { z: maxZ + 1 });
+  // Merge the arrange toolbar's new geometry back over the full item list, so
+  // it flows through the same debounced batch PATCH as drag/resize.
+  const applyAlign = useCallback(
+    (updated: BoardItem[]) => {
+      const byId = new Map(updated.map((u) => [u.id, u]));
+      updateItems(items.map((it) => byId.get(it.id) ?? it));
     },
-    [items, patchItem],
+    [items, updateItems],
   );
 
   const handleDrop = useCallback(
@@ -143,20 +128,52 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
     [assets, addItem],
   );
 
-  const onStageMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (e.target === e.target.getStage()) setSelectedId(null);
+  // Drop a note at the current viewport center (world coords) and open it for
+  // editing straight away.
+  const addNoteAtCenter = useCallback(async () => {
+    const cx = (size.w / 2 - pos.x) / scale;
+    const cy = (size.h / 2 - pos.y) / scale;
+    const created = await addNote("New Note", {
+      x: cx - NOTE_BOX.w / 2,
+      y: cy - NOTE_BOX.h / 2,
+      ...NOTE_BOX,
+    });
+    if (created) setEditingId(created.id);
+  }, [size, pos, scale, addNote]);
+
+  const doExport = useCallback((pixelRatio: number) => {
+    const stage = stageRef.current;
+    if (stage) exportBoard(stage, pixelRatio);
+    setExportOpen(false);
   }, []);
 
+  const onStageMouseDown = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
+      if (e.target === e.target.getStage()) clear();
+    },
+    [clear],
+  );
+
+  const editing = editingId ? items.find((it) => it.id === editingId) : undefined;
+
   return (
-    <div className={styles.view}>
-      <div className={styles.toolbar}>
-        <button className="btn btn-ghost" onClick={onBack}>
-          <IconArrowLeft width={15} height={15} /> 返回图板列表
-        </button>
-        <span className={styles.name}>{board?.name ?? "…"}</span>
-        <div className={styles.spacer} />
-        <span className={styles.hint}>滚轮缩放 · 空格/中键拖拽平移 · Delete 删除</span>
-      </div>
+    <div ref={viewRef} className={styles.view}>
+      <BoardToolbar
+        boardName={board?.name ?? "…"}
+        isFullscreen={isFullscreen}
+        selectedItems={selectedItems}
+        assetById={assetById}
+        patchItem={patchItem}
+        captures={captures}
+        onBack={onBack}
+        onToggleFullscreen={toggleFullscreen}
+        onAddNote={addNoteAtCenter}
+        onExport={() => setExportOpen(true)}
+      />
+
+      {selectedItems.length >= 2 && (
+        <BoardAlignToolbar selectedItems={selectedItems} onUpdate={applyAlign} />
+      )}
 
       <div className={styles.body}>
         <BoardAssetPanel
@@ -194,17 +211,42 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
                 <BoardCanvasItem
                   key={it.id}
                   item={it}
-                  image={images.get(it.asset_id)}
-                  selected={it.id === selectedId}
-                  onSelect={() => selectItem(it.id)}
+                  image={images.get(it.id)}
+                  selected={selectedIds.has(it.id)}
+                  onSelect={(mods) => selectItem(it.id, mods)}
+                  onEdit={() => setEditingId(it.id)}
                   onChange={(patch) => patchItem(it.id, patch)}
                 />
               ))}
               <Transformer ref={trRef} rotateEnabled flipEnabled={false} />
             </Layer>
           </Stage>
+          {editing && (
+            <BoardNoteEditor
+              item={editing}
+              scale={scale}
+              pos={pos}
+              onCommit={(text) => {
+                if (text.trim() === "") {
+                  void removeItem(editing.id);
+                } else {
+                  patchItem(editing.id, { text });
+                }
+                setEditingId(null);
+              }}
+              onCancel={() => setEditingId(null)}
+            />
+          )}
         </div>
       </div>
+
+      {exportOpen && (
+        <BoardExportDialog
+          contentSize={boardContentRect(stageRef.current)}
+          onExport={doExport}
+          onClose={() => setExportOpen(false)}
+        />
+      )}
     </div>
   );
 }

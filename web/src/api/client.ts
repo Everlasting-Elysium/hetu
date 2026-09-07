@@ -102,6 +102,12 @@ export const fileUrl = (id: string): string => `${BASE}/assets/${id}/file`;
 // <model-viewer> `src` in the asset detail modal.
 export const modelUrl = (id: string): string => `${BASE}/assets/${id}/model`;
 
+// Decodes one video frame at millisecond offset `ms` as JPEG (#86), for timeline
+// scrubbing / hover previews. Deterministic per (id, ms) and long-cached, so it
+// is safe to use directly as an <img> src.
+export const frameUrl = (id: string, ms: number): string =>
+  `${BASE}/assets/${id}/frame?ms=${ms}`;
+
 export const api = {
   // listAssets and searchKeyword push the folder/tag/kind/rating facets to the
   // server (issue #75), so the client never filters an asset list in memory.
@@ -180,6 +186,16 @@ export const api = {
 
   addBoardItem: (id: string, item: Omit<BoardItem, "id">) =>
     req<BoardItem>(`/boards/${id}/items`, body(item)),
+  // A free-text note carries no asset; kind="note" and the geometry are enough
+  // for the server to store it alongside asset items on the same board.
+  addBoardNote: (
+    boardId: string,
+    note: { text: string; x: number; y: number; w: number; h: number },
+  ) =>
+    req<BoardItem>(
+      `/boards/${boardId}/items`,
+      body({ kind: "note", asset_id: "", ...note, rotation: 0, z: 0 }),
+    ),
   // Sends a list-view selection to a board with a server-assigned default
   // layout (issue #76). `added` may be < asset_ids.length because assets already
   // on the board are skipped.

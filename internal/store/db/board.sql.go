@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const createBoard = `-- name: CreateBoard :exec
@@ -34,15 +35,19 @@ func (q *Queries) CreateBoard(ctx context.Context, arg CreateBoardParams) error 
 }
 
 const createBoardItem = `-- name: CreateBoardItem :one
-INSERT INTO board_items (id, board_id, asset_id, x, y, w, h, rotation, z, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, board_id, asset_id, x, y, w, h, rotation, z, created_at
+INSERT INTO board_items (id, board_id, kind, asset_id, text, frame_ms, view, x, y, w, h, rotation, z, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, board_id, kind, asset_id, text, frame_ms, view, x, y, w, h, rotation, z, created_at
 `
 
 type CreateBoardItemParams struct {
 	ID        string
 	BoardID   string
-	AssetID   string
+	Kind      string
+	AssetID   sql.NullString
+	Text      string
+	FrameMs   sql.NullInt64
+	View      string
 	X         float64
 	Y         float64
 	W         float64
@@ -56,7 +61,11 @@ func (q *Queries) CreateBoardItem(ctx context.Context, arg CreateBoardItemParams
 	row := q.db.QueryRowContext(ctx, createBoardItem,
 		arg.ID,
 		arg.BoardID,
+		arg.Kind,
 		arg.AssetID,
+		arg.Text,
+		arg.FrameMs,
+		arg.View,
 		arg.X,
 		arg.Y,
 		arg.W,
@@ -69,7 +78,11 @@ func (q *Queries) CreateBoardItem(ctx context.Context, arg CreateBoardItemParams
 	err := row.Scan(
 		&i.ID,
 		&i.BoardID,
+		&i.Kind,
 		&i.AssetID,
+		&i.Text,
+		&i.FrameMs,
+		&i.View,
 		&i.X,
 		&i.Y,
 		&i.W,
@@ -143,7 +156,7 @@ func (q *Queries) GetBoard(ctx context.Context, arg GetBoardParams) (Board, erro
 }
 
 const listBoardItems = `-- name: ListBoardItems :many
-SELECT id, board_id, asset_id, x, y, w, h, rotation, z, created_at
+SELECT id, board_id, kind, asset_id, text, frame_ms, view, x, y, w, h, rotation, z, created_at
 FROM board_items
 WHERE board_id = ?
 ORDER BY z ASC, created_at ASC
@@ -161,7 +174,11 @@ func (q *Queries) ListBoardItems(ctx context.Context, boardID string) ([]BoardIt
 		if err := rows.Scan(
 			&i.ID,
 			&i.BoardID,
+			&i.Kind,
 			&i.AssetID,
+			&i.Text,
+			&i.FrameMs,
+			&i.View,
 			&i.X,
 			&i.Y,
 			&i.W,

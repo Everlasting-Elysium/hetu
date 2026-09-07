@@ -7,6 +7,8 @@ export interface BoardTheme {
   accent: string;
   border: string;
   canvasBg: string;
+  noteBg: string;
+  noteText: string;
 }
 
 const FALLBACK: BoardTheme = {
@@ -14,6 +16,8 @@ const FALLBACK: BoardTheme = {
   accent: "#4f8ff7",
   border: "#363d47",
   canvasBg: "#0a0c0f",
+  noteBg: "#fef3c7",
+  noteText: "#78350f",
 };
 
 let cached: BoardTheme | null = null;
@@ -28,6 +32,8 @@ export function boardTheme(): BoardTheme {
     accent: read("--accent", FALLBACK.accent),
     border: read("--border-strong", FALLBACK.border),
     canvasBg: read("--bg-inset", FALLBACK.canvasBg),
+    noteBg: read("--note-bg", FALLBACK.noteBg),
+    noteText: read("--note-text", FALLBACK.noteText),
   };
   return cached;
 }
