@@ -157,3 +157,30 @@ func TestBatchAddToBoardValidation(t *testing.T) {
 		t.Fatalf("items after rejected add = %d, want 0", len(detail.Items))
 	}
 }
+
+// TestBatchAddPreservesAspect guards the fix for the squashing bug: a batch send
+// must scale each asset to its own aspect ratio, not a fixed 200x200 square.
+func TestBatchAddPreservesAspect(t *testing.T) {
+	srv, owner, st := newTestServer(t)
+	ctx := t.Context()
+	// A landscape 400x200 and a portrait 200x400 — clearly different aspects.
+	seedSizedAsset(t, ctx, st, owner, "wide", "wide.png", 400, 200)
+	seedSizedAsset(t, ctx, st, owner, "tall", "tall.png", 200, 400)
+
+	board := createTestBoard(t, srv.URL)
+	boardURL := srv.URL + "/api/dam/boards/" + board.ID
+	postBatchToBoard(t, boardURL, []string{"wide", "tall"}).Body.Close()
+
+	items := map[string]boardItemResult{}
+	for _, it := range getBoardDetail(t, boardURL).Items {
+		items[it.AssetID] = it
+	}
+	// 400x200: longest 400 -> scale 0.5 -> 200x100, aspect 2:1 preserved.
+	if w := items["wide"]; w.W != 200 || w.H != 100 {
+		t.Fatalf("wide size = (%v,%v), want (200,100) — aspect must survive batch add", w.W, w.H)
+	}
+	// 200x400: longest 400 -> scale 0.5 -> 100x200, aspect 1:2 preserved.
+	if tall := items["tall"]; tall.W != 100 || tall.H != 200 {
+		t.Fatalf("tall size = (%v,%v), want (100,200) — aspect must survive batch add", tall.W, tall.H)
+	}
+}

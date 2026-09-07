@@ -12,8 +12,15 @@ import (
 	"github.com/Everlasting-Elysium/hetu/internal/kernel"
 )
 
-// seedTestAsset upserts a minimal image asset for board item tests.
+// seedTestAsset upserts a minimal 1x1 image asset for board item tests.
 func seedTestAsset(t *testing.T, ctx context.Context, st kernel.Store, owner domain.OwnerID, id, path string) {
+	t.Helper()
+	seedSizedAsset(t, ctx, st, owner, id, path, 1, 1)
+}
+
+// seedSizedAsset upserts an image asset with explicit natural dimensions so
+// batch-layout tests can assert aspect-ratio preservation (issue #86).
+func seedSizedAsset(t *testing.T, ctx context.Context, st kernel.Store, owner domain.OwnerID, id, path string, width, height int) {
 	t.Helper()
 	aid, err := domain.NewAssetID(id)
 	if err != nil {
@@ -23,7 +30,7 @@ func seedTestAsset(t *testing.T, ctx context.Context, st kernel.Store, owner dom
 	if err := st.UpsertAsset(ctx, domain.Asset{
 		ID: aid, Owner: owner, Kind: domain.KindImage, Provider: "local",
 		StoragePath: path, Name: path, Ext: "png", Size: 1, Hash: "h-" + id,
-		Width: 1, Height: 1, CreatedAt: now, IndexedAt: now,
+		Width: width, Height: height, CreatedAt: now, IndexedAt: now,
 	}); err != nil {
 		t.Fatalf("seed asset %s: %v", id, err)
 	}

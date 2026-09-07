@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"time"
 
@@ -15,10 +16,25 @@ import (
 // (issue #76). New items tile in a fixed-width grid placed below any existing
 // content so nothing stacks at (0,0); precise arranging is left to the canvas.
 const (
-	boardItemDefaultSize = 200.0 // matches the board_items.w/h schema default
+	boardItemDefaultSize = 200.0 // longest side / fallback box for a batch item
 	boardBatchCols       = 5     // grid columns for one batch drop
 	boardBatchGap        = 24.0  // gap between cells and above existing items
 )
+
+// fitSize scales an asset's natural dimensions so its longest side is
+// boardItemDefaultSize, preserving aspect ratio — a batch of mixed-aspect
+// assets keeps each asset's own proportions instead of being squashed into
+// squares (the fixed 200x200 bug). Assets with unknown dimensions (0 or
+// negative, e.g. audio) fall back to the square default box. Mirrors the
+// frontend dropSize() so single-drop and batch-add place items consistently.
+func fitSize(width, height int) (w, h float64) {
+	if width <= 0 || height <= 0 {
+		return boardItemDefaultSize, boardItemDefaultSize
+	}
+	longest := math.Max(float64(width), float64(height))
+	s := boardItemDefaultSize / longest
+	return math.Round(float64(width) * s), math.Round(float64(height) * s)
+}
 
 // batchAddBoardItems adds many assets to a board in one call — the "send to
 // board" action from the asset list. Body: {"asset_ids": ["..."]}. It validates
@@ -96,7 +112,8 @@ func (p *Plugin) planBatchAddItems(ctx context.Context, bid domain.BoardID, ids 
 			continue // already on the board, or a duplicate earlier in this request
 		}
 		onBoard[key] = true
-		if _, err := p.k.Store.GetAsset(ctx, p.owner, aid); err != nil {
+		asset, err := p.k.Store.GetAsset(ctx, p.owner, aid)
+		if err != nil {
 			return nil, fmt.Errorf("asset %s: %w", aid, err)
 		}
 		id, err := newID()
@@ -105,12 +122,13 @@ func (p *Plugin) planBatchAddItems(ctx context.Context, bid domain.BoardID, ids 
 		}
 		iid, _ := domain.NewBoardItemID(id)
 		n := len(items)
+		w, h := fitSize(asset.Width, asset.Height)
 		items = append(items, domain.BoardItem{
 			ID: iid, BoardID: bid, Kind: domain.BoardItemAsset, AssetID: aid,
 			X:         float64(n%boardBatchCols) * stride,
 			Y:         startY + float64(n/boardBatchCols)*stride,
-			W:         boardItemDefaultSize,
-			H:         boardItemDefaultSize,
+			W:         w,
+			H:         h,
 			Rotation:  0,
 			Z:         baseZ + n,
 			CreatedAt: now,
