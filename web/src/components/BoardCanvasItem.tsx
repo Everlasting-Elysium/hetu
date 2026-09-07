@@ -62,8 +62,8 @@ export function BoardCanvasItem({ item, image, selected, onSelect, onEdit, onCha
         onSelect({ metaKey: e.evt.metaKey, ctrlKey: e.evt.ctrlKey, shiftKey: e.evt.shiftKey })
       }
       onTap={() => onSelect()}
-      onDblClick={() => isNote && onEdit()}
-      onDblTap={() => isNote && onEdit()}
+      onDblClick={() => onEdit()}
+      onDblTap={() => onEdit()}
       onDragEnd={handleDragEnd}
       onTransformEnd={handleTransformEnd}
     >

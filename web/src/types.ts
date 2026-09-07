@@ -93,12 +93,27 @@ export interface BoardItem {
   text?: string;
   frame_ms?: number | null;
   view?: string;
+  // asset_* are resolved server-side (GET /boards/:id, POST items) so an asset
+  // item on the board knows its own kind/name/thumb without the asset panel's
+  // query being loaded — this is what lets a video/model item reopen its
+  // frame/angle picker regardless of the panel's current search/filter.
+  asset_kind?: AssetKind;
+  asset_name?: string;
+  asset_thumb?: string;
   x: number;
   y: number;
   w: number;
   h: number;
   rotation: number;
   z: number;
+}
+
+// The minimal asset shape the frame/angle pickers need, resolved from a board
+// item's asset_* fields so the pickers never depend on the asset panel query.
+export interface PickerAsset {
+  id: string;
+  name: string;
+  thumb?: string;
 }
 
 // The active view. Browse layouts (grid/waterfall/gallery/immersive) all show the

@@ -1,7 +1,7 @@
 import "@google/model-viewer";
 import type { ModelViewerElement } from "@google/model-viewer";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Asset } from "../types";
+import type { PickerAsset } from "../types";
 import { modelUrl, thumbUrl } from "../api/client";
 import styles from "./FramePicker.module.css";
 
@@ -10,7 +10,7 @@ const DEFAULT_ORBIT = "0deg 75deg 105%";
 const DEFAULT_TARGET = "auto auto auto";
 
 interface ModelAnglePickerProps {
-  asset: Asset;
+  asset: PickerAsset;
   initialView?: string;
   onCapture: (blob: Blob, view: string) => void;
   onClose: () => void;
@@ -102,7 +102,7 @@ export function ModelAnglePicker({ asset, initialView, onCapture, onClose }: Mod
     onCapture(blob, JSON.stringify(pose));
   }, [onCapture]);
 
-  const label = asset.display_name || asset.name;
+  const label = asset.name;
 
   return (
     <div className={styles.overlay} onMouseDown={onClose}>

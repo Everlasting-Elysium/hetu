@@ -95,6 +95,10 @@ func (p *Plugin) getBoard(w http.ResponseWriter, r *http.Request) {
 	for _, it := range items {
 		dto.Items = append(dto.Items, toBoardItemDTO(it))
 	}
+	// Resolve each asset item's kind/name/thumb server-side (issue #86) so the
+	// frontend can re-edit video/model items regardless of the asset panel's
+	// current search/filter/pagination results.
+	dto.Items = p.enrichItemAssets(r.Context(), dto.Items)
 	httpjson.WriteJSON(w, http.StatusOK, dto)
 }
 

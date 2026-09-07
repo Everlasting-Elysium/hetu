@@ -94,7 +94,14 @@ const ICONS: Record<AlignOp, ReactNode> = {
   ),
 };
 
-const TITLES: Record<AlignOp, string> = {
+// Platform-aware modifier glyphs for the shortcut hints, mirroring PureRef.
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+const MOD = isMac ? "⌘" : "Ctrl+";
+const ALT = isMac ? "⌥" : "Alt+";
+
+// The three match ops scale aspect-preserving (never stretch), so the labels say
+// so — this is what the user asked for over the old squashing behavior.
+const LABELS: Record<AlignOp, string> = {
   left: "左对齐",
   centerH: "水平居中",
   right: "右对齐",
@@ -103,10 +110,27 @@ const TITLES: Record<AlignOp, string> = {
   bottom: "底对齐",
   distributeH: "水平分布",
   distributeV: "垂直分布",
-  matchW: "等宽",
-  matchH: "等高",
-  matchSize: "等尺寸",
+  matchW: "等宽（保持比例）",
+  matchH: "等高（保持比例）",
+  matchSize: "等尺寸（最长边·保持比例）",
 };
+
+// Shortcut hint per op (empty = no keyboard binding); mirrors useArrangeShortcuts.
+const KEYS: Record<AlignOp, string> = {
+  left: `${MOD}←`,
+  centerH: "",
+  right: `${MOD}→`,
+  top: `${MOD}↑`,
+  middle: "",
+  bottom: `${MOD}↓`,
+  distributeH: `${MOD}${ALT}⇧↑`,
+  distributeV: `${MOD}${ALT}⇧↓`,
+  matchW: `${MOD}${ALT}→`,
+  matchH: `${MOD}${ALT}←`,
+  matchSize: `${MOD}${ALT}↑`,
+};
+
+const titleFor = (op: AlignOp): string => (KEYS[op] ? `${LABELS[op]} (${KEYS[op]})` : LABELS[op]);
 
 // Three visual groups separated by hairlines: align, distribute, match.
 const GROUPS: AlignOp[][] = [
@@ -129,8 +153,8 @@ export function BoardAlignToolbar({ selectedItems, onUpdate }: Props) {
               key={op}
               type="button"
               className={styles.alignBtn}
-              title={TITLES[op]}
-              aria-label={TITLES[op]}
+              title={titleFor(op)}
+              aria-label={titleFor(op)}
               onClick={() => onUpdate(applyAlign(op, selectedItems))}
             >
               {ICONS[op]}

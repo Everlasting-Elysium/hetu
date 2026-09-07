@@ -7,8 +7,10 @@ import { useFacets } from "../hooks/useFacets";
 import { useBoard } from "../hooks/useBoards";
 import { useBoardImages } from "../hooks/useBoardImages";
 import { useBoardCaptures } from "../hooks/useBoardCaptures";
+import { useBoardPickers } from "../hooks/useBoardPickers";
 import { useBoardPanelQuery } from "../hooks/useBoardPanelQuery";
 import { useBoardSelection } from "../hooks/useBoardSelection";
+import { useArrangeShortcuts } from "../hooks/useArrangeShortcuts";
 import { useCanvasViewport } from "../hooks/useCanvasViewport";
 import { useFullscreen } from "../hooks/useFullscreen";
 import { BoardAssetPanel } from "./BoardAssetPanel";
@@ -17,6 +19,7 @@ import { BoardAlignToolbar } from "./BoardAlignToolbar";
 import { BoardExportDialog } from "./BoardExportDialog";
 import { BoardNoteEditor } from "./BoardNoteEditor";
 import { BoardToolbar } from "./BoardToolbar";
+import { applyAlign as computeAlign } from "./boardAlign";
 import { boardContentRect, exportBoard } from "./boardExport";
 import styles from "./BoardCanvas.module.css";
 
@@ -44,7 +47,8 @@ function dropSize(asset: Asset | undefined): { w: number; h: number } {
 // left and a Konva stage on the right. Pan/zoom come from useCanvasViewport,
 // multi-selection + Transformer from useBoardSelection, per-item drag/resize
 // from BoardCanvasItem, and persistence from useBoard. Fullscreen, the arrange
-// toolbar, note editing, and PNG export layer on top.
+// toolbar + keyboard shortcuts, note editing, frame/angle pickers, and PNG
+// export layer on top.
 export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
   const { board, items, addItem, addNote, updateItems, patchItem, removeItem } = useBoard(boardId, onError);
   const { scale, pos, panning, onWheel, onStageDragEnd } = useCanvasViewport();
@@ -65,14 +69,12 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
 
   // Per-item captured stills (frame/angle picker) override an item's default
   // thumbnail; useBoardImages resolves the rest (pinned frame -> frameUrl, else
-  // the asset thumb) and skips notes internally.
+  // the asset thumb) and skips notes internally. Picker state is owned here so a
+  // canvas double-click and the toolbar button drive the same modal.
   const captures = useBoardCaptures();
+  const pickers = useBoardPickers(patchItem, captures);
   const images = useBoardImages(items, captures.urls);
   const sorted = useMemo(() => [...items].sort((a, b) => a.z - b.z), [items]);
-
-  // asset_id -> Asset, resolved from the panel's query results so a selected
-  // video/model item can find its kind and file/model URL for the pickers.
-  const assetById = useMemo(() => new Map(assets.map((a) => [a.id, a])), [assets]);
 
   useEffect(() => {
     if (assetErr) onError(assetErr);
@@ -100,14 +102,32 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
     [items, selectedIds],
   );
 
-  // Merge the arrange toolbar's new geometry back over the full item list, so
-  // it flows through the same debounced batch PATCH as drag/resize.
-  const applyAlign = useCallback(
+  // Merge an arrange result's new geometry back over the full item list, so it
+  // flows through the same debounced batch PATCH as drag/resize.
+  const applyArrange = useCallback(
     (updated: BoardItem[]) => {
       const byId = new Map(updated.map((u) => [u.id, u]));
       updateItems(items.map((it) => byId.get(it.id) ?? it));
     },
     [items, updateItems],
+  );
+
+  // PureRef-style keyboard arranging (Ctrl/Cmd+Arrow align, +Alt normalize size,
+  // +Alt+Shift distribute), active only with two or more items selected.
+  useArrangeShortcuts({
+    selectedItems,
+    onApply: (op) => applyArrange(computeAlign(op, selectedItems)),
+  });
+
+  // Edit routing: notes open the inline text editor; video/model items open
+  // their frame/angle picker. Kind comes from item.asset_kind (resolved
+  // server-side), so it works regardless of the asset panel's current query.
+  const editItem = useCallback(
+    (item: BoardItem) => {
+      if (item.kind === "note") setEditingId(item.id);
+      else pickers.open(item);
+    },
+    [pickers],
   );
 
   const handleDrop = useCallback(
@@ -162,9 +182,7 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
         boardName={board?.name ?? "…"}
         isFullscreen={isFullscreen}
         selectedItems={selectedItems}
-        assetById={assetById}
-        patchItem={patchItem}
-        captures={captures}
+        pickers={pickers}
         onBack={onBack}
         onToggleFullscreen={toggleFullscreen}
         onAddNote={addNoteAtCenter}
@@ -172,7 +190,7 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
       />
 
       {selectedItems.length >= 2 && (
-        <BoardAlignToolbar selectedItems={selectedItems} onUpdate={applyAlign} />
+        <BoardAlignToolbar selectedItems={selectedItems} onUpdate={applyArrange} />
       )}
 
       <div className={styles.body}>
@@ -214,7 +232,7 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
                   image={images.get(it.id)}
                   selected={selectedIds.has(it.id)}
                   onSelect={(mods) => selectItem(it.id, mods)}
-                  onEdit={() => setEditingId(it.id)}
+                  onEdit={() => editItem(it)}
                   onChange={(patch) => patchItem(it.id, patch)}
                 />
               ))}
