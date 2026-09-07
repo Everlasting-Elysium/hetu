@@ -168,3 +168,47 @@ func TestSQLite_DeleteBoardCascadesItems(t *testing.T) {
 		t.Fatalf("items after board delete = %d, want 0", len(items))
 	}
 }
+
+func TestSQLite_BatchAddBoardItems(t *testing.T) {
+	ctx, st, owner := mustOpen(t)
+	// Create the board in the past so the updated_at touch is observable.
+	b := mkBoard(t, owner, "b1", "Board")
+	past := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
+	b.CreatedAt, b.UpdatedAt = past, past
+	if err := st.CreateBoard(ctx, b); err != nil {
+		t.Fatal(err)
+	}
+	seedAsset(t, ctx, st, owner, "a1", "img1.png")
+	seedAsset(t, ctx, st, owner, "a2", "img2.png")
+
+	items := []domain.BoardItem{
+		mkBoardItem(t, "i1", "b1", "a1", 0, 0, 1),
+		mkBoardItem(t, "i2", "b1", "a2", 224, 0, 2),
+	}
+	if err := st.BatchAddBoardItems(ctx, b.ID, items); err != nil {
+		t.Fatalf("batch add: %v", err)
+	}
+
+	got, err := st.ListBoardItems(ctx, b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("items = %d, want 2", len(got))
+	}
+
+	// The board's updated_at advanced past its (past) creation timestamp.
+	board, _ := st.GetBoard(ctx, owner, b.ID)
+	if !board.UpdatedAt.After(past) {
+		t.Fatalf("updated_at = %v, want after %v (board not touched)", board.UpdatedAt, past)
+	}
+
+	// An empty slice is a no-op: no error, no new rows.
+	if err := st.BatchAddBoardItems(ctx, b.ID, nil); err != nil {
+		t.Fatalf("empty batch: %v", err)
+	}
+	again, _ := st.ListBoardItems(ctx, b.ID)
+	if len(again) != 2 {
+		t.Fatalf("after empty batch items = %d, want 2", len(again))
+	}
+}
