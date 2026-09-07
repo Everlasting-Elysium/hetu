@@ -75,16 +75,27 @@ function distributeY(items: BoardItem[]): BoardItem[] {
   return items.map((it) => ({ ...it, y: pos.get(it.id) ?? it.y }));
 }
 
-// Uniform sizing: copy the first selected item's width, height, or both onto
-// every other selected item.
-function match(items: BoardItem[], dims: "w" | "h" | "wh"): BoardItem[] {
-  const first = items[0];
-  if (!first) return items;
-  return items.map((it) => ({
-    ...it,
-    w: dims === "h" ? it.w : first.w,
-    h: dims === "w" ? it.h : first.h,
-  }));
+// Aspect-preserving size normalization, matching PureRef. Every selected item is
+// uniformly SCALED (never stretched) so a chosen dimension matches the first
+// selected item's — the first selection is the size source, so the user picks
+// the reference by selecting it first:
+//   "w"  -> equal widths  (height follows the item's own ratio)
+//   "h"  -> equal heights (width follows the item's own ratio)
+//   "wh" -> equal longest side (orientation-aware Normalize Size)
+// Each item keeps its own w/h ratio, so nothing is squashed.
+function normalize(items: BoardItem[], dim: "w" | "h" | "wh"): BoardItem[] {
+  const ref = items[0];
+  if (!ref) return items;
+  return items.map((it) => {
+    if (it.w <= 0 || it.h <= 0) return it;
+    const factor =
+      dim === "w"
+        ? ref.w / it.w
+        : dim === "h"
+          ? ref.h / it.h
+          : Math.max(ref.w, ref.h) / Math.max(it.w, it.h);
+    return { ...it, w: it.w * factor, h: it.h * factor };
+  });
 }
 
 // Dispatches an AlignOp to its transform, returning the selected items with new
@@ -108,11 +119,11 @@ export function applyAlign(op: AlignOp, items: BoardItem[]): BoardItem[] {
     case "distributeV":
       return distributeY(items);
     case "matchW":
-      return match(items, "w");
+      return normalize(items, "w");
     case "matchH":
-      return match(items, "h");
+      return normalize(items, "h");
     case "matchSize":
-      return match(items, "wh");
+      return normalize(items, "wh");
     default: {
       const unreachable: never = op;
       return unreachable;

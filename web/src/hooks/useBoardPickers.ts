@@ -1,14 +1,15 @@
 import { useCallback, useState } from "react";
-import type { Asset, BoardItem } from "../types";
+import type { BoardItem, PickerAsset } from "../types";
 import type { BoardCaptures } from "./useBoardCaptures";
 
-// The item + asset a picker modal is editing. `asset` supplies the file/model
-// URL and kind the picker needs; `itemId` is where the capture is folded back;
-// frameMs/view are the item's current pin, captured at open time so the modal
-// seeds itself without re-reading the live item list.
+// The item + asset a picker modal is editing. `asset` (a PickerAsset built from
+// the item's own asset_* fields) supplies the file/model URL the picker needs;
+// `itemId` is where the capture is folded back; frameMs/view are the item's
+// current pin, captured at open time so the modal seeds itself without
+// re-reading the live item list.
 export interface PickerTarget {
   itemId: string;
-  asset: Asset;
+  asset: PickerAsset;
   frameMs: number | null;
   view: string;
 }
@@ -16,7 +17,7 @@ export interface PickerTarget {
 export interface BoardPickers {
   frame: PickerTarget | null;
   angle: PickerTarget | null;
-  open: (item: BoardItem, asset: Asset) => void;
+  open: (item: BoardItem) => void;
   close: () => void;
   onFrameCapture: (blob: Blob, ms: number) => void;
   onAngleCapture: (blob: Blob, view: string) => void;
@@ -34,15 +35,21 @@ export function useBoardPickers(
   const [frame, setFrame] = useState<PickerTarget | null>(null);
   const [angle, setAngle] = useState<PickerTarget | null>(null);
 
-  const open = useCallback((item: BoardItem, asset: Asset) => {
+  const open = useCallback((item: BoardItem) => {
+    if (item.kind === "note") return;
+    const asset: PickerAsset = {
+      id: item.asset_id,
+      name: item.asset_name ?? item.asset_id,
+      ...(item.asset_thumb ? { thumb: item.asset_thumb } : {}),
+    };
     const target: PickerTarget = {
       itemId: item.id,
       asset,
       frameMs: item.frame_ms ?? null,
       view: item.view ?? "",
     };
-    if (asset.kind === "video") setFrame(target);
-    else if (asset.kind === "model") setAngle(target);
+    if (item.asset_kind === "video") setFrame(target);
+    else if (item.asset_kind === "model") setAngle(target);
   }, []);
 
   const close = useCallback(() => {

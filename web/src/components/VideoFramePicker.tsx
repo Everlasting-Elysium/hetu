@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Asset } from "../types";
+import type { PickerAsset } from "../types";
 import { fileUrl } from "../api/client";
 import styles from "./FramePicker.module.css";
 
@@ -10,7 +10,7 @@ const FRAME_STEP = 1 / 30;
 const JPEG_QUALITY = 0.9;
 
 interface VideoFramePickerProps {
-  asset: Asset;
+  asset: PickerAsset;
   initialMs?: number;
   onCapture: (blob: Blob, ms: number) => void;
   onClose: () => void;
@@ -132,7 +132,7 @@ export function VideoFramePicker({ asset, initialMs, onCapture, onClose }: Video
   };
 
   const pct = duration > 0 ? (current / duration) * 100 : 0;
-  const label = asset.display_name || asset.name;
+  const label = asset.name;
 
   return (
     <div className={styles.overlay} onMouseDown={onClose}>

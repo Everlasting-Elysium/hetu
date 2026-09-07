@@ -1,5 +1,5 @@
-import type { Asset, BoardItem } from "../types";
-import type { BoardCaptures } from "../hooks/useBoardCaptures";
+import type { BoardItem } from "../types";
+import type { BoardPickers } from "../hooks/useBoardPickers";
 import { BoardItemActions } from "./BoardItemActions";
 import { IconArrowLeft, IconCompress, IconExpand, IconPlus } from "./icons";
 import styles from "./BoardCanvas.module.css";
@@ -8,9 +8,7 @@ interface Props {
   boardName: string;
   isFullscreen: boolean;
   selectedItems: BoardItem[];
-  assetById: Map<string, Asset>;
-  patchItem: (id: string, patch: Partial<BoardItem>) => void;
-  captures: BoardCaptures;
+  pickers: BoardPickers;
   onBack: () => void;
   onToggleFullscreen: () => void;
   onAddNote: () => void;
@@ -19,13 +17,13 @@ interface Props {
 
 // The top bar of the board canvas: back button, board name, fullscreen toggle,
 // add-note shortcut, export button, and per-item actions (frame/angle pickers).
+// Picker state is owned by BoardCanvas and passed through so a canvas
+// double-click and the toolbar button drive the same modal.
 export function BoardToolbar({
   boardName,
   isFullscreen,
   selectedItems,
-  assetById,
-  patchItem,
-  captures,
+  pickers,
   onBack,
   onToggleFullscreen,
   onAddNote,
@@ -51,12 +49,7 @@ export function BoardToolbar({
       <button className="btn btn-ghost" data-testid="export-btn" onClick={onExport}>
         导出
       </button>
-      <BoardItemActions
-        selectedItems={selectedItems}
-        assetById={assetById}
-        patchItem={patchItem}
-        captures={captures}
-      />
+      <BoardItemActions selectedItems={selectedItems} pickers={pickers} />
       <div className={styles.spacer} />
       <span className={styles.hint}>滚轮缩放 · 空格/中键拖拽平移 · Delete 删除</span>
     </div>
