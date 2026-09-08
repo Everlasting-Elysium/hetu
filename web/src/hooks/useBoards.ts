@@ -73,6 +73,7 @@ export interface ActiveBoard {
   updateItems: (next: BoardItem[]) => void;
   patchItem: (id: string, patch: Partial<BoardItem>) => void;
   removeItem: (itemId: string) => Promise<void>;
+  duplicateItems: (sources: BoardItem[]) => Promise<string[]>;
 }
 
 // Loads one board with its items and manages canvas edits. `updateItems` sets
@@ -206,5 +207,45 @@ export function useBoard(boardId: string | null, onError: (msg: string) => void)
     [boardId, onError],
   );
 
-  return { board, items, addItem, addNote, updateItems, patchItem, removeItem };
+  // Duplicate a set of items — each copy gets a new server-generated id, an
+  // offset position, and *independent* frame_ms / view so video/model copies
+  // can be re-edited without affecting the original.  Returns the new ids so
+  // the caller can auto-select the copies.
+  const DUP_OFFSET = 20;
+  const duplicateItems = useCallback(
+    async (sources: BoardItem[]): Promise<string[]> => {
+      if (!boardId || sources.length === 0) return [];
+      try {
+        const created: BoardItem[] = [];
+        for (const src of sources) {
+          const maxZ = [...itemsRef.current, ...created].reduce(
+            (m, it) => Math.max(m, it.z),
+            0,
+          );
+          const item = await api.addBoardItem(boardId, {
+            kind: src.kind,
+            asset_id: src.kind === "note" ? "" : src.asset_id,
+            text: src.kind === "note" ? (src.text ?? "") : undefined,
+            x: src.x + DUP_OFFSET,
+            y: src.y + DUP_OFFSET,
+            w: src.w,
+            h: src.h,
+            rotation: src.rotation,
+            z: maxZ + 1,
+            frame_ms: src.frame_ms,
+            view: src.view,
+          });
+          created.push(item);
+        }
+        setItems((prev) => [...prev, ...created]);
+        return created.map((it) => it.id);
+      } catch (e) {
+        onError(errMsg(e));
+        return [];
+      }
+    },
+    [boardId, onError],
+  );
+
+  return { board, items, addItem, addNote, updateItems, patchItem, removeItem, duplicateItems };
 }

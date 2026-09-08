@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Layer, Stage, Transformer } from "react-konva";
+import { Layer, Rect, Stage, Transformer } from "react-konva";
 import type Konva from "konva";
 import type { Asset, BoardItem, Tag } from "../types";
 import { useAssets } from "../hooks/useAssets";
@@ -13,6 +13,7 @@ import { useBoardSelection } from "../hooks/useBoardSelection";
 import { useArrangeShortcuts } from "../hooks/useArrangeShortcuts";
 import { useCanvasViewport } from "../hooks/useCanvasViewport";
 import { useFullscreen } from "../hooks/useFullscreen";
+import { useMarquee } from "../hooks/useMarquee";
 import { BoardAssetPanel } from "./BoardAssetPanel";
 import { BoardCanvasItem } from "./BoardCanvasItem";
 import { BoardAlignToolbar } from "./BoardAlignToolbar";
@@ -46,11 +47,12 @@ function dropSize(asset: Asset | undefined): { w: number; h: number } {
 // The infinite-canvas editor (ViewMode "board"): a drag-source panel on the
 // left and a Konva stage on the right. Pan/zoom come from useCanvasViewport,
 // multi-selection + Transformer from useBoardSelection, per-item drag/resize
-// from BoardCanvasItem, and persistence from useBoard. Fullscreen, the arrange
-// toolbar + keyboard shortcuts, note editing, frame/angle pickers, and PNG
-// export layer on top.
+// from BoardCanvasItem, and persistence from useBoard. Marquee selection,
+// fullscreen, the arrange toolbar + keyboard shortcuts, note editing,
+// frame/angle pickers, duplicate, and PNG export layer on top.
 export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
-  const { board, items, addItem, addNote, updateItems, patchItem, removeItem } = useBoard(boardId, onError);
+  const { board, items, addItem, addNote, updateItems, patchItem, removeItem, duplicateItems } =
+    useBoard(boardId, onError);
   const { scale, pos, panning, onWheel, onStageDragEnd } = useCanvasViewport();
   const { boardQuery, setKeyword, pickTag, toggleKind, setRating } = useBoardPanelQuery();
   const { assets, loading: loadingAssets, error: assetErr } = useAssets("grid", boardQuery, 0);
@@ -90,7 +92,7 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
     return () => ro.disconnect();
   }, []);
 
-  const { selectedIds, selectItem, clear } = useBoardSelection({
+  const { selectedIds, selectItem, selectMany, clear } = useBoardSelection({
     items,
     patchItem,
     removeItem,
@@ -101,6 +103,29 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
     () => items.filter((it) => selectedIds.has(it.id)),
     [items, selectedIds],
   );
+
+  // --- Marquee (rubber-band) selection -----------------------------------
+  const { rect: marqueeRect, onStageMouseDown: marqueeMouseDown } = useMarquee(
+    items,
+    panning,
+    stageRef,
+    selectMany,
+  );
+
+  // Lock the Stage position during a left-button drag when space is NOT held,
+  // so Konva's built-in stage drag doesn't fight the marquee. Middle-button and
+  // space+left panning still work normally. Refs avoid stale closures inside
+  // the stable dragBoundFunc callback.
+  const dragButton = useRef<number>(-1);
+  const panningRef = useRef(panning);
+  const posRef = useRef(pos);
+  panningRef.current = panning;
+  posRef.current = pos;
+
+  const dragBound = useCallback((newPos: { x: number; y: number }) => {
+    if (panningRef.current || dragButton.current === 1) return newPos;
+    return posRef.current;
+  }, []);
 
   // Merge an arrange result's new geometry back over the full item list, so it
   // flows through the same debounced batch PATCH as drag/resize.
@@ -129,6 +154,24 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
     },
     [pickers],
   );
+
+  // --- Duplicate ---------------------------------------------------------
+  const duplicateSelected = useCallback(async () => {
+    if (selectedItems.length === 0) return;
+    const newIds = await duplicateItems(selectedItems);
+    if (newIds.length > 0) selectMany(newIds);
+  }, [selectedItems, duplicateItems, selectMany]);
+
+  // Cmd/Ctrl+D duplicates the current selection.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== "d") return;
+      e.preventDefault();
+      void duplicateSelected();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [duplicateSelected]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
@@ -169,9 +212,13 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
 
   const onStageMouseDown = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {
-      if (e.target === e.target.getStage()) clear();
+      dragButton.current = e.evt.button;
+      if (e.target === e.target.getStage()) {
+        clear();
+        marqueeMouseDown(e);
+      }
     },
-    [clear],
+    [clear, marqueeMouseDown],
   );
 
   const editing = editingId ? items.find((it) => it.id === editingId) : undefined;
@@ -187,6 +234,7 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
         onToggleFullscreen={toggleFullscreen}
         onAddNote={addNoteAtCenter}
         onExport={() => setExportOpen(true)}
+        onDuplicate={duplicateSelected}
       />
 
       {selectedItems.length >= 2 && (
@@ -220,6 +268,7 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
             x={pos.x}
             y={pos.y}
             draggable
+            dragBoundFunc={dragBound}
             onWheel={onWheel}
             onDragEnd={onStageDragEnd}
             onMouseDown={onStageMouseDown}
@@ -237,6 +286,19 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
                 />
               ))}
               <Transformer ref={trRef} rotateEnabled flipEnabled={false} />
+              {marqueeRect && (
+                <Rect
+                  x={marqueeRect.x}
+                  y={marqueeRect.y}
+                  width={marqueeRect.width}
+                  height={marqueeRect.height}
+                  fill="rgba(59, 130, 246, 0.1)"
+                  stroke="#3b82f6"
+                  strokeWidth={1 / scale}
+                  dash={[6 / scale, 3 / scale]}
+                  listening={false}
+                />
+              )}
             </Layer>
           </Stage>
           {editing && (
