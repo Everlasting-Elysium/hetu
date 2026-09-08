@@ -223,17 +223,19 @@ export function useBoard(boardId: string | null, onError: (msg: string) => void)
             0,
           );
           const item = await api.addBoardItem(boardId, {
-            kind: src.kind,
+            kind: src.kind ?? "asset",
             asset_id: src.kind === "note" ? "" : src.asset_id,
-            text: src.kind === "note" ? (src.text ?? "") : undefined,
             x: src.x + DUP_OFFSET,
             y: src.y + DUP_OFFSET,
             w: src.w,
             h: src.h,
             rotation: src.rotation,
             z: maxZ + 1,
-            frame_ms: src.frame_ms,
-            view: src.view,
+            // exactOptionalPropertyTypes: omit optional fields rather than pass
+            // an explicit `undefined` (which breaks the strict tsc build).
+            ...(src.kind === "note" ? { text: src.text ?? "" } : {}),
+            ...(src.frame_ms !== undefined ? { frame_ms: src.frame_ms } : {}),
+            ...(src.view !== undefined ? { view: src.view } : {}),
           });
           created.push(item);
         }
