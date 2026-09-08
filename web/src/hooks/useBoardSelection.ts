@@ -13,6 +13,7 @@ export interface SelectMods {
 export interface BoardSelection {
   selectedIds: Set<string>;
   selectItem: (id: string, mods?: SelectMods) => void;
+  selectMany: (ids: string[]) => void;
   clear: () => void;
 }
 
@@ -78,7 +79,13 @@ export function useBoardSelection(p: Params): BoardSelection {
     [items, patchItem],
   );
 
+  // Replace the entire selection at once — used by marquee to batch-select all
+  // items within the rubber-band rectangle without z-order side effects.
+  const selectMany = useCallback((ids: string[]) => {
+    setSelectedIds(new Set(ids));
+  }, []);
+
   const clear = useCallback(() => setSelectedIds(new Set()), []);
 
-  return { selectedIds, selectItem, clear };
+  return { selectedIds, selectItem, selectMany, clear };
 }
