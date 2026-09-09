@@ -53,6 +53,16 @@ type Store interface {
 	// timestamp. The asset is addressed by its natural key.
 	IndexMetadata(ctx context.Context, owner domain.OwnerID, provider, path string, md domain.ExtractedMetadata) error
 
+	// ReplaceDocumentPages rebuilds a multi-page document's per-page thumbnail
+	// index (issue #48): it clears the asset's document_pages rows and inserts
+	// the given pages in one transaction. The asset is addressed by its natural
+	// key (like IndexPalette/IndexMetadata) so a re-scan resolves the durable id
+	// even after UpsertAsset discarded a freshly generated one; an empty pages
+	// slice clears the index. ListDocumentPages reads them back by row id,
+	// ordered by page number, returning an empty slice for a page-less asset.
+	ReplaceDocumentPages(ctx context.Context, owner domain.OwnerID, provider, path string, pages []domain.DocumentPage) error
+	ListDocumentPages(ctx context.Context, owner domain.OwnerID, id domain.AssetID) ([]domain.DocumentPage, error)
+
 	// UpsertAnnotation writes a single layered annotation for an asset, keyed by
 	// (asset_id, layer, key). Used by the import/migration path to persist a
 	// source URL (extracted layer) or a migrated note (manual layer). Value is a

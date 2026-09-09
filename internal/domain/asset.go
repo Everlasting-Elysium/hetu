@@ -11,12 +11,14 @@ const (
 	KindAudio    AssetKind = "audio"
 	KindModel    AssetKind = "model" // 3D models (obj/fbx/glb/stl/ztl/zpr...)
 	KindDocument AssetKind = "document"
+	KindFont     AssetKind = "font"   // font files (ttf/otf/woff) previewed as a specimen sheet
+	KindDesign   AssetKind = "design" // opaque design files (ai/indd/sketch/fig/aep); preview when possible, else registered only
 	KindOther    AssetKind = "other"
 )
 
 // AllKinds lists every AssetKind in display order. It backs the format facet
 // and the ?kind= whitelist so new kinds are added in exactly one place.
-var AllKinds = []AssetKind{KindImage, KindVideo, KindAudio, KindModel, KindDocument, KindOther}
+var AllKinds = []AssetKind{KindImage, KindVideo, KindAudio, KindModel, KindDocument, KindFont, KindDesign, KindOther}
 
 // ValidKind reports whether s is a known AssetKind. It is the whitelist behind
 // ?kind= parsing: only enum values reach the SQL layer, so kind filtering is

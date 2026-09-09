@@ -199,6 +199,9 @@ func (ix *Indexer) indexOne(ctx context.Context, p kernel.StorageProvider, e dom
 	// Metadata extraction (EXIF/IPTC/XMP) runs after upsert for the same
 	// reason; embedded capture time may update asset.created_at.
 	ix.indexMetadata(ctx, p, e.Path, handler)
+	// Per-page thumbnails for multi-page documents (issue #48) run after upsert
+	// too; the natural key resolves the durable id and id names the page thumbs.
+	ix.indexPages(ctx, p, e.Path, id, handler)
 	// Announce the indexed asset so subscribers (e.g. AI tagging) can react.
 	// The bus is synchronous; handlers must not block (see internal/ai).
 	ix.k.Events.Publish(ctx, kernel.Event{Type: kernel.EventAssetIndexed, Data: asset})
@@ -211,7 +214,13 @@ func (ix *Indexer) extract(ctx context.Context, p kernel.StorageProvider, path s
 		return domain.Meta{}, err
 	}
 	defer rc.Close()
-	return h.Extract(ctx, rc)
+	var meta domain.Meta
+	err = guard(func() error {
+		var e error
+		meta, e = h.Extract(ctx, rc)
+		return e
+	})
+	return meta, err
 }
 
 func (ix *Indexer) hash(ctx context.Context, p kernel.StorageProvider, path string) (string, error) {
@@ -241,7 +250,7 @@ func (ix *Indexer) thumbnail(ctx context.Context, p kernel.StorageProvider, path
 	if err != nil {
 		return "", fmt.Errorf("create thumb: %w", err)
 	}
-	genErr := h.Thumbnail(ctx, rc, out)
+	genErr := guard(func() error { return h.Thumbnail(ctx, rc, out) })
 	closeErr := out.Close()
 	if genErr != nil {
 		_ = os.Remove(thumbPath)

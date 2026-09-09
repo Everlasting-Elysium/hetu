@@ -18,8 +18,10 @@ func discardHandler(r renderer, bin string) *Handler {
 
 func TestMatch(t *testing.T) {
 	h := discardHandler(rendererNone, "")
-	if !h.Match("pdf") {
-		t.Error("Match(pdf) = false, want true")
+	for _, ext := range []string{"pdf", "ppt", "pptx"} {
+		if !h.Match(ext) {
+			t.Errorf("Match(%q) = false, want true", ext)
+		}
 	}
 	for _, ext := range []string{"jpg", "mp4", "txt", "docx", ""} {
 		if h.Match(ext) {

@@ -5,6 +5,7 @@ import { api, fileUrl, thumbUrl } from "../api/client";
 import { IconClose, KindIcon } from "./icons";
 import { VideoPlayer } from "./VideoPlayer";
 import { AudioPlayer } from "./AudioPlayer";
+import { DocumentPager } from "./DocumentPager";
 import styles from "./AssetDetail.module.css";
 
 // The 3D viewer bundles model-viewer + three.js (~1 MB). Load it lazily so it is
@@ -30,6 +31,8 @@ const KIND_LABELS: Record<AssetKind, string> = {
   audio: "音频",
   model: "模型",
   document: "文档",
+  font: "字体",
+  design: "设计",
   other: "其他",
 };
 
@@ -86,6 +89,30 @@ export function AssetMedia({
         >
           <ModelViewer key={asset.id} asset={asset} />
         </Suspense>
+      );
+    case "document":
+      // The pager degrades to a single-image / download preview internally when
+      // the document has <=1 rendered pages, so the caller never checks counts.
+      return <DocumentPager key={asset.id} asset={asset} />;
+    case "font":
+      // A specimen preview (the font's thumbnail, rendered server-side into the
+      // ordinary thumb_path) plus a direct download of the original font file.
+      return (
+        <div className={styles.fallback}>
+          {asset.thumb ? (
+            <img className={styles.imagePreview} src={thumbUrl(asset.id)} alt={label} />
+          ) : (
+            <KindIcon kind={asset.kind} width={72} height={72} />
+          )}
+          <a
+            className="btn btn-primary"
+            href={fileUrl(asset.id)}
+            download
+            data-testid="font-download"
+          >
+            下载字体文件
+          </a>
+        </div>
       );
     default:
       return (

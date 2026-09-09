@@ -45,6 +45,26 @@ type MetadataExtractor interface {
 	ExtractMetadata(ctx context.Context, src io.ReadSeeker) (domain.ExtractedMetadata, error)
 }
 
+// PageExtractor is an optional AssetHandler capability for multi-page documents.
+// Prepare readies src for paging exactly once — converting an office file to PDF,
+// or copying a PDF, a single time — and returns a PagedDocument whose PageCount
+// and RenderPage all reuse that one preparation, so a scan renders an N-page
+// document with a single conversion rather than N. The indexer uses a type
+// assertion, so handlers without page support are simply skipped. The caller
+// must Close the returned document.
+type PageExtractor interface {
+	Prepare(ctx context.Context, src io.ReadSeeker) (PagedDocument, error)
+}
+
+// PagedDocument is a prepared multi-page document (a PDF on local disk, native or
+// converted) ready to be counted and rendered page by page (1-based). Close
+// releases the prepared file(s).
+type PagedDocument interface {
+	PageCount(ctx context.Context) (int, error)
+	RenderPage(ctx context.Context, page int, w io.Writer) error
+	Close() error
+}
+
 // AssetRegistry resolves an extension to the first matching handler.
 type AssetRegistry struct {
 	handlers []AssetHandler

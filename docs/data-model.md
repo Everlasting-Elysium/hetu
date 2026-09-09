@@ -29,7 +29,7 @@ v0 仅有一条系统用户记录。
 | id | TEXT (UUID v7) | 主键 |
 | owner_id | TEXT | 外键 → users.id |
 | storage_path | TEXT | 存储提供者中的路径（相对于 provider 根） |
-| kind | TEXT | 资产类型（image / video / model3d / document / other） |
+| kind | TEXT | 资产类型（image / video / audio / model / document / font / design / other），完整枚举与显示顺序见 [domain.AllKinds](../internal/domain/asset.go) |
 | name | TEXT | 文件名（不含扩展名） |
 | ext | TEXT | 扩展名（小写，含点，如 `.jpg`） |
 | size | INTEGER | 文件字节数 |
@@ -42,6 +42,12 @@ v0 仅有一条系统用户记录。
 | current_version_id | TEXT | 当前版本指针 → `asset_versions.id`；空字符串表示无显式版本（锚点行自身即唯一隐式版本），详见 [asset_versions](#asset_versions) |
 
 **版本解析（issue #58）**：`storage_path` / `hash` 始终锚定最初被索引的原始文件（扫描、去重、relocate 均以其为准，因此版本功能不影响这些链路）。而读取接口（`GetAsset` / `ListAssets` / `ListAssetsFiltered` / `SearchAssets`）通过 `LEFT JOIN asset_versions` + `COALESCE` 将 `thumb_path` / `width` / `height` 解析为**当前版本**的值，使缩略/搜索反映当前版本，无需把版本数据写回 `assets`（否则会被下次扫描的 `UpsertAsset` 覆盖）。
+
+**富格式 kind（[#48](https://github.com/Everlasting-Elysium/hetu/issues/48)）**：三类富格式资产的语义与降级策略——外部工具/内嵌数据缺失时一律仍正常入库，仅缺预览：
+
+- `psd`（Photoshop）：本质是图片，归 **`kind=image`**（复用图片的全部下游筛选/画板/调色板逻辑，不新建 kind），用纯 Go `oov/psd` 读取**合成图（merged image）**出缩略图；hetu 不做图层混合，无合成图数据则 `ErrNoThumbnail`。元数据写入 `psd.layer_count` / `psd.color_mode` / `psd.bit_depth`（extracted 层）。处理器：[internal/asset/psd/](../internal/asset/psd/)。
+- `font`（ttf/otf/woff）：字体文件，`kind=font`，无宽高。预览为处理器用该字体**自渲染的字形样张**（拉丁 + 数字；仅当字体含 CJK 字形时附一行中文，不用回退字体）。元数据从 name table 读 `font.family` / `font.weight` / `font.style`（extracted 层）。woff2 不匹配（`opentype` 解码器不支持其 Brotli 容器）。处理器：[internal/asset/font/](../internal/asset/font/)。
+- `design`（ai/indd/sketch/fig/aep）：不透明设计文件，一律 `kind=design` 且不解析尺寸；仅部分可出图——PDF 兼容的 `.ai` 经共享的 `document.PDFPageRenderer` 出首页图、`.sketch`（zip）提取内嵌 `previews/preview.png`，其余（indd/fig/aep 及非 PDF 的 ai）仅登记不出图。格式按内容 magic bytes 判别（处理器方法只拿到 reader，与专业图片处理器一致）。处理器：[internal/asset/design/](../internal/asset/design/)。
 
 ---
 
@@ -177,6 +183,33 @@ DAM 提供多种正交的资产组织方式，四者边界清晰，实现者据�
 联合主键：`(asset_id, ord)`；`owner_id` 上有索引。重新索引时按 `asset_id` 整体删除后重写。
 
 检索接口：`GET /api/dam/search?color=<hex>&tol=<ΔE00>&limit=<n>`，按主色到查询色的 CIEDE2000 距离升序返回相近资产（`tol` 默认见 [search.go](../internal/plugins/dam/search.go) 的 `defaultColorTol`）。
+
+---
+
+### document_pages
+
+多页文档的**逐页缩略图索引**（[#48](https://github.com/Everlasting-Elysium/hetu/issues/48)）：PDF 原生渲染，PPT/PPTX 先经 LibreOffice headless 转 PDF 再复用同一条 PDF 分页链路（不为 PPT 复制分页逻辑）。每页一行，`thumb_path` 指向缩略图目录下的 `{assetID}_p{pageNo}.jpg`。DDL 与实现见 [schema.sql](../internal/store/schema.sql)、[queries/document_page.sql](../internal/store/queries/document_page.sql)、[store/sqlite_document_pages.go](../internal/store/sqlite_document_pages.go)、[index/pages.go](../internal/index/pages.go)、处理器 [asset/document/](../internal/asset/document/)。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| asset_id | TEXT | 外键 → assets.id |
+| owner_id | TEXT | 外键 → users.id，按库主检索 |
+| page_no | INTEGER | 页码（从 1 开始） |
+| thumb_path | TEXT | 该页缩略图路径（`{ThumbDir}/{assetID}_p{pageNo}.jpg`） |
+| width / height | INTEGER | 该页缩略图像素尺寸，`NOT NULL DEFAULT 0` |
+
+联合主键：`(asset_id, page_no)`；`idx_document_pages_owner` 覆盖 `owner_id`。
+
+**能力接口**：处理器实现可选接口 `kernel.PageExtractor`（`PageCount` + `RenderPage`，`page` 从 1 起）即被索引识别，写法与 `PaletteExtractor`/`MetadataExtractor` 一致（indexer 用 type assertion 检测）。document 处理器同时导出 `document.PDFPageRenderer`（仅 `RenderPage`），供 design 处理器复用其 pdftoppm/mutool 探测（.ai 出图），避免重复实现子进程逻辑。
+
+**重建语义**：索引流水线 `indexPages`（在 upsert 之后调用、失败只 warn 不中断，仿 `indexPalette`/`indexMetadata`）逐页渲染到独立缩略图文件（单页失败跳过不放弃其余），整体经 `ReplaceDocumentPages` 替换该资产全部页行——事务内先按 asset 删旧页再批量插入新页，并按自然键 `(owner, provider, storage_path)` 解析 canonical id（与调色板/元数据写入一致，重扫生成的新 id 被 `UpsertAsset` ON CONFLICT 丢弃后仍解析到持久 id），故页数变少不残留旧行。0/1 页或工具缺失（`PageCount` 返回 `ErrNoThumbnail`）时清空页行——单张主缩略图已覆盖，不阻断入库。
+
+**HTTP 接口**（[internal/plugins/dam/document_pages.go](../internal/plugins/dam/document_pages.go)）：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/dam/assets/{id}/pages` | 列出各页 `{page_no, thumb_url, width, height}`（按页码升序；无页返回 `[]`；资产不存在/跨库主 404） |
+| GET | `/api/dam/assets/{id}/pages/{pageNo}/thumb` | 流式返回某页缩略图（JPEG，`Cache-Control: public, max-age=86400, immutable`；页/文件不存在 404） |
 
 ---
 

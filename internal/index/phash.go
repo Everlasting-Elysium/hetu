@@ -23,7 +23,12 @@ func (ix *Indexer) indexPHash(ctx context.Context, p kernel.StorageProvider, pat
 		return
 	}
 	defer rc.Close()
-	phash, err := pe.PHash(ctx, rc)
+	var phash uint64
+	err = guard(func() error {
+		var e error
+		phash, e = pe.PHash(ctx, rc)
+		return e
+	})
 	if err != nil {
 		ix.warnPHash(ctx, "extract", path, err)
 		return
