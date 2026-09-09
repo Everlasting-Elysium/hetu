@@ -10,6 +10,7 @@ import type {
   Collection,
   CollectionItem,
   ColorMatch,
+  DocumentPage,
   Facets,
   Folder,
   NewCollection,
@@ -205,6 +206,10 @@ export const api = {
   getAsset: (id: string) => req<Asset>(`/assets/${id}`),
   assetTags: (id: string) => req<Tag[]>(`/assets/${id}/tags`),
   assetColors: (id: string) => req<Swatch[]>(`/assets/${id}/colors`),
+  // Lists the per-page thumbnail index of a multi-page document (issue #48),
+  // ordered by page number; [] for a single-page or non-document asset. Same
+  // plain-GET-returns-enriched-list shape as listCollectionItems, sharing req<T>.
+  listAssetPages: (id: string) => req<DocumentPage[]>(`/assets/${id}/pages`),
 
   updateNote: (id: string, text: string) =>
     req<{ note: string }>(`/assets/${id}/note`, {

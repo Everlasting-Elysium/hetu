@@ -7,6 +7,8 @@ export type AssetKind =
   | "audio"
   | "model"
   | "document"
+  | "font"
+  | "design"
   | "other";
 
 // Aspect-ratio bucket derived from an asset's width/height, for the shape facet.
@@ -229,6 +231,18 @@ export const EMPTY_QUERY: Query = {
   indexedAfter: 0,
   indexedBefore: 0,
 };
+
+// One rendered page of a multi-page document (GET /assets/{id}/pages, issue
+// #48), ordered by page_no. thumb_url is a ready-to-use API path (under
+// /api/dam) the <img> loads directly; an empty list means the asset has no
+// per-page index (single-page, thumbnail-less, or non-document). Field names
+// match documentPageDTO's json tags in internal/plugins/dam/document_pages.go.
+export interface DocumentPage {
+  page_no: number;
+  thumb_url: string;
+  width: number;
+  height: number;
+}
 
 // One swatch from an asset's extracted palette (GET /assets/{id}/colors).
 // Not to be confused with Asset.color, which is the manual Finder-style label.

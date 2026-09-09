@@ -172,6 +172,10 @@ const KIND_PATHS: Record<AssetKind, string> = {
   audio: "M9 18V6l10-2v11M9 15a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Zm10-2a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z",
   model: "M12 3 3 8v8l9 5 9-5V8Zm0 0v18M3 8l9 5 9-5",
   document: "M6 3h8l4 4v14H6Zm8 0v4h4M9 13h6M9 17h6",
+  // Font — an "A" specimen glyph with baseline, distinct from the document sheet.
+  font: "M6 20 12 4l6 16M8.5 14h7M4 20h4M16 20h4",
+  // Design — a pencil/nib for opaque vector-design files (ai/indd/sketch/fig).
+  design: "M14 4 20 10 9 21H4v-5L14 4ZM12 6 18 12",
   other: "M6 3h8l4 4v14H6Zm8 0v4h4",
 };
 

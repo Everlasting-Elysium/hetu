@@ -13,6 +13,8 @@ const KIND_LABELS: Record<AssetKind, string> = {
   audio: "音频",
   model: "模型",
   document: "文档",
+  font: "字体",
+  design: "设计",
   other: "其他",
 };
 
