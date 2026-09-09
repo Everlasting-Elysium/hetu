@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 // Smoke tests for issue #101: shape (aspect-ratio) + pixel-dimension + file-size
 // facets, layered on the #75 facet pipeline (facets.spec.ts). This suite targets
@@ -14,6 +14,13 @@ import { test, expect } from "@playwright/test";
 // dev server, to avoid interaction with other suites' fixtures/state).
 
 const API = "/api/dam";
+
+// 形状/尺寸/文件大小/时长/创建时间/索引时间 facets now live under a collapsed 高级筛选
+// disclosure (default collapsed when no advanced filter is active), so open it
+// before touching those controls; the common 格式/星级/标签 tier is unaffected.
+async function openAdvanced(page: Page) {
+  await page.getByTestId("advanced-toggle").click();
+}
 
 // ---------------------------------------------------------------------------
 // Pure API smoke tests — verify backend filtering logic without a browser.
@@ -65,6 +72,7 @@ test("shape + size compose (AND): square AND <=1MB excludes the big square file"
 test("shape facet: toggling 横向 narrows the grid and sets aria-pressed", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("grid-view")).toBeVisible();
+  await openAdvanced(page);
 
   const landscapeBtn = page.getByRole("button", { name: /横向/ });
   await expect(landscapeBtn).toHaveAttribute("aria-pressed", "false");
@@ -85,6 +93,7 @@ test("shape facet: toggling 横向 narrows the grid and sets aria-pressed", asyn
 test("shape facet: multi-select OR (横向+纵向) widens back out", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("grid-view")).toBeVisible();
+  await openAdvanced(page);
 
   await page.getByRole("button", { name: /横向/ }).click();
   await page.getByRole("button", { name: /纵向/ }).click();
@@ -94,7 +103,7 @@ test("shape facet: multi-select OR (横向+纵向) widens back out", async ({ pa
   await page.screenshot({ path: "e2e/screenshots/dim-facet-shape-multi.png" });
 
   // 清除 clears every selected shape at once.
-  await page.getByRole("button", { name: "清除" }).first().click();
+  await page.getByRole("button", { name: "清除", exact: true }).first().click();
   await expect(page.getByRole("button", { name: /横向/ })).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByRole("button", { name: /纵向/ })).toHaveAttribute("aria-pressed", "false");
 });
@@ -104,6 +113,7 @@ test("dimension facet: typing a min width narrows after the debounce settles", a
 }) => {
   await page.goto("/");
   await expect(page.getByTestId("grid-view")).toBeVisible();
+  await openAdvanced(page);
 
   await page.getByLabel("最小宽（px）").fill("1000");
   // RangeField debounces the commit ~300ms; wait past it before asserting.
@@ -112,24 +122,26 @@ test("dimension facet: typing a min width narrows after the debounce settles", a
 
   // Clearing dimensions resets the input back to empty (0 = unbounded). Only
   // the 尺寸 section has an active filter here, so its 清除 is the sole match.
-  await page.getByRole("button", { name: "清除" }).first().click();
+  await page.getByRole("button", { name: "清除", exact: true }).first().click();
   await expect(page.getByLabel("最小宽（px）")).toHaveValue("");
 });
 
 test("file-size facet: 1–10MB preset isolates the one big fixture", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("grid-view")).toBeVisible();
+  await openAdvanced(page);
 
   await page.getByRole("button", { name: "1–10MB" }).click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: "e2e/screenshots/dim-facet-size-preset.png" });
 
-  await page.getByRole("button", { name: "清除" }).last().click();
+  await page.getByRole("button", { name: "清除", exact: true }).last().click();
 });
 
 test("shape + file-size facets compose simultaneously (combination)", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("grid-view")).toBeVisible();
+  await openAdvanced(page);
 
   await page.getByRole("button", { name: /方形/ }).click();
   await page.getByRole("button", { name: "≤ 1MB" }).click();
@@ -141,13 +153,15 @@ test("shape + file-size facets compose simultaneously (combination)", async ({ p
 test("clearing shape does not clear an independently-set dimension filter", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("grid-view")).toBeVisible();
+  await openAdvanced(page);
 
   await page.getByRole("button", { name: /方形/ }).click();
   await page.getByLabel("最小宽（px）").fill("500");
   await page.waitForTimeout(500);
 
-  // Clear only the 形状 section (its own 清除 button, not 尺寸's).
-  await page.getByRole("button", { name: "清除" }).first().click();
+  // Clear only the 形状 section (its own 清除 button, not 尺寸's, nor the 高级筛选
+  // header's clear-all — exact:true excludes that, whose name is 清除高级筛选).
+  await page.getByRole("button", { name: "清除", exact: true }).first().click();
   await expect(page.getByRole("button", { name: /方形/ })).toHaveAttribute("aria-pressed", "false");
   // The width filter the user typed is untouched by the shape clear.
   await expect(page.getByLabel("最小宽（px）")).toHaveValue("500");
@@ -174,6 +188,7 @@ test("board view: sidebar shape + dimension facets narrow the drag source panel"
   await expect(page.getByText("返回图板列表")).toBeVisible({ timeout: 8_000 });
 
   const panel = page.locator("aside").filter({ has: page.getByPlaceholder("搜索素材…") });
+  await openAdvanced(page);
 
   // The sidebar facet lives outside the panel's aside; clicking it must keep
   // the user on the board (issue #108's whole point) while narrowing the panel.
@@ -192,7 +207,7 @@ test("board view: sidebar shape + dimension facets narrow the drag source panel"
 
   // Leaving the board and clearing brings the sidebar back to acting on the
   // full library (regression guard for the #108 routing switch).
-  await page.getByRole("button", { name: "清除" }).first().click();
+  await page.getByRole("button", { name: "清除", exact: true }).first().click();
 });
 
 test("board view: sidebar file-size facet narrows a draggable, placeable item", async ({
@@ -210,6 +225,7 @@ test("board view: sidebar file-size facet narrows a draggable, placeable item", 
   const boardId: string = boards[0].id;
 
   const panel = page.locator("aside").filter({ has: page.getByPlaceholder("搜索素材…") });
+  await openAdvanced(page);
   await page.getByRole("button", { name: "1–10MB" }).click();
   await page.waitForTimeout(400);
   await expect(panel.getByText(/素材 · 1/)).toBeVisible({ timeout: 5_000 });
