@@ -54,8 +54,10 @@ func (s *SQLite) ListAssetsFiltered(ctx context.Context, owner domain.OwnerID, f
 	return rowsToAssets(dbRows)
 }
 
-// appendFacetConds appends the folder/rating/tag/kind narrowing conditions from
-// f to conds (and their bind args to args), returning the extended slices. It is
+// appendFacetConds appends the folder/rating/tag/kind plus size/dimension/shape
+// narrowing conditions from f to conds (and their bind args to args), returning
+// the extended slices. Size narrows the anchor a.size; width/height/shape narrow
+// the current-version-resolved COALESCE(cv.*, a.*) (issue #101). It is
 // shared by ListAssetsFiltered and SearchAssets so the sidebar facets narrow a
 // plain listing and a keyword search identically. Lifecycle (Status) is the
 // caller's concern — it differs, since search is always over live assets. Kinds
@@ -82,6 +84,62 @@ func appendFacetConds(conds []string, args []any, f domain.AssetFilter) ([]strin
 		}
 		conds = append(conds, "a.kind IN ("+strings.Join(ph, ",")+")")
 	}
+	// Size (bytes) narrows on the asset's own anchor row, a.size — NOT version-
+	// resolved. hetu tracks no per-version file size, and a.size is also what
+	// every read displays, so this stays consistent with the UI (issue #101
+	// design decision 1; deliberately asymmetric with width/height below).
+	if f.MinSize > 0 {
+		conds = append(conds, "a.size >= ?")
+		args = append(args, f.MinSize)
+	}
+	if f.MaxSize > 0 {
+		conds = append(conds, "a.size <= ?")
+		args = append(args, f.MaxSize)
+	}
+	// Pixel dimensions narrow on the CURRENT version's width/height (COALESCE
+	// falls back to the anchor for un-versioned assets), matching the same
+	// resolution already used for the displayed width/height column (#58).
+	if f.MinWidth > 0 {
+		conds = append(conds, "COALESCE(cv.width,a.width) >= ?")
+		args = append(args, f.MinWidth)
+	}
+	if f.MaxWidth > 0 {
+		conds = append(conds, "COALESCE(cv.width,a.width) <= ?")
+		args = append(args, f.MaxWidth)
+	}
+	if f.MinHeight > 0 {
+		conds = append(conds, "COALESCE(cv.height,a.height) >= ?")
+		args = append(args, f.MinHeight)
+	}
+	if f.MaxHeight > 0 {
+		conds = append(conds, "COALESCE(cv.height,a.height) <= ?")
+		args = append(args, f.MaxHeight)
+	}
+	// Shape (aspect-ratio bucket) is a multi-select OR over the requested
+	// buckets, current-version resolved like width/height above. The zero-
+	// guard (excludes width=0 or height=0, e.g. audio/document/most 3D) is
+	// shared once across every selected bucket rather than repeated per
+	// bucket — (g&b1)|(g&b2) == g&(b1|b2), same result, simpler SQL.
+	if len(f.Shapes) > 0 {
+		var buckets []string
+		for _, shp := range f.Shapes {
+			switch shp {
+			case domain.ShapeLandscape:
+				buckets = append(buckets, "COALESCE(cv.width,a.width) >= ? * COALESCE(cv.height,a.height)")
+				args = append(args, domain.ShapeLandscapeMinRatio)
+			case domain.ShapePortrait:
+				buckets = append(buckets, "COALESCE(cv.width,a.width) <= ? * COALESCE(cv.height,a.height)")
+				args = append(args, domain.ShapePortraitMaxRatio)
+			case domain.ShapeSquare:
+				buckets = append(buckets, "(COALESCE(cv.width,a.width) > ? * COALESCE(cv.height,a.height) AND COALESCE(cv.width,a.width) < ? * COALESCE(cv.height,a.height))")
+				args = append(args, domain.ShapePortraitMaxRatio, domain.ShapeLandscapeMinRatio)
+			}
+		}
+		if len(buckets) > 0 {
+			const shapeGuard = "COALESCE(cv.width,a.width) > 0 AND COALESCE(cv.height,a.height) > 0"
+			conds = append(conds, "("+shapeGuard+") AND ("+strings.Join(buckets, " OR ")+")")
+		}
+	}
 	return conds, args
 }
 
@@ -89,13 +147,16 @@ func appendFacetConds(conds []string, args []any, f domain.AssetFilter) ([]strin
 // narrowed by f's folder/tag/rating but NOT by f.Kinds: the format facet needs a
 // count for every format regardless of which formats are currently selected.
 // Kinds absent from the (narrowed) library are absent from the map. It drives
-// the sidebar/board format facet counts.
+// the sidebar/board format facet counts. It carries currentVersionJoin (the same
+// 1:1 LEFT JOIN ListAssetsFiltered uses) so f's size/dimension/shape conditions
+// can reference the cv alias; keyed on the version primary key it never inflates
+// the per-kind counts.
 func (s *SQLite) KindCounts(ctx context.Context, owner domain.OwnerID, f domain.AssetFilter) (map[domain.AssetKind]int, error) {
 	f.Kinds = nil // counts span all formats regardless of the active kind facet
 	conds := []string{"a.owner_id = ?", "a.deleted_at IS NULL"}
 	args := []any{owner.String()}
 	conds, args = appendFacetConds(conds, args, f)
-	query := "SELECT a.kind, COUNT(*) FROM assets a WHERE " +
+	query := "SELECT a.kind, COUNT(*) FROM assets a" + currentVersionJoin + "WHERE " +
 		strings.Join(conds, " AND ") + " GROUP BY a.kind"
 
 	rows, err := s.sqldb.QueryContext(ctx, query, args...)

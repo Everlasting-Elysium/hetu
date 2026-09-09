@@ -36,3 +36,18 @@ func QueryInt(r *http.Request, key string, def int) int {
 	}
 	return n
 }
+
+// QueryInt64 reads an int64 query parameter, returning def when absent or
+// invalid. File sizes can exceed the 32-bit range on some platforms, so size
+// filters use this instead of QueryInt.
+func QueryInt64(r *http.Request, key string, def int64) int64 {
+	s := r.URL.Query().Get(key)
+	if s == "" {
+		return def
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return def
+	}
+	return n
+}

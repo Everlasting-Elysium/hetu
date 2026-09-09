@@ -9,6 +9,9 @@ export type AssetKind =
   | "document"
   | "other";
 
+// Aspect-ratio bucket derived from an asset's width/height, for the shape facet.
+export type AssetShape = "landscape" | "portrait" | "square";
+
 export interface Asset {
   id: string;
   kind: AssetKind;
@@ -174,9 +177,13 @@ export const isBrowseLayout = (v: ViewMode): v is BrowseLayout =>
   (BROWSE_LAYOUTS as readonly string[]).includes(v);
 
 // Active filter/search state driving the asset query. folderId/tagId/kind/
-// minRating compose (AND) and narrow server-side; keyword and colorHex are the
-// two search modes. kind is the format facet (empty = all formats) and minRating
-// is the rating facet (0 = any rating).
+// minRating/shapes/min-max width/height/size all compose (AND) and narrow
+// server-side; keyword and colorHex are the two search modes. kind is the format
+// facet (empty = all formats), minRating is the rating facet (0 = any rating),
+// and shapes/dimensions/size are additional AND facets like kind — not search
+// modes. shapes is empty for any shape; the numeric ranges use 0 to mean "no
+// bound" (min and max independent). Sizes are bytes; the UI converts MB at its
+// input boundary so this state only ever holds bytes.
 export interface Query {
   folderId: string | null;
   tagId: string | null;
@@ -184,6 +191,13 @@ export interface Query {
   minRating: number;
   keyword: string;
   colorHex: string | null;
+  shapes: AssetShape[]; // shape multi-select; empty = any shape
+  minWidth: number; // pixels; 0 = no bound
+  maxWidth: number;
+  minHeight: number;
+  maxHeight: number;
+  minSize: number; // bytes; 0 = no bound
+  maxSize: number;
 }
 
 export const EMPTY_QUERY: Query = {
@@ -193,6 +207,13 @@ export const EMPTY_QUERY: Query = {
   minRating: 0,
   keyword: "",
   colorHex: null,
+  shapes: [],
+  minWidth: 0,
+  maxWidth: 0,
+  minHeight: 0,
+  maxHeight: 0,
+  minSize: 0,
+  maxSize: 0,
 };
 
 // One swatch from an asset's extracted palette (GET /assets/{id}/colors).

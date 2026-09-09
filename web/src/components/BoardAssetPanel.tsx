@@ -1,27 +1,20 @@
 import { useEffect, useState } from "react";
-import type { Asset, AssetKind, KindCount, Query, Tag } from "../types";
+import type { Asset } from "../types";
 import { thumbUrl } from "../api/client";
-import { FilterFacets } from "./FilterFacets";
 import { IconClose, IconSearch, KindIcon } from "./icons";
 import styles from "./BoardCanvas.module.css";
 
 interface Props {
   assets: Asset[];
   loading: boolean;
-  tags: Tag[];
-  query: Query;
-  kindCounts: KindCount[];
   onKeyword: (keyword: string) => void;
-  onPickTag: (tagId: string) => void;
-  onToggleKind: (kind: AssetKind) => void;
-  onSetRating: (rating: number) => void;
 }
 
-// Drag source for the canvas: a search box + the shared tag/format/star facets
-// on top of a scrollable strip of asset thumbnails. The panel owns only the
-// search input's local text (debounced to onKeyword); every other filter is the
-// board query, resolved server-side by the same useAssets/useFacets the main
-// library uses (issue #75). Each row carries its asset id on the native drag
+// Drag source for the canvas: a search box on top of a scrollable strip of
+// asset thumbnails. Folder/tag/format/star filtering moved to the global
+// sidebar (issue #108) — it drives the board-local query BoardCanvas passes
+// down as `assets`, so this panel only owns the search input's local text
+// (debounced to onKeyword). Each row carries its asset id on the native drag
 // payload; BoardCanvas reads it on drop.
 export function BoardAssetPanel(p: Props) {
   const [text, setText] = useState("");
@@ -33,32 +26,19 @@ export function BoardAssetPanel(p: Props) {
 
   return (
     <aside className={styles.panel}>
-      <div className={styles.panelFilters}>
-        <div className={styles.panelSearch}>
-          <IconSearch width={14} height={14} />
-          <input
-            className={`input ${styles.searchField}`}
-            placeholder="搜索素材…"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
-          {text && (
-            <button className={styles.searchClear} title="清除" onClick={() => setText("")}>
-              <IconClose width={13} height={13} />
-            </button>
-          )}
-        </div>
-
-        <FilterFacets
-          counts={p.kindCounts}
-          activeKinds={p.query.kind}
-          minRating={p.query.minRating}
-          onToggleKind={p.onToggleKind}
-          onSetRating={p.onSetRating}
-          tags={p.tags}
-          activeTag={p.query.tagId}
-          onPickTag={p.onPickTag}
+      <div className={styles.panelSearch}>
+        <IconSearch width={14} height={14} />
+        <input
+          className={`input ${styles.searchField}`}
+          placeholder="搜索素材…"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
         />
+        {text && (
+          <button className={styles.searchClear} title="清除" onClick={() => setText("")}>
+            <IconClose width={13} height={13} />
+          </button>
+        )}
       </div>
 
       <div className={styles.panelHead}>素材 · {p.assets.length}</div>

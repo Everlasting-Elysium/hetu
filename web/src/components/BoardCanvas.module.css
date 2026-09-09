@@ -50,21 +50,16 @@
   border-bottom: 1px solid var(--border);
 }
 
-/* Board-panel filter header: search box + the shared FilterFacets (tag/format/
-   star). Fixed above the scrollable draggable strip (issue #75). */
-.panelFilters {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  padding: var(--sp-2) var(--sp-1) var(--sp-2);
-  border-bottom: 1px solid var(--border);
-}
+/* Board-panel search box: fixed above the scrollable draggable strip. Facet
+   filtering (folder/tag/format/star) moved to the global sidebar (issue #108),
+   so this header holds only the search input now. */
 .panelSearch {
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--sp-1);
-  padding: 0 var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
   color: var(--text-muted);
 }
 .searchField {

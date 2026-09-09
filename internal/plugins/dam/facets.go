@@ -10,15 +10,28 @@ import (
 
 // parseAssetFilter builds an AssetFilter from the query params shared by
 // /assets, /search, and /facets: ?folder=, ?tag=, ?rating=, ?kind= (comma-
-// separated), and ?status=. Kind values are whitelisted against the AssetKind
-// enum (see parseKinds), so only enum values ever reach the SQL layer.
+// separated), ?status=, and the issue #101 range/shape params ?minSize=/
+// ?maxSize= (bytes), ?minWidth=/?maxWidth=/?minHeight=/?maxHeight= (pixels), and
+// ?shape= (comma-separated landscape/portrait/square). Kind and shape values are
+// whitelisted against their enums (see parseKinds/parseShapes) and ranges are
+// clamped by normalizeRange, so only sane, enum-checked values reach the SQL layer.
 func parseAssetFilter(r *http.Request) domain.AssetFilter {
+	minSize, maxSize := normalizeRange(httpjson.QueryInt64(r, "minSize", 0), httpjson.QueryInt64(r, "maxSize", 0))
+	minW, maxW := normalizeRange(int64(httpjson.QueryInt(r, "minWidth", 0)), int64(httpjson.QueryInt(r, "maxWidth", 0)))
+	minH, maxH := normalizeRange(int64(httpjson.QueryInt(r, "minHeight", 0)), int64(httpjson.QueryInt(r, "maxHeight", 0)))
 	return domain.AssetFilter{
 		FolderID:  r.URL.Query().Get("folder"),
 		TagID:     r.URL.Query().Get("tag"),
 		MinRating: httpjson.QueryInt(r, "rating", 0),
 		Kinds:     parseKinds(r.URL.Query().Get("kind")),
 		Status:    r.URL.Query().Get("status"),
+		MinSize:   minSize,
+		MaxSize:   maxSize,
+		MinWidth:  int(minW),
+		MaxWidth:  int(maxW),
+		MinHeight: int(minH),
+		MaxHeight: int(maxH),
+		Shapes:    parseShapes(r.URL.Query().Get("shape")),
 	}
 }
 
@@ -36,6 +49,42 @@ func parseKinds(raw string) []domain.AssetKind {
 		}
 	}
 	return kinds
+}
+
+// normalizeRange clamps a min/max pair to hetu's range-filter contract:
+// negative values collapse to 0 (unbounded on that side), and an inverted
+// range (max>0 AND max<min) drops max back to 0 (unbounded) rather than
+// swapping the two — a confused range widens instead of silently
+// reinterpreting the caller's numbers in swapped roles (issue #101 design
+// decision 3; the issue explicitly permits either "ignore max" or "swap" —
+// this picks "ignore max").
+func normalizeRange(min, max int64) (int64, int64) {
+	if min < 0 {
+		min = 0
+	}
+	if max < 0 {
+		max = 0
+	}
+	if max > 0 && max < min {
+		max = 0
+	}
+	return min, max
+}
+
+// parseShapes splits a comma-separated ?shape= value into known AssetShapes,
+// mirroring parseKinds exactly — the whitelist guard before any value reaches
+// the SQL layer.
+func parseShapes(raw string) []domain.AssetShape {
+	if raw == "" {
+		return nil
+	}
+	var shapes []domain.AssetShape
+	for _, tok := range strings.Split(raw, ",") {
+		if tok = strings.TrimSpace(tok); domain.ValidShape(tok) {
+			shapes = append(shapes, domain.AssetShape(tok))
+		}
+	}
+	return shapes
 }
 
 // kindCount is one row of the format facet: a kind and how many live assets have

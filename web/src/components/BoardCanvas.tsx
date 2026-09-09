@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layer, Rect, Stage, Transformer } from "react-konva";
 import type Konva from "konva";
-import type { Asset, BoardItem, Tag } from "../types";
+import type { Asset, BoardItem, Query } from "../types";
 import { useAssets } from "../hooks/useAssets";
-import { useFacets } from "../hooks/useFacets";
 import { useBoard } from "../hooks/useBoards";
 import { useBoardImages } from "../hooks/useBoardImages";
 import { useBoardCaptures } from "../hooks/useBoardCaptures";
 import { useBoardPickers } from "../hooks/useBoardPickers";
-import { useBoardPanelQuery } from "../hooks/useBoardPanelQuery";
 import { useBoardSelection } from "../hooks/useBoardSelection";
 import { useArrangeShortcuts } from "../hooks/useArrangeShortcuts";
 import { useCanvasViewport } from "../hooks/useCanvasViewport";
@@ -26,7 +24,12 @@ import styles from "./BoardCanvas.module.css";
 
 interface Props {
   boardId: string;
-  tags: Tag[];
+  // Query + setter for the drag-source panel (BoardAssetPanel). Lifted to App
+  // (issue #108) so the global sidebar can drive folder/tag/format/star; only
+  // the search keyword stays local to the panel, so BoardCanvas passes just
+  // that one setter through.
+  boardQuery: Query;
+  setKeyword: (keyword: string) => void;
   onBack: () => void;
   onError: (msg: string) => void;
 }
@@ -50,13 +53,11 @@ function dropSize(asset: Asset | undefined): { w: number; h: number } {
 // from BoardCanvasItem, and persistence from useBoard. Marquee selection,
 // fullscreen, the arrange toolbar + keyboard shortcuts, note editing,
 // frame/angle pickers, duplicate, and PNG export layer on top.
-export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
+export function BoardCanvas({ boardId, boardQuery, setKeyword, onBack, onError }: Props) {
   const { board, items, addItem, addNote, updateItems, patchItem, removeItem, duplicateItems } =
     useBoard(boardId, onError);
   const { scale, pos, panning, onWheel, onStageDragEnd } = useCanvasViewport();
-  const { boardQuery, setKeyword, pickTag, toggleKind, setRating } = useBoardPanelQuery();
   const { assets, loading: loadingAssets, error: assetErr } = useAssets("grid", boardQuery, 0);
-  const kindCounts = useFacets(boardQuery, 0);
 
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -242,17 +243,7 @@ export function BoardCanvas({ boardId, tags, onBack, onError }: Props) {
       )}
 
       <div className={styles.body}>
-        <BoardAssetPanel
-          assets={assets}
-          loading={loadingAssets}
-          tags={tags}
-          query={boardQuery}
-          kindCounts={kindCounts}
-          onKeyword={setKeyword}
-          onPickTag={pickTag}
-          onToggleKind={toggleKind}
-          onSetRating={setRating}
-        />
+        <BoardAssetPanel assets={assets} loading={loadingAssets} onKeyword={setKeyword} />
         <div
           ref={wrapRef}
           className={`${styles.canvas} ${panning ? styles.panning : ""}`}
