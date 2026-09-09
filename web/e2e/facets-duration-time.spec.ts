@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 // Smoke tests for issue #53: duration (时长) + created/indexed time (创建时间/
 // 索引时间) facets, layered on the #75/#101 facet pipeline (facets.spec.ts /
@@ -15,6 +15,13 @@ import { test, expect } from "@playwright/test";
 // facet is exercised with bounds relative to the run clock rather than fixed dates.
 
 const API = "/api/dam";
+
+// 时长/创建时间/索引时间 facets now live under a collapsed 高级筛选 disclosure
+// (default collapsed when no advanced filter is active), so open it before
+// touching those controls; the common 格式/星级/标签 tier is unaffected.
+async function openAdvanced(page: Page) {
+  await page.getByTestId("advanced-toggle").click();
+}
 
 // ---------------------------------------------------------------------------
 // Pure API smoke tests — verify backend filtering logic without a browser.
@@ -72,6 +79,7 @@ test("duration + kind compose (AND): video AND >=60s excludes the audio clip", a
 test("duration preset '< 1分钟' narrows the grid to the 45s clip", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("grid-view")).toBeVisible();
+  await openAdvanced(page);
 
   await page.getByRole("button", { name: "< 1分钟" }).click();
   await page.waitForTimeout(400);
@@ -81,13 +89,14 @@ test("duration preset '< 1分钟' narrows the grid to the 45s clip", async ({ pa
   await page.screenshot({ path: "e2e/screenshots/dur-facet-under-1min.png" });
 
   // The 时长 section's 清除 (the only active facet) resets the range input.
-  await page.getByRole("button", { name: "清除" }).first().click();
+  await page.getByRole("button", { name: "清除", exact: true }).first().click();
   await expect(page.getByLabel("最小时长（分钟）")).toHaveValue("");
 });
 
 test("duration preset '1–5分钟' isolates the 90s video", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("grid-view")).toBeVisible();
+  await openAdvanced(page);
 
   await page.getByRole("button", { name: "1–5分钟" }).click();
   await page.waitForTimeout(400);
@@ -100,6 +109,7 @@ test("duration preset '1–5分钟' isolates the 90s video", async ({ page }) =>
 test("duration min-minutes input narrows after the debounce settles", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("grid-view")).toBeVisible();
+  await openAdvanced(page);
 
   // 5 minutes = 300s: only the 330s video qualifies. RangeField commits minutes
   // as seconds; the field debounces ~300ms so wait past it before asserting.
@@ -110,7 +120,7 @@ test("duration min-minutes input narrows after the debounce settles", async ({ p
   ).toHaveCount(1, { timeout: 5000 });
   await page.screenshot({ path: "e2e/screenshots/dur-facet-min-minutes.png" });
 
-  await page.getByRole("button", { name: "清除" }).first().click();
+  await page.getByRole("button", { name: "清除", exact: true }).first().click();
   await expect(page.getByLabel("最小时长（分钟）")).toHaveValue("");
 });
 
@@ -119,6 +129,7 @@ test("created-time facet: a future start date empties the grid, clearing restore
 }) => {
   await page.goto("/");
   await expect(page.getByTestId("grid-view")).toBeVisible();
+  await openAdvanced(page);
 
   // Everything was indexed ~now, so a start date well in the future excludes all.
   await page.getByLabel("起始创建时间").fill("2099-01-01");
@@ -128,7 +139,7 @@ test("created-time facet: a future start date empties the grid, clearing restore
   ).toHaveCount(0, { timeout: 5000 });
   await page.screenshot({ path: "e2e/screenshots/time-facet-future-empty.png" });
 
-  await page.getByRole("button", { name: "清除" }).first().click();
+  await page.getByRole("button", { name: "清除", exact: true }).first().click();
   await expect(
     page.locator("[data-testid='grid-view'] >> img, [data-testid='grid-view'] svg"),
   ).toHaveCount(4, { timeout: 5000 });
@@ -139,13 +150,15 @@ test("clearing duration does not clear an independently-set created-time filter"
 }) => {
   await page.goto("/");
   await expect(page.getByTestId("grid-view")).toBeVisible();
+  await openAdvanced(page);
 
   await page.getByRole("button", { name: "> 5分钟" }).click();
   await page.getByLabel("起始创建时间").fill("2099-01-01");
   await page.waitForTimeout(500);
 
-  // Clear only the 时长 section (its own 清除, first of the two active sections).
-  await page.getByRole("button", { name: "清除" }).first().click();
+  // Clear only the 时长 section (its own 清除, first of the two active sections;
+  // exact:true excludes the 高级筛选 header clear-all, named 清除高级筛选).
+  await page.getByRole("button", { name: "清除", exact: true }).first().click();
   // The created-time filter the user set is untouched by the duration clear.
   await expect(page.getByLabel("起始创建时间")).toHaveValue("2099-01-01");
 });
@@ -164,6 +177,7 @@ test("board view: sidebar duration facet narrows the drag source panel", async (
   await expect(page.getByText("返回图板列表")).toBeVisible({ timeout: 8_000 });
 
   const panel = page.locator("aside").filter({ has: page.getByPlaceholder("搜索素材…") });
+  await openAdvanced(page);
 
   // Clicking the sidebar facet must keep the user on the board while narrowing
   // the panel (issue #108). "1–5分钟" isolates the single 90s video.
@@ -173,5 +187,5 @@ test("board view: sidebar duration facet narrows the drag source panel", async (
   await expect(panel.getByText(/素材 · 1/)).toBeVisible({ timeout: 5_000 });
   await page.screenshot({ path: "e2e/screenshots/dur-board-1-5min.png" });
 
-  await page.getByRole("button", { name: "清除" }).first().click();
+  await page.getByRole("button", { name: "清除", exact: true }).first().click();
 });

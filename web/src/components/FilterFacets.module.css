@@ -157,3 +157,65 @@
   border-radius: var(--r-full);
   flex: none;
 }
+
+/* Advanced-filter disclosure. A two-tier split keeps the common facets (格式/
+   星级/标签) always visible while the cold ones (形状/尺寸/文件大小/时长/时间)
+   collapse behind this clickable header. The disclosure fills the row for a
+   large hit target; a count badge + clear-all appear only when the advanced
+   tier has active filters, so a collapsed-but-active tier stays discoverable. */
+.advToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding-right: var(--sp-1);
+}
+.advDisclosure {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.advDisclosure:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.advLabel {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: var(--fw-semibold);
+}
+.advChevron {
+  flex: none;
+  transition: transform var(--t-fast);
+}
+.advChevronOpen {
+  transform: rotate(90deg);
+}
+.advBadge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.advBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+}
