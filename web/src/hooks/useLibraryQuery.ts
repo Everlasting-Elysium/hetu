@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { type AssetKind, EMPTY_QUERY, type Query } from "../types";
+import { type AssetKind, type AssetShape, EMPTY_QUERY, type Query } from "../types";
 
 export interface LibraryQuery {
   query: Query;
@@ -9,6 +9,9 @@ export interface LibraryQuery {
   setTag: (tagId: string | null) => void;
   toggleKind: (kind: AssetKind) => void;
   setRating: (rating: number) => void;
+  toggleShape: (shape: AssetShape) => void;
+  setDimensions: (minWidth: number, maxWidth: number, minHeight: number, maxHeight: number) => void;
+  setFileSize: (minSize: number, maxSize: number) => void;
   clearFilters: () => void;
   setKeyword: (keyword: string) => void;
   setColor: (hex: string | null) => void;
@@ -58,6 +61,25 @@ export function useLibraryQuery(onFilter: () => void): LibraryQuery {
     (minRating: number) => filter((q) => ({ ...q, minRating })),
     [filter],
   );
+  const toggleShape = useCallback(
+    (shape: AssetShape) =>
+      filter((q) => ({
+        ...q,
+        shapes: q.shapes.includes(shape)
+          ? q.shapes.filter((s) => s !== shape)
+          : [...q.shapes, shape],
+      })),
+    [filter],
+  );
+  const setDimensions = useCallback(
+    (minWidth: number, maxWidth: number, minHeight: number, maxHeight: number) =>
+      filter((q) => ({ ...q, minWidth, maxWidth, minHeight, maxHeight })),
+    [filter],
+  );
+  const setFileSize = useCallback(
+    (minSize: number, maxSize: number) => filter((q) => ({ ...q, minSize, maxSize })),
+    [filter],
+  );
   const clearFilters = useCallback(() => filter(() => EMPTY_QUERY), [filter]);
   // An empty keyword is not a search, so it must not clear an active color filter:
   // otherwise the keyword debounce firing onKeyword("") wipes a color picked from
@@ -78,7 +100,14 @@ export function useLibraryQuery(onFilter: () => void): LibraryQuery {
       query.folderId ||
       query.tagId ||
       query.kind.length > 0 ||
-      query.minRating > 0,
+      query.minRating > 0 ||
+      query.shapes.length > 0 ||
+      query.minWidth > 0 ||
+      query.maxWidth > 0 ||
+      query.minHeight > 0 ||
+      query.maxHeight > 0 ||
+      query.minSize > 0 ||
+      query.maxSize > 0,
   );
 
   return {
@@ -89,6 +118,9 @@ export function useLibraryQuery(onFilter: () => void): LibraryQuery {
     setTag,
     toggleKind,
     setRating,
+    toggleShape,
+    setDimensions,
+    setFileSize,
     clearFilters,
     setKeyword,
     setColor,

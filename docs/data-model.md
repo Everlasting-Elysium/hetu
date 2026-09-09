@@ -236,6 +236,8 @@ SQLite FTS5 全文检索虚拟表，为**工作区级**全文检索提供支撑�
 
 **格式 / 星级 facet（issue #75）**：`GET /api/dam/assets` 与 `GET /api/dam/search` 均接受 `?kind=<a,b>`（逗号分隔，仅 `AssetKind` 枚举值，经 `domain.ValidKind` 白名单 + 参数化 `a.kind IN (...)` 防注入），与 `?folder=`/`?tag=`/`?rating=<最低星级>` 在服务端叠加过滤（AND 组合）。`ListAssetsFiltered` 与 `SearchAssets` 共用 `appendFacetConds`（`internal/store/sqlite_filter.go`）保证两条链路语义一致，前端不再内存过滤。新增 `GET /api/dam/facets`（`internal/plugins/dam/facets.go`）返回各 `kind` 的存量计数，受 `?folder=`/`?tag=`/`?rating=` 约束但忽略 `?kind=` 自身，供多选格式 facet 稳定驱动。
 
+**形状 / 尺寸 / 文件大小 facet（issue #101，#75 的直接延伸）**：在格式/星级之上再叠三维，零 DB 迁移（`assets.size`/`width`/`height` 早已入库），同样经 `appendFacetConds` 同时作用于列表与搜索。`?minSize=`/`?maxSize=`（字节，`int64`——文件可 >2GB，新增 `httpjson.QueryInt64`）narrow 在 `a.size`（**锚点值，不做当前版本解析**，与展示的 `a.size` 保持一致）；`?minWidth=`/`?maxWidth=`/`?minHeight=`/`?maxHeight=`（像素）与 `?shape=<a,b>`（逗号分隔，枚举 `landscape`/`portrait`/`square`，经 `domain.ValidShape` 白名单）narrow 在 `COALESCE(cv.width/height, a.width/height)`——即**当前版本**解析值（issue #58），与展示的宽高保持一致；「size 用锚点、width/height 走版本解析」的不对称是刻意保留，并非需要修正的不一致。形状按宽高比 `r = 宽/高` 分桶（命名常量见 `internal/domain/shape.go`）：`r ≥ 1.1` 横向、`r ≤ 0.9` 纵向、其余方形；宽或高为 `0`（音频/文档/多数 3D）不落入任何形状桶。范围参数负值按 `0`（不限）处理，`max>0 且 max<min` 时 `max` 视为不限（而非交换）。`GET /api/dam/facets` 的 `KindCounts` 补了 `LEFT JOIN asset_versions cv`（`ListAssetsFiltered`/`SearchAssets` 已有，facets 端点此前缺失）以支持新增条件联动格式计数，`cv.id` 是主键的 `LEFT JOIN` 不放大行数。
+
 **升级兼容**：`assets_fts` 与触发器由 `schema.sql` 每次 `Open` 幂等重建。`PRAGMA user_version` 门控迁移与回填：`migrateFTS` 在版本低于当前时先 DROP 旧 FTS 表和触发器，再由 `schema.sql` 重建新结构；`backfillFTS` 随后将所有已有资产（含当前 tags 和 caption）写入 FTS 索引。变更 FTS 结构（如换 tokenizer）时递增 `ftsSchemaVersion`（当前为 2）并补迁移。
 
 **已知限制 / 后续（本 issue 范围外）**：
