@@ -33,6 +33,21 @@ const (
 	ConflictKeepBoth Conflict = "keep-both"
 	// ConflictSkip skips an item whose content hash already exists.
 	ConflictSkip Conflict = "skip"
+	// ConflictMerge folds an item's metadata into the existing content
+	// duplicate (tags/note added; rating/folder only when the target is unset)
+	// and lands neither a second physical file nor a new asset row.
+	ConflictMerge Conflict = "merge"
+)
+
+// Outcome reports how ImportItem resolved one item: a new asset was indexed
+// (imported), a content duplicate was left untouched (skipped), or an item's
+// metadata was folded into an existing duplicate (merged).
+type Outcome string
+
+const (
+	OutcomeImported Outcome = "imported"
+	OutcomeSkipped  Outcome = "skipped"
+	OutcomeMerged   Outcome = "merged"
 )
 
 // Options configures an import run.
@@ -70,39 +85,48 @@ func New(k *kernel.Kernel, owner domain.OwnerID) *Service {
 }
 
 // ImportPath imports a single loose file at absPath (#18) with no source
-// metadata. Returns the stored asset and whether it was skipped by conflict.
-func (s *Service) ImportPath(ctx context.Context, absPath string, opt Options) (domain.Asset, bool, error) {
+// metadata. Returns the stored asset and the import Outcome (see ImportItem).
+func (s *Service) ImportPath(ctx context.Context, absPath string, opt Options) (domain.Asset, Outcome, error) {
 	return s.ImportItem(ctx, ImportItem{AbsPath: absPath, Name: filepath.Base(absPath)}, opt)
 }
 
 // ImportItem places item's file per opt.Mode, indexes it, then applies its
 // metadata (rating, folders, tags, note, source URL). It is idempotent on
-// re-import (natural-key upsert) and returns skipped=true when opt.Conflict is
-// ConflictSkip and the content already exists under a different path.
-func (s *Service) ImportItem(ctx context.Context, item ImportItem, opt Options) (domain.Asset, bool, error) {
+// re-import (natural-key upsert). When opt.Conflict is ConflictSkip or
+// ConflictMerge and the content already exists under a different path, it
+// short-circuits before place/index — so move never deletes the source and copy
+// never lands a second physical file: skip returns an empty asset + OutcomeSkipped,
+// merge folds item's metadata into the existing asset and returns it +
+// OutcomeMerged. Otherwise it returns the new asset + OutcomeImported.
+func (s *Service) ImportItem(ctx context.Context, item ImportItem, opt Options) (domain.Asset, Outcome, error) {
 	canonical, err := canonicalPath(item.AbsPath)
 	if err != nil {
-		return domain.Asset{}, false, err
+		return domain.Asset{}, "", err
 	}
-	if opt.Conflict == ConflictSkip {
-		dup, err := s.contentExists(ctx, canonical)
+	if opt.Conflict == ConflictSkip || opt.Conflict == ConflictMerge {
+		existing, err := s.findDuplicate(ctx, canonical)
 		if err != nil {
-			return domain.Asset{}, false, err
+			return domain.Asset{}, "", err
 		}
-		if dup {
+		if existing != nil {
+			if opt.Conflict == ConflictMerge {
+				s.k.Log.InfoContext(ctx, "import merge: content exists", "path", canonical)
+				s.applyMetadata(ctx, *existing, item)
+				return *existing, OutcomeMerged, nil
+			}
 			s.k.Log.InfoContext(ctx, "import skip: content exists", "path", canonical)
-			return domain.Asset{}, true, nil
+			return domain.Asset{}, OutcomeSkipped, nil
 		}
 	}
 
 	providerName, entry, cleanup, err := s.place(ctx, canonical, item, opt)
 	if err != nil {
-		return domain.Asset{}, false, err
+		return domain.Asset{}, "", err
 	}
 	asset, err := s.ix.IndexFile(ctx, providerName, entry)
 	if err != nil {
 		cleanup(ctx) // roll back a copy/move destination on index failure
-		return domain.Asset{}, false, fmt.Errorf("import %q: %w", item.Name, err)
+		return domain.Asset{}, "", fmt.Errorf("import %q: %w", item.Name, err)
 	}
 	// Metadata mapping is best-effort: the asset is indexed, so a per-field
 	// failure is logged inside applyMetadata, not surfaced as an import failure.
@@ -114,23 +138,28 @@ func (s *Service) ImportItem(ctx context.Context, item ImportItem, opt Options) 
 			s.k.Log.WarnContext(ctx, "move: delete original failed", "path", canonical, "err", err)
 		}
 	}
-	return asset, false, nil
+	return asset, OutcomeImported, nil
 }
 
-// contentExists reports whether a live asset already has the content hash of the
-// file at canonical (used by ConflictSkip).
-func (s *Service) contentExists(ctx context.Context, canonical string) (bool, error) {
+// findDuplicate returns the first (oldest) live asset already holding the
+// content hash of the file at canonical, or nil when none exists. It backs both
+// ConflictSkip (skip the re-encountered file) and ConflictMerge (fold new
+// metadata into that asset); both reach identical bytes via a different path.
+func (s *Service) findDuplicate(ctx context.Context, canonical string) (*domain.Asset, error) {
 	prov, ok := s.k.Storage.Get(fs.ProviderName)
 	if !ok {
-		return false, fmt.Errorf("content check: provider %q: %w", fs.ProviderName, domain.ErrNotFound)
+		return nil, fmt.Errorf("content check: provider %q: %w", fs.ProviderName, domain.ErrNotFound)
 	}
 	hash, err := hashFile(ctx, prov, canonical)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	existing, err := s.k.Store.ListAssetsByHash(ctx, s.owner, hash)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return len(existing) > 0, nil
+	if len(existing) == 0 {
+		return nil, nil
+	}
+	return &existing[0], nil
 }

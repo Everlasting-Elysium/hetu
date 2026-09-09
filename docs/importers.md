@@ -44,10 +44,20 @@ Billfish/.bf/*  ─┘                                   └─▶ folders/tags/
 
 ## 冲突处理（`importers.Conflict`）
 
+按内容哈希（SHA-256）判定“重复”：查
+[`Store.ListAssetsByHash`](../internal/kernel/store.go) 命中即同一图片从不同库/
+路径重复进入。单条结果为三态 [`importers.Outcome`](../internal/importers/service.go)
+（`imported`/`skipped`/`merged`），批量计数见 [batch.go](../internal/importers/batch.go)
+的 `Result`（含 `merged`）。
+
 - `keep-both`（默认）：始终导入；同路径重复导入由自然键 upsert 天然幂等。
-- `skip`：按内容哈希查
-  [`Store.ListAssetsByHash`](../internal/kernel/store.go)，已存在则跳过（同一图片
-  从不同库/路径重复进入时去重）。
+- `skip`：命中重复则跳过，不落地、不索引。
+- `merge`：命中重复则把新导入项的元数据**合并进已存在的那个资产**，不新建资产、
+  不产生第二份物理文件（`move` 模式下也**不删除**源文件——skip 与 merge 一律在物理
+  落地前 return）。合并规则见 [apply.go](../internal/importers/apply.go) 的
+  `applyMetadata`（同一函数兼服务新建资产映射与重复合并两种场景）：标签为新增关联、
+  备注 / 来源 URL 走 extracted 层永不覆盖手动层，故直接合并；**评分与主文件夹仅当
+  目标资产当前为空 / 零值时才写入**，不覆盖用户（或先前导入）已设置的值。
 
 ## 字段映射
 
@@ -118,15 +128,18 @@ CLI（同步，见 [cli/import.go](../internal/cli/import.go)）：
 ```
 bin/hetu import eagle    /path/to/MyLib.library
 bin/hetu import billfish /path/to/MyBillfishLib      # 含 .bf/billfish.db
-# --mode index|copy   --conflict keep-both|skip
+# --mode index|copy   --conflict keep-both|skip|merge
 ```
 
 HTTP（见 [plugins/dam/import.go](../internal/plugins/dam/import.go)）：
 
 - `POST /api/dam/import`：导入单个松散文件（JSON `{mode,path,dest_subdir,conflict}`
-  或 multipart 上传）。
-- `POST /api/dam/import/migrate`：迁移库（JSON `{source,path,mode,conflict,async}`）；
-  `async=true` 走 JobQueue 返回 `job_id`，进度写入 jobs 表 payload。
+  或 multipart 上传，表单字段 `file` / `dest_subdir` / `conflict`）。`conflict` 取
+  `keep-both|skip|merge`；返回 `{asset,skipped,merged}`（skip 无 `asset`，merge 带回
+  合并后的已存在资产）。
+- `POST /api/dam/import/migrate`：迁移库（JSON `{source,path,mode,conflict,async}`，
+  `conflict` 同样支持 `keep-both|skip|merge`）；`async=true` 走 JobQueue 返回
+  `job_id`，进度写入 jobs 表 payload（含 `merged` 计数）。
 - `GET /api/dam/jobs`：查后台任务与迁移进度。
 - `GET /api/dam/assets/{id}/file`：按资产自身 provider 取原文件（支持 Range），
   故 `fs` 原地索引的资产也可下载（复用 #50 的 provider-aware 文件端点）。
