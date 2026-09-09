@@ -25,7 +25,7 @@ func newImportCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&mode, "mode", "index", "placement mode: index (in place) or copy (into library)")
-	cmd.Flags().StringVar(&conflict, "conflict", "keep-both", "duplicate policy: keep-both or skip (by content hash)")
+	cmd.Flags().StringVar(&conflict, "conflict", "keep-both", "duplicate policy: keep-both, skip, or merge (by content hash)")
 	return cmd
 }
 
@@ -54,7 +54,8 @@ func runImport(ctx context.Context, source, path, mode, conflict string) error {
 	log.InfoContext(ctx, "migration complete",
 		slog.String("source", source),
 		slog.Int("total", res.Total), slog.Int("imported", res.Imported),
-		slog.Int("skipped", res.Skipped), slog.Int("failed", res.Failed))
+		slog.Int("skipped", res.Skipped), slog.Int("merged", res.Merged),
+		slog.Int("failed", res.Failed))
 	return nil
 }
 

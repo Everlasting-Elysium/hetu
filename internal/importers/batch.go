@@ -22,6 +22,7 @@ type Result struct {
 	Total    int `json:"total"`
 	Imported int `json:"imported"`
 	Skipped  int `json:"skipped"`
+	Merged   int `json:"merged"`
 	Failed   int `json:"failed"`
 }
 
@@ -29,7 +30,7 @@ type Result struct {
 type Progress struct {
 	Kind    string `json:"kind"`
 	Mode    string `json:"mode"`
-	Result         // flattened Total/Imported/Skipped/Failed
+	Result         // flattened Total/Imported/Skipped/Merged/Failed
 	Current string `json:"current,omitempty"`
 }
 
@@ -44,15 +45,17 @@ func (s *Service) ImportSource(ctx context.Context, src Source, opt Options, job
 	var res Result
 	err := src.Each(ctx, func(item ImportItem) error {
 		res.Total++
-		_, skipped, impErr := s.ImportItem(ctx, item, opt)
+		_, outcome, impErr := s.ImportItem(ctx, item, opt)
 		switch {
 		case impErr != nil:
 			res.Failed++
 			s.k.Log.WarnContext(ctx, "import item failed",
 				slog.String("source", string(src.Kind())),
 				slog.String("name", item.Name), slog.Any("err", impErr))
-		case skipped:
+		case outcome == OutcomeSkipped:
 			res.Skipped++
+		case outcome == OutcomeMerged:
+			res.Merged++
 		default:
 			res.Imported++
 		}

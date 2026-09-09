@@ -181,13 +181,13 @@ func TestImportPath_Copy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	asset, skipped, err := importers.New(h.k, h.owner).ImportPath(ctx, absSrc,
+	asset, outcome, err := importers.New(h.k, h.owner).ImportPath(ctx, absSrc,
 		importers.Options{Mode: importers.ModeCopy, DestSubdir: "imported"})
 	if err != nil {
 		t.Fatalf("copy import: %v", err)
 	}
-	if skipped {
-		t.Fatal("unexpected skip")
+	if outcome != importers.OutcomeImported {
+		t.Fatalf("outcome = %q, want imported", outcome)
 	}
 	if asset.Provider != local.ProviderName {
 		t.Errorf("provider = %q, want local", asset.Provider)

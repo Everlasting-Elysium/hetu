@@ -21,13 +21,14 @@ type importReq struct {
 	Mode       string `json:"mode"`        // index|copy|move; empty = index
 	Path       string `json:"path"`        // absolute source path
 	DestSubdir string `json:"dest_subdir"` // copy/move destination subdir
-	Conflict   string `json:"conflict"`    // keep-both|skip
+	Conflict   string `json:"conflict"`    // keep-both|skip|merge
 }
 
 // importResp reports a single-file import outcome.
 type importResp struct {
 	Asset   *assetDTO `json:"asset,omitempty"`
 	Skipped bool      `json:"skipped"`
+	Merged  bool      `json:"merged,omitempty"`
 }
 
 // importAsset handles POST /import: a JSON body imports a file by path; a
@@ -46,10 +47,10 @@ func (p *Plugin) importAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	svc := importers.New(p.k, p.owner)
-	asset, skipped, err := svc.ImportPath(r.Context(), req.Path, importers.Options{
+	asset, outcome, err := svc.ImportPath(r.Context(), req.Path, importers.Options{
 		Mode: importers.Mode(req.Mode), DestSubdir: req.DestSubdir, Conflict: importers.Conflict(req.Conflict),
 	})
-	p.writeImportResult(w, asset, skipped, err)
+	p.writeImportResult(w, asset, outcome, err)
 }
 
 // importUpload handles a multipart upload: the bytes are written to a temp file
@@ -74,19 +75,27 @@ func (p *Plugin) importUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = tmp.Close()
 	svc := importers.New(p.k, p.owner)
-	asset, skipped, err := svc.ImportItem(r.Context(),
+	asset, outcome, err := svc.ImportItem(r.Context(),
 		importers.ImportItem{AbsPath: tmp.Name(), Name: hdr.Filename},
-		importers.Options{Mode: importers.ModeCopy, DestSubdir: r.FormValue("dest_subdir")})
-	p.writeImportResult(w, asset, skipped, err)
+		importers.Options{
+			Mode: importers.ModeCopy, DestSubdir: r.FormValue("dest_subdir"),
+			Conflict: importers.Conflict(r.FormValue("conflict")),
+		})
+	p.writeImportResult(w, asset, outcome, err)
 }
 
-func (p *Plugin) writeImportResult(w http.ResponseWriter, asset domain.Asset, skipped bool, err error) {
+func (p *Plugin) writeImportResult(w http.ResponseWriter, asset domain.Asset, outcome importers.Outcome, err error) {
 	if err != nil {
 		httpjson.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
-	resp := importResp{Skipped: skipped}
-	if !skipped {
+	resp := importResp{
+		Skipped: outcome == importers.OutcomeSkipped,
+		Merged:  outcome == importers.OutcomeMerged,
+	}
+	// Imported and merged both carry the asset DTO (merge returns the existing
+	// asset it folded into); only a pure skip has no asset to report.
+	if outcome != importers.OutcomeSkipped {
 		dto := toDTO(asset)
 		resp.Asset = &dto
 	}
@@ -98,7 +107,7 @@ type migrateReq struct {
 	Source   string `json:"source"`   // eagle|billfish
 	Path     string `json:"path"`     // library path
 	Mode     string `json:"mode"`     // index|copy; empty = index
-	Conflict string `json:"conflict"` // keep-both|skip
+	Conflict string `json:"conflict"` // keep-both|skip|merge
 	Async    bool   `json:"async"`    // run on the JobQueue, return a job id
 }
 

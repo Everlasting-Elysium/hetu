@@ -20,6 +20,14 @@ const keySourceURL = "source.url"
 // applyMetadata maps an item's portable metadata onto the stored asset: rating,
 // primary folder (with ancestors), hierarchical tags (deduped by name), the note
 // (extracted-layer caption), and the source URL (extracted-layer "source.url").
+// One implementation serves two callers: mapping metadata onto a freshly indexed
+// asset (#57 migration) and merging an item into a pre-existing content duplicate
+// (#56 ConflictMerge). Rating and primary folder are written only when the target
+// asset's field is still empty/zero, so a merge never overwrites a rating/folder
+// the user (or an earlier import) already set; for a brand-new asset both fields
+// are zero, so the guards are no-ops and behavior is unchanged. Tags (additive
+// associations) and annotations (extracted layer, which never shadows the
+// manual/ai layer — see docs/ai-and-3d.md) are always safe to fold in.
 // It is best-effort ("尽力而为", issue #57): the asset is already indexed, so a
 // per-field failure (e.g. a concurrent tag/folder create race) is logged and
 // skipped rather than failing the whole item and leaving it mis-counted. Folders
@@ -31,12 +39,12 @@ func (s *Service) applyMetadata(ctx context.Context, asset domain.Asset, item Im
 		return
 	}
 	ids := []domain.AssetID{asset.ID}
-	if item.Rating > 0 {
+	if item.Rating > 0 && asset.Rating == 0 {
 		if err := s.k.Store.BatchUpdateRating(ctx, s.owner, ids, clampRating(item.Rating)); err != nil {
 			s.warn(ctx, asset.ID, "rating", err)
 		}
 	}
-	if len(item.Folders) > 0 {
+	if len(item.Folders) > 0 && asset.FolderID == "" {
 		if folderID, err := s.ensureFolderPath(ctx, item.Folders[0]); err != nil {
 			s.warn(ctx, asset.ID, "folder", err)
 		} else if folderID != "" {
