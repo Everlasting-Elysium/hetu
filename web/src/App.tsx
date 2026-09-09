@@ -11,6 +11,7 @@ import {
 import { useAssets } from "./hooks/useAssets";
 import { useFacets } from "./hooks/useFacets";
 import { useLibraryQuery } from "./hooks/useLibraryQuery";
+import { useBoardPanelQuery } from "./hooks/useBoardPanelQuery";
 import { useLibrary } from "./hooks/useLibrary";
 import { useBoards } from "./hooks/useBoards";
 import { useSelection } from "./hooks/useSelection";
@@ -39,6 +40,12 @@ export default function App() {
   // depend on view/selection defined below (issue #75).
   const filterFx = useRef<() => void>(() => {});
   const lq = useLibraryQuery(() => filterFx.current());
+  // The board canvas's drag-source panel (BoardAssetPanel) is scoped by this
+  // board-local query rather than `lq`. Lifted here (issue #108) so the global
+  // sidebar can drive it: BoardCanvas used to own this internally, but the
+  // sidebar is the one place a user picks folder/tag/format/star, and it needs
+  // to target whichever dataset is on screen.
+  const bpq = useBoardPanelQuery();
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -58,7 +65,12 @@ export default function App() {
   const lib = useLibrary(setError);
   const boards = useBoards(setError);
   const { assets, loading, error: loadErr } = useAssets(view, lq.query, version);
-  const kindCounts = useFacets(lq.query, version);
+  // The sidebar's facet controls act on whichever query is "active" for the
+  // current view: the board panel's query on the board canvas, `lq` everywhere
+  // else (issue #108). This single switch is the entire routing — the sidebar
+  // component itself stays oblivious to which query backs it.
+  const activeQuery = view === "board" ? bpq.boardQuery : lq.query;
+  const kindCounts = useFacets(activeQuery, version);
   const ids = useMemo(() => assets.map((a) => a.id), [assets]);
   const sel = useSelection(ids);
 
@@ -309,11 +321,11 @@ export default function App() {
       <Sidebar
         folders={lib.folders}
         tags={lib.tags}
-        activeFolder={lq.query.folderId}
-        activeTag={lq.query.tagId}
+        activeFolder={activeQuery.folderId}
+        activeTag={activeQuery.tagId}
         boardsActive={view === "boards" || view === "board"}
-        onPickFolder={lq.setFolder}
-        onPickTag={lq.setTag}
+        onPickFolder={view === "board" ? bpq.pickFolder : lq.setFolder}
+        onPickTag={view === "board" ? bpq.pickTag : lq.setTag}
         onViewBoards={() => changeView("boards")}
         onCreateFolder={(n) => void lib.createFolder(n)}
         onDeleteFolder={(id) => void lib.deleteFolder(id)}
@@ -323,10 +335,10 @@ export default function App() {
         onPickMissing={setMissing}
         activeMissing={view === "missing"}
         kindCounts={kindCounts}
-        activeKinds={lq.query.kind}
-        minRating={lq.query.minRating}
-        onToggleKind={lq.toggleKind}
-        onSetRating={lq.setRating}
+        activeKinds={activeQuery.kind}
+        minRating={activeQuery.minRating}
+        onToggleKind={view === "board" ? bpq.toggleKind : lq.toggleKind}
+        onSetRating={view === "board" ? bpq.setRating : lq.setRating}
         onClearFilters={lq.clearFilters}
       />
 
@@ -353,7 +365,8 @@ export default function App() {
         ) : view === "board" && activeBoardId ? (
           <BoardCanvas
             boardId={activeBoardId}
-            tags={lib.tags}
+            boardQuery={bpq.boardQuery}
+            setKeyword={bpq.setKeyword}
             onBack={() => changeView("boards")}
             onError={setError}
           />

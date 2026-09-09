@@ -1,9 +1,10 @@
 import { test, expect } from "@playwright/test";
 
-// Smoke tests for Issue #75: format (kind) + rating facets in the main library
-// sidebar and the board asset panel. The E2E library is seeded deterministically
-// by cmd/seede2e (11 assets: image=4, video=3, audio=2, document=1, model=1;
-// img-1/img-2/vid-1 rated 5★; tag "hero" on img-1 + vid-1).
+// Smoke tests for Issue #75 (format/rating/tag facet plumbing) and #108
+// (facets consolidated into the global sidebar, context-routed to either the
+// full library or the board panel's query). The E2E library is seeded
+// deterministically by cmd/seede2e (11 assets: image=4, video=3, audio=2,
+// document=1, model=1; img-1/img-2/vid-1 rated 5★; tag "hero" on img-1 + vid-1).
 
 const API = "/api/dam";
 
@@ -102,12 +103,19 @@ test("format + rating facets compose simultaneously", async ({ page }) => {
 });
 
 // ---------------------------------------------------------------------------
-// UI: board asset panel — search + facets.
-// Board panel is scoped by the aside that contains the search placeholder (the
-// sidebar also renders an aside but without the search input).
+// UI: board asset panel + sidebar facets (issue #108).
+// BoardAssetPanel no longer mounts its own FilterFacets — folder/tag/format/
+// star filtering moved to the global sidebar, which routes to the board-local
+// query while `view === "board"` and must never navigate away from the
+// canvas. Only the keyword search stays local to the panel. The panel is
+// scoped by the aside that contains the search placeholder (the sidebar also
+// renders an aside but without a search input); since the panel no longer
+// duplicates the format/rating buttons, the sidebar's copies are unambiguous
+// even while a board is open — no `.first()` needed here (contrast the
+// library-view tests above, which keep `.first()` since #75).
 // ---------------------------------------------------------------------------
 
-test("board panel: search narrows assets; format facet narrows further", async ({ page }) => {
+test("board panel: search narrows assets locally", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("grid-view")).toBeVisible();
 
@@ -124,14 +132,11 @@ test("board panel: search narrows assets; format facet narrows further", async (
   await panel.getByPlaceholder("搜索素材…").fill("sunset");
   await expect(panel.getByText(/素材 · 2/)).toBeVisible({ timeout: 6_000 });
   await page.screenshot({ path: "e2e/screenshots/board-search.png" });
-
-  // Additionally restrict to image kind → 1 match (sunset-beach).
-  await panel.getByRole("button", { name: /图片/ }).click();
-  await expect(panel.getByText(/素材 · 1/)).toBeVisible({ timeout: 5_000 });
-  await page.screenshot({ path: "e2e/screenshots/board-search-filter.png" });
 });
 
-test("board panel: 标签 facet is labeled and filters", async ({ page }) => {
+test("board sidebar: format + rating facets narrow the board panel, stay on board", async ({
+  page,
+}) => {
   await page.goto("/");
   await expect(page.getByTestId("grid-view")).toBeVisible();
 
@@ -143,23 +148,60 @@ test("board panel: 标签 facet is labeled and filters", async ({ page }) => {
     .locator("aside")
     .filter({ has: page.getByPlaceholder("搜索素材…") });
 
-  // The tag facet is a labeled 标签 section (consistent with 格式/星级), not a bare
-  // chip row. Clicking the "hero" chip toggles it on and narrows to its 2 assets.
-  await expect(panel.getByText("标签", { exact: true })).toBeVisible();
-  const hero = panel.getByRole("button", { name: "hero" });
-  await hero.click();
-  await expect(hero).toHaveAttribute("aria-pressed", "true");
-  await expect(panel.getByText(/素材 · 2/)).toBeVisible({ timeout: 5_000 });
+  // Restrict to image kind via the sidebar → 4 draggable source items in the
+  // panel, and the board toolbar must stay put (the #108 bug this fixes: the
+  // old lq-bound facet setter used to bounce the view back to a browse layout).
+  const imgBtn = page.getByRole("button", { name: /图片/ });
+  await imgBtn.click();
+  await expect(imgBtn).toHaveAttribute("aria-pressed", "true");
+  await expect(panel.getByText(/素材 · 4/)).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText("返回图板列表")).toBeVisible();
+  await page.screenshot({ path: "e2e/screenshots/board-sidebar-format-filter.png" });
+
+  // Clear the format facet, then apply the rating facet alone → 3 assets are
+  // rated 5★ in the seed (img-1, img-2, vid-1), spanning two kinds.
+  await imgBtn.click();
+  await page.getByTitle("5 星").click();
+  await expect(page.getByText("5 星以上")).toBeVisible();
+  await expect(panel.getByText(/素材 · 3/)).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText("返回图板列表")).toBeVisible();
+  await page.screenshot({ path: "e2e/screenshots/board-sidebar-rating-filter.png" });
+
+  await page.getByTitle("5 星").click(); // clear for the next test
 });
 
-test("board panel: filtered items are draggable; placement verified via API", async ({
+test("board sidebar: 标签 facet narrows the board panel, stays on board", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("grid-view")).toBeVisible();
+
+  await page.getByText("图板", { exact: true }).click();
+  await page.getByText("新建图板").click();
+  await expect(page.getByText("返回图板列表")).toBeVisible({ timeout: 8_000 });
+
+  const panel = page
+    .locator("aside")
+    .filter({ has: page.getByPlaceholder("搜索素材…") });
+
+  // Sidebar renders its own CRUD-capable tag list (not FilterFacets' chips),
+  // so it carries no aria-pressed — assert via the resulting panel count.
+  const heroTag = page.locator("button").filter({ hasText: "hero" }).first();
+  await heroTag.click();
+  await expect(panel.getByText(/素材 · 2/)).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText("返回图板列表")).toBeVisible();
+  await page.screenshot({ path: "e2e/screenshots/board-sidebar-tag-filter.png" });
+
+  // Re-click clears it (useBoardPanelQuery.pickTag toggles on re-pick, #108).
+  await heroTag.click();
+  await expect(panel.getByText(/素材 · 2/)).toBeHidden();
+});
+
+test("board sidebar filter → drag into canvas → switch to library scopes the full library", async ({
   page,
   request,
 }) => {
   await page.goto("/");
   await expect(page.getByTestId("grid-view")).toBeVisible();
 
-  // Create a fresh board via UI.
   await page.getByText("图板", { exact: true }).click();
   await page.getByText("新建图板").click();
   await expect(page.getByText("返回图板列表")).toBeVisible({ timeout: 8_000 });
@@ -172,29 +214,40 @@ test("board panel: filtered items are draggable; placement verified via API", as
     .locator("aside")
     .filter({ has: page.getByPlaceholder("搜索素材…") });
 
-  // Apply image format filter → 4 draggable source items.
-  await panel.getByRole("button", { name: /图片/ }).click();
+  // Narrow the panel to images via the sidebar → 4 draggable source items.
+  const imgBtn = page.getByRole("button", { name: /图片/ });
+  await imgBtn.click();
   await expect(panel.getByText(/素材 · 4/)).toBeVisible({ timeout: 5_000 });
-  await expect(panel.locator("[draggable='true']").first()).toBeVisible();
-
-  // Verify draggable count matches the expected kind count.
   const sources = panel.locator("[draggable='true']");
   await expect(sources).toHaveCount(4);
 
   // Canvas drag-drop with Konva is not reliably automatable via Playwright;
-  // use the REST API instead — same approach as boards.spec.ts.
-  const assets = await (
-    await request.get(`${API}/assets?kind=image&limit=1`)
-  ).json();
+  // place the filtered asset via the REST API instead — same substitute
+  // boards.spec.ts already uses.
+  const assets = await (await request.get(`${API}/assets?kind=image&limit=1`)).json();
   const placed = await request.post(`${API}/boards/${boardId}/items`, {
     data: { asset_id: assets[0].id, x: 120, y: 120, w: 200, h: 150, rotation: 0, z: 0 },
   });
   expect(placed.ok()).toBeTruthy();
-
-  // Confirm the board now has 1 item.
   const board = await (await request.get(`${API}/boards/${boardId}`)).json();
   expect(board.items?.length).toBe(1);
   expect(board.items[0].asset_id).toBe(assets[0].id);
-
   await page.screenshot({ path: "e2e/screenshots/board-filtered-drag.png" });
+
+  // "全部素材" clears filters and leaves the board — pre-existing nav
+  // semantics this issue does not touch (design decision 4/(a) only reroutes
+  // facet *clicks* to the board query; it does not change what the "全部
+  // 素材" nav button does). So the facet starts unpressed here…
+  await page.getByText("返回图板列表").click();
+  await expect(page.getByText("新建图板")).toBeVisible();
+  await page.getByText("全部素材", { exact: true }).click();
+  await expect(page.getByTestId("grid-view")).toBeVisible();
+  await expect(imgBtn).toHaveAttribute("aria-pressed", "false");
+
+  // …and clicking it now scopes the *full library* grid, the same FilterFacets
+  // instance App re-points at `lq` once `view !== "board"`.
+  await imgBtn.click();
+  await expect(imgBtn).toHaveAttribute("aria-pressed", "true");
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "e2e/screenshots/board-sidebar-filter-after-library.png" });
 });
