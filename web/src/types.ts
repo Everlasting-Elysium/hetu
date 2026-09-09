@@ -177,13 +177,15 @@ export const isBrowseLayout = (v: ViewMode): v is BrowseLayout =>
   (BROWSE_LAYOUTS as readonly string[]).includes(v);
 
 // Active filter/search state driving the asset query. folderId/tagId/kind/
-// minRating/shapes/min-max width/height/size all compose (AND) and narrow
-// server-side; keyword and colorHex are the two search modes. kind is the format
-// facet (empty = all formats), minRating is the rating facet (0 = any rating),
-// and shapes/dimensions/size are additional AND facets like kind — not search
-// modes. shapes is empty for any shape; the numeric ranges use 0 to mean "no
-// bound" (min and max independent). Sizes are bytes; the UI converts MB at its
-// input boundary so this state only ever holds bytes.
+// minRating/shapes/min-max width/height/size/duration/time all compose (AND) and
+// narrow server-side; keyword and colorHex are the two search modes. kind is the
+// format facet (empty = all formats), minRating is the rating facet (0 = any
+// rating), and shapes/dimensions/size/duration/time are additional AND facets
+// like kind — not search modes. shapes is empty for any shape; the numeric
+// ranges use 0 to mean "no bound" (min and max independent). Sizes are bytes and
+// durations are seconds; the UI converts MB/minutes/dates at its input boundary
+// (RangeField/DateRangeField) so this state only ever holds bytes, seconds, and
+// unix seconds — never MB, minutes, or date strings.
 export interface Query {
   folderId: string | null;
   tagId: string | null;
@@ -198,6 +200,12 @@ export interface Query {
   maxHeight: number;
   minSize: number; // bytes; 0 = no bound
   maxSize: number;
+  minDuration: number; // seconds; 0 = no bound
+  maxDuration: number;
+  createdAfter: number; // unix seconds; 0 = no bound
+  createdBefore: number;
+  indexedAfter: number; // unix seconds; 0 = no bound
+  indexedBefore: number;
 }
 
 export const EMPTY_QUERY: Query = {
@@ -214,6 +222,12 @@ export const EMPTY_QUERY: Query = {
   maxHeight: 0,
   minSize: 0,
   maxSize: 0,
+  minDuration: 0,
+  maxDuration: 0,
+  createdAfter: 0,
+  createdBefore: 0,
+  indexedAfter: 0,
+  indexedBefore: 0,
 };
 
 // One swatch from an asset's extracted palette (GET /assets/{id}/colors).

@@ -47,7 +47,10 @@ type Handler struct {
 	warn    sync.Once
 }
 
-var _ kernel.AssetHandler = (*Handler)(nil)
+var (
+	_ kernel.AssetHandler      = (*Handler)(nil)
+	_ kernel.MetadataExtractor = (*Handler)(nil)
+)
 
 // New returns a video handler, resolving ffmpeg/ffprobe on PATH once. A nil log
 // falls back to slog.Default.
@@ -101,6 +104,35 @@ func (h *Handler) Extract(ctx context.Context, src io.ReadSeeker) (domain.Meta, 
 	}
 	meta.Width, meta.Height = pr.width, pr.height
 	return meta, nil
+}
+
+// ExtractMetadata probes the video for its duration and stores it as an
+// extracted-layer annotation (video.duration, seconds) so the duration facet
+// can range over it (issue #53). Dimensions already live on the asset row via
+// Extract, so this only persists what has no column. It is best-effort like
+// Extract: a missing ffprobe or a probe failure yields no annotations and a nil
+// error so a scan never fails.
+func (h *Handler) ExtractMetadata(ctx context.Context, src io.ReadSeeker) (domain.ExtractedMetadata, error) {
+	md := domain.ExtractedMetadata{Annotations: make(map[string]any)}
+	if h.ffprobe == "" {
+		h.warnMissing(ctx)
+		return md, nil
+	}
+	path, cleanup, err := mediaproc.TempCopy(src, ".video")
+	if err != nil {
+		h.log.DebugContext(ctx, "video temp copy failed", slog.Any("err", err))
+		return md, nil
+	}
+	defer cleanup()
+	pr, err := h.probe(ctx, path)
+	if err != nil {
+		h.log.DebugContext(ctx, "video probe failed", slog.Any("err", err))
+		return md, nil
+	}
+	if pr.duration > 0 {
+		md.Annotations[domain.KeyVideoDuration] = pr.duration.Seconds()
+	}
+	return md, nil
 }
 
 // Thumbnail renders one representative keyframe as JPEG into w, or returns

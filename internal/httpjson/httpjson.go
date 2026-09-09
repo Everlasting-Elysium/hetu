@@ -51,3 +51,18 @@ func QueryInt64(r *http.Request, key string, def int64) int64 {
 	}
 	return n
 }
+
+// QueryFloat64 reads a float64 query parameter, returning def when absent or
+// invalid. Durations are seconds and may be fractional, so the duration filter
+// uses this instead of QueryInt64.
+func QueryFloat64(r *http.Request, key string, def float64) float64 {
+	s := r.URL.Query().Get(key)
+	if s == "" {
+		return def
+	}
+	n, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return def
+	}
+	return n
+}

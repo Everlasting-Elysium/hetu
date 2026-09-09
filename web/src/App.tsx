@@ -397,6 +397,17 @@ export default function App() {
         minSize={activeQuery.minSize}
         maxSize={activeQuery.maxSize}
         onSetFileSize={view === "board" ? bpq.setFileSize : lq.setFileSize}
+        timeDuration={{
+          minDuration: activeQuery.minDuration,
+          maxDuration: activeQuery.maxDuration,
+          onSetDuration: view === "board" ? bpq.setDuration : lq.setDuration,
+          createdAfter: activeQuery.createdAfter,
+          createdBefore: activeQuery.createdBefore,
+          onSetCreatedRange: view === "board" ? bpq.setCreatedRange : lq.setCreatedRange,
+          indexedAfter: activeQuery.indexedAfter,
+          indexedBefore: activeQuery.indexedBefore,
+          onSetIndexedRange: view === "board" ? bpq.setIndexedRange : lq.setIndexedRange,
+        }}
         onClearFilters={lq.clearFilters}
       />
 

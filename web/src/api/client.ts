@@ -36,6 +36,12 @@ export interface AssetFilterParams {
   maxHeight?: number;
   minSize?: number;
   maxSize?: number;
+  minDuration?: number; // seconds
+  maxDuration?: number;
+  createdAfter?: number; // unix seconds
+  createdBefore?: number;
+  indexedAfter?: number;
+  indexedBefore?: number;
 }
 
 // Result of a multipart POST /import (issue #89): the stored asset, or
@@ -71,14 +77,21 @@ export function queryFilter(q: Query): AssetFilterParams {
     maxHeight: q.maxHeight,
     minSize: q.minSize,
     maxSize: q.maxSize,
+    minDuration: q.minDuration,
+    maxDuration: q.maxDuration,
+    createdAfter: q.createdAfter,
+    createdBefore: q.createdBefore,
+    indexedAfter: q.indexedAfter,
+    indexedBefore: q.indexedBefore,
   };
 }
 
 // Serializes the shared facets into a query string (folder/tag/kind/rating/
-// shape/dimensions/size), dropping empties. kind and shape are comma-joined to
-// match the ?kind=a,b / ?shape=a,b backend parsers; the numeric bounds are bytes
-// (size) or pixels (width/height) and 0 means "no bound", so a falsy check drops
-// them from the query string.
+// shape/dimensions/size/duration/time), dropping empties. kind and shape are
+// comma-joined to match the ?kind=a,b / ?shape=a,b backend parsers; the numeric
+// bounds are bytes (size), pixels (width/height), seconds (duration), or unix
+// seconds (created/indexed) and 0 means "no bound", so a falsy check drops them
+// from the query string.
 function filterParams(f: AssetFilterParams): string {
   const p = new URLSearchParams();
   if (f.folder) p.set("folder", f.folder);
@@ -92,6 +105,12 @@ function filterParams(f: AssetFilterParams): string {
   if (f.maxHeight) p.set("maxHeight", String(f.maxHeight));
   if (f.minSize) p.set("minSize", String(f.minSize));
   if (f.maxSize) p.set("maxSize", String(f.maxSize));
+  if (f.minDuration) p.set("minDuration", String(f.minDuration));
+  if (f.maxDuration) p.set("maxDuration", String(f.maxDuration));
+  if (f.createdAfter) p.set("createdAfter", String(f.createdAfter));
+  if (f.createdBefore) p.set("createdBefore", String(f.createdBefore));
+  if (f.indexedAfter) p.set("indexedAfter", String(f.indexedAfter));
+  if (f.indexedBefore) p.set("indexedBefore", String(f.indexedBefore));
   return p.toString();
 }
 

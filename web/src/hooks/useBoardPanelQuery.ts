@@ -11,6 +11,9 @@ export interface BoardPanelQuery {
   toggleShape: (shape: AssetShape) => void;
   setDimensions: (minWidth: number, maxWidth: number, minHeight: number, maxHeight: number) => void;
   setFileSize: (minSize: number, maxSize: number) => void;
+  setDuration: (minDuration: number, maxDuration: number) => void;
+  setCreatedRange: (createdAfter: number, createdBefore: number) => void;
+  setIndexedRange: (indexedAfter: number, indexedBefore: number) => void;
 }
 
 // Owns the board-local Query that scopes the board canvas's drag-source panel
@@ -70,6 +73,18 @@ export function useBoardPanelQuery(): BoardPanelQuery {
     (minSize: number, maxSize: number) => setBoardQuery((q) => ({ ...q, minSize, maxSize })),
     [],
   );
+  const setDuration = useCallback(
+    (minDuration: number, maxDuration: number) => setBoardQuery((q) => ({ ...q, minDuration, maxDuration })),
+    [],
+  );
+  const setCreatedRange = useCallback(
+    (createdAfter: number, createdBefore: number) => setBoardQuery((q) => ({ ...q, createdAfter, createdBefore })),
+    [],
+  );
+  const setIndexedRange = useCallback(
+    (indexedAfter: number, indexedBefore: number) => setBoardQuery((q) => ({ ...q, indexedAfter, indexedBefore })),
+    [],
+  );
   return {
     boardQuery,
     setKeyword,
@@ -80,5 +95,8 @@ export function useBoardPanelQuery(): BoardPanelQuery {
     toggleShape,
     setDimensions,
     setFileSize,
+    setDuration,
+    setCreatedRange,
+    setIndexedRange,
   };
 }

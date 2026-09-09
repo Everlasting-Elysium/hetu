@@ -3,14 +3,14 @@ import { api } from "../api/client";
 import type { KindCount, Query } from "../types";
 
 // Fetches the format-facet counts for the current folder/tag/rating/shape/
-// dimension/size scope. The active kind selection and the keyword are
-// intentionally excluded: the server ignores kind so every format stays
+// dimension/size/duration/time scope. The active kind selection and the keyword
+// are intentionally excluded: the server ignores kind so every format stays
 // selectable while multi-selecting, and the counts track the facet scope rather
-// than the search text. Shape/dimensions/size DO narrow the scope like rating —
-// they answer "how many of each format match my other filters", not "which
-// format", so passing them keeps the counts honest (issue #101). A `version`
-// bump refetches after mutations that change the library. Shared by the main
-// sidebar and the board asset panel (issue #75).
+// than the search text. Shape/dimensions/size/duration/time DO narrow the scope
+// like rating — they answer "how many of each format match my other filters",
+// not "which format", so passing them keeps the counts honest (issue #101/#53).
+// A `version` bump refetches after mutations that change the library. Shared by
+// the main sidebar and the board asset panel (issue #75).
 export function useFacets(query: Query, version: number): KindCount[] {
   const [kinds, setKinds] = useState<KindCount[]>([]);
 
@@ -28,6 +28,12 @@ export function useFacets(query: Query, version: number): KindCount[] {
         maxHeight: query.maxHeight,
         minSize: query.minSize,
         maxSize: query.maxSize,
+        minDuration: query.minDuration,
+        maxDuration: query.maxDuration,
+        createdAfter: query.createdAfter,
+        createdBefore: query.createdBefore,
+        indexedAfter: query.indexedAfter,
+        indexedBefore: query.indexedBefore,
       })
       .then((f) => {
         if (alive) setKinds(f.kinds);
@@ -49,6 +55,12 @@ export function useFacets(query: Query, version: number): KindCount[] {
     query.maxHeight,
     query.minSize,
     query.maxSize,
+    query.minDuration,
+    query.maxDuration,
+    query.createdAfter,
+    query.createdBefore,
+    query.indexedAfter,
+    query.indexedBefore,
     version,
   ]);
 

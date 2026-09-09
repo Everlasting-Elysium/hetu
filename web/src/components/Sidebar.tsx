@@ -4,6 +4,7 @@ import type { CollectionNode } from "../hooks/useCollections";
 import { FilterFacets } from "./FilterFacets";
 import { SidebarCollections } from "./SidebarCollections";
 import { AddForm } from "./SidebarAddForm";
+import type { TimeDurationFacetsProps } from "./TimeDurationFacets";
 import { IconAlert, IconBoard, IconFolder, IconGrid, IconPlus, IconTag, IconTrash } from "./icons";
 import styles from "./Sidebar.module.css";
 
@@ -44,6 +45,7 @@ interface Props {
   minSize: number;
   maxSize: number;
   onSetFileSize: (minSize: number, maxSize: number) => void;
+  timeDuration: TimeDurationFacetsProps;
   onClearFilters: () => void;
 }
 
@@ -193,6 +195,7 @@ export function Sidebar(p: Props) {
         minSize={p.minSize}
         maxSize={p.maxSize}
         onSetFileSize={p.onSetFileSize}
+        timeDuration={p.timeDuration}
       />
     </aside>
   );

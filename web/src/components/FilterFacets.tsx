@@ -2,6 +2,7 @@ import type { AssetKind, AssetShape, KindCount, Tag } from "../types";
 import { IconLandscape, IconPortrait, IconSquare, KindIcon } from "./icons";
 import { MB, RangeField } from "./RangeField";
 import { RatingStars } from "./RatingStars";
+import { TimeDurationFacets, type TimeDurationFacetsProps } from "./TimeDurationFacets";
 import styles from "./FilterFacets.module.css";
 
 // Human labels for the format facet. Keyed by AssetKind so the map stays
@@ -45,6 +46,10 @@ interface Props {
   minSize: number;
   maxSize: number;
   onSetFileSize: (minSize: number, maxSize: number) => void;
+  // Duration + created/indexed time facets, forwarded verbatim to
+  // TimeDurationFacets as one object (issue #53); grouped so this file and
+  // Sidebar stay under the LOC ceiling.
+  timeDuration: TimeDurationFacetsProps;
   // Optional tag facet: the board asset panel passes these to get a labeled
   // 标签 section consistent with 格式/星级. The main sidebar omits them because it
   // renders its own CRUD-capable tag list, so no 标签 section appears there.
@@ -53,15 +58,17 @@ interface Props {
   onPickTag?: (tagId: string) => void;
 }
 
-// Shared tag + format + shape + star + dimension + size facets, styled like the
-// sidebar rows so they read as one filter language. Tags render as toggleable
-// chips (single-select, clears on re-pick); formats with no live assets in the
-// current scope are hidden and toggle (multi-select); shapes toggle like formats
-// (multi-select); the star row reuses RatingStars as a "≥ N stars" selector; the
-// 尺寸 (宽/高) and 文件大小 rows are min–max numeric ranges. File size shows MB but
-// commits bytes, so that conversion stays inside RangeField and the query layer
-// only ever holds bytes (#101). Mounted in the main sidebar and the board asset
-// panel (issue #75).
+// Shared tag + format + shape + star + dimension + size + duration + time
+// facets, styled like the sidebar rows so they read as one filter language. Tags
+// render as toggleable chips (single-select, clears on re-pick); formats with no
+// live assets in the current scope are hidden and toggle (multi-select); shapes
+// toggle like formats (multi-select); the star row reuses RatingStars as a "≥ N
+// stars" selector; the 尺寸 (宽/高) and 文件大小 rows are min–max numeric ranges;
+// the 时长/创建时间/索引时间 rows (TimeDurationFacets) add duration and date ranges.
+// File size shows MB, duration shows minutes, and dates show local calendar
+// days, but each conversion stays inside its field (RangeField/DateRangeField)
+// so the query layer only ever holds bytes/seconds/unix-seconds (#101/#53).
+// Mounted in the main sidebar and the board asset panel (issue #75).
 export function FilterFacets({
   counts,
   activeKinds,
@@ -78,6 +85,7 @@ export function FilterFacets({
   minSize,
   maxSize,
   onSetFileSize,
+  timeDuration,
   tags,
   activeTag,
   onPickTag,
@@ -252,6 +260,8 @@ export function FilterFacets({
           </button>
         </div>
       </div>
+
+      <TimeDurationFacets {...timeDuration} />
     </>
   );
 }

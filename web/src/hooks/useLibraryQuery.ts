@@ -12,6 +12,9 @@ export interface LibraryQuery {
   toggleShape: (shape: AssetShape) => void;
   setDimensions: (minWidth: number, maxWidth: number, minHeight: number, maxHeight: number) => void;
   setFileSize: (minSize: number, maxSize: number) => void;
+  setDuration: (minDuration: number, maxDuration: number) => void;
+  setCreatedRange: (createdAfter: number, createdBefore: number) => void;
+  setIndexedRange: (indexedAfter: number, indexedBefore: number) => void;
   clearFilters: () => void;
   setKeyword: (keyword: string) => void;
   setColor: (hex: string | null) => void;
@@ -80,6 +83,18 @@ export function useLibraryQuery(onFilter: () => void): LibraryQuery {
     (minSize: number, maxSize: number) => filter((q) => ({ ...q, minSize, maxSize })),
     [filter],
   );
+  const setDuration = useCallback(
+    (minDuration: number, maxDuration: number) => filter((q) => ({ ...q, minDuration, maxDuration })),
+    [filter],
+  );
+  const setCreatedRange = useCallback(
+    (createdAfter: number, createdBefore: number) => filter((q) => ({ ...q, createdAfter, createdBefore })),
+    [filter],
+  );
+  const setIndexedRange = useCallback(
+    (indexedAfter: number, indexedBefore: number) => filter((q) => ({ ...q, indexedAfter, indexedBefore })),
+    [filter],
+  );
   const clearFilters = useCallback(() => filter(() => EMPTY_QUERY), [filter]);
   // An empty keyword is not a search, so it must not clear an active color filter:
   // otherwise the keyword debounce firing onKeyword("") wipes a color picked from
@@ -107,7 +122,13 @@ export function useLibraryQuery(onFilter: () => void): LibraryQuery {
       query.minHeight > 0 ||
       query.maxHeight > 0 ||
       query.minSize > 0 ||
-      query.maxSize > 0,
+      query.maxSize > 0 ||
+      query.minDuration > 0 ||
+      query.maxDuration > 0 ||
+      query.createdAfter > 0 ||
+      query.createdBefore > 0 ||
+      query.indexedAfter > 0 ||
+      query.indexedBefore > 0,
   );
 
   return {
@@ -121,6 +142,9 @@ export function useLibraryQuery(onFilter: () => void): LibraryQuery {
     toggleShape,
     setDimensions,
     setFileSize,
+    setDuration,
+    setCreatedRange,
+    setIndexedRange,
     clearFilters,
     setKeyword,
     setColor,
