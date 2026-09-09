@@ -61,6 +61,23 @@ export const IconStar = (p: P) => (
     <path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 17l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8Z" />
   </svg>
 );
+// Aspect-ratio glyphs for the shape facet: a single rounded rect whose
+// proportions read as landscape / portrait / square at a glance.
+export const IconLandscape = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3" y="6" width="18" height="12" rx="1.5" />
+  </svg>
+);
+export const IconPortrait = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="6" y="3" width="12" height="18" rx="1.5" />
+  </svg>
+);
+export const IconSquare = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="5" y="5" width="14" height="14" rx="1.5" />
+  </svg>
+);
 export const IconGrid = (p: P) => (
   <svg {...base(p)}>
     <rect x="3" y="3" width="7" height="7" rx="1" />

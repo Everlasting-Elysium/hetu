@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AssetKind, Folder, KindCount, Tag } from "../types";
+import type { AssetKind, AssetShape, Folder, KindCount, Tag } from "../types";
 import { FilterFacets } from "./FilterFacets";
 import { IconAlert, IconBoard, IconFolder, IconGrid, IconPlus, IconTag, IconTrash } from "./icons";
 import styles from "./Sidebar.module.css";
@@ -25,6 +25,16 @@ interface Props {
   minRating: number;
   onToggleKind: (kind: AssetKind) => void;
   onSetRating: (rating: number) => void;
+  activeShapes: AssetShape[];
+  onToggleShape: (shape: AssetShape) => void;
+  minWidth: number;
+  maxWidth: number;
+  minHeight: number;
+  maxHeight: number;
+  onSetDimensions: (minWidth: number, maxWidth: number, minHeight: number, maxHeight: number) => void;
+  minSize: number;
+  maxSize: number;
+  onSetFileSize: (minSize: number, maxSize: number) => void;
   onClearFilters: () => void;
 }
 
@@ -183,6 +193,16 @@ export function Sidebar(p: Props) {
         minRating={p.minRating}
         onToggleKind={p.onToggleKind}
         onSetRating={p.onSetRating}
+        activeShapes={p.activeShapes}
+        onToggleShape={p.onToggleShape}
+        minWidth={p.minWidth}
+        maxWidth={p.maxWidth}
+        minHeight={p.minHeight}
+        maxHeight={p.maxHeight}
+        onSetDimensions={p.onSetDimensions}
+        minSize={p.minSize}
+        maxSize={p.maxSize}
+        onSetFileSize={p.onSetFileSize}
       />
     </aside>
   );

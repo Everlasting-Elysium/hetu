@@ -82,6 +82,47 @@
   color: var(--text-muted);
 }
 
+/* Min–max numeric range rows (尺寸/文件大小). A fixed label, two narrow inputs
+   flanking a separator, and a trailing unit — reusing the shared tokens so the
+   ranges sit in the same rhythm as the format/star rows. */
+.rangeRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+}
+.rangeLabel {
+  flex: none;
+  width: 24px;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+.rangeInput {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 var(--sp-2);
+  font-size: var(--fs-sm);
+  text-align: center;
+  /* Drop the native spinners so two inputs fit the sidebar width cleanly. */
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.rangeInput::-webkit-outer-spin-button,
+.rangeInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.rangeSep {
+  flex: none;
+  color: var(--text-muted);
+}
+.rangeUnit {
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
 /* Tag facet chips (board asset panel). Toggleable pills sharing the accent-soft
    active treatment with the format/tag rows. */
 .chips {

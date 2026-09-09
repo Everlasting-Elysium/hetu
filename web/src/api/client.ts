@@ -4,6 +4,7 @@
 import type {
   Asset,
   AssetKind,
+  AssetShape,
   Board,
   BoardItem,
   ColorMatch,
@@ -25,6 +26,13 @@ export interface AssetFilterParams {
   tag?: string | null;
   kind?: AssetKind[];
   rating?: number;
+  shape?: AssetShape[];
+  minWidth?: number;
+  maxWidth?: number;
+  minHeight?: number;
+  maxHeight?: number;
+  minSize?: number;
+  maxSize?: number;
 }
 
 // Result of a multipart POST /import (issue #89): the stored asset, or
@@ -39,17 +47,39 @@ export interface ImportResult {
 // the single Query -> filter bridge shared by useAssets and useFacets, so the
 // two never drift on which fields narrow a request.
 export function queryFilter(q: Query): AssetFilterParams {
-  return { folder: q.folderId, tag: q.tagId, kind: q.kind, rating: q.minRating };
+  return {
+    folder: q.folderId,
+    tag: q.tagId,
+    kind: q.kind,
+    rating: q.minRating,
+    shape: q.shapes,
+    minWidth: q.minWidth,
+    maxWidth: q.maxWidth,
+    minHeight: q.minHeight,
+    maxHeight: q.maxHeight,
+    minSize: q.minSize,
+    maxSize: q.maxSize,
+  };
 }
 
-// Serializes the shared facets into a query string (folder/tag/kind/rating),
-// dropping empties. kind is comma-joined to match the ?kind=a,b backend parser.
+// Serializes the shared facets into a query string (folder/tag/kind/rating/
+// shape/dimensions/size), dropping empties. kind and shape are comma-joined to
+// match the ?kind=a,b / ?shape=a,b backend parsers; the numeric bounds are bytes
+// (size) or pixels (width/height) and 0 means "no bound", so a falsy check drops
+// them from the query string.
 function filterParams(f: AssetFilterParams): string {
   const p = new URLSearchParams();
   if (f.folder) p.set("folder", f.folder);
   if (f.tag) p.set("tag", f.tag);
   if (f.kind && f.kind.length > 0) p.set("kind", f.kind.join(","));
   if (f.rating && f.rating > 0) p.set("rating", String(f.rating));
+  if (f.shape && f.shape.length > 0) p.set("shape", f.shape.join(","));
+  if (f.minWidth) p.set("minWidth", String(f.minWidth));
+  if (f.maxWidth) p.set("maxWidth", String(f.maxWidth));
+  if (f.minHeight) p.set("minHeight", String(f.minHeight));
+  if (f.maxHeight) p.set("maxHeight", String(f.maxHeight));
+  if (f.minSize) p.set("minSize", String(f.minSize));
+  if (f.maxSize) p.set("maxSize", String(f.maxSize));
   return p.toString();
 }
 

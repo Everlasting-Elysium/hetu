@@ -339,6 +339,16 @@ export default function App() {
         minRating={activeQuery.minRating}
         onToggleKind={view === "board" ? bpq.toggleKind : lq.toggleKind}
         onSetRating={view === "board" ? bpq.setRating : lq.setRating}
+        activeShapes={activeQuery.shapes}
+        onToggleShape={view === "board" ? bpq.toggleShape : lq.toggleShape}
+        minWidth={activeQuery.minWidth}
+        maxWidth={activeQuery.maxWidth}
+        minHeight={activeQuery.minHeight}
+        maxHeight={activeQuery.maxHeight}
+        onSetDimensions={view === "board" ? bpq.setDimensions : lq.setDimensions}
+        minSize={activeQuery.minSize}
+        maxSize={activeQuery.maxSize}
+        onSetFileSize={view === "board" ? bpq.setFileSize : lq.setFileSize}
         onClearFilters={lq.clearFilters}
       />
 
