@@ -7,9 +7,12 @@ import type {
   AssetShape,
   Board,
   BoardItem,
+  Collection,
+  CollectionItem,
   ColorMatch,
   Facets,
   Folder,
+  NewCollection,
   NewFolder,
   NewTag,
   Query,
@@ -41,6 +44,15 @@ export interface AssetFilterParams {
 export interface ImportResult {
   asset?: Asset;
   skipped: boolean;
+}
+
+// Partial body for PATCH /collections/:id (issue #55). With
+// exactOptionalPropertyTypes a caller includes only the keys it is changing
+// (never an explicit `undefined`); `cover` set to "" clears the manual cover.
+export interface CollectionPatch {
+  name?: string;
+  parent_id?: string;
+  cover?: string;
 }
 
 // queryFilter maps the composable facets of a Query onto the wire params. It is
@@ -168,6 +180,10 @@ export const api = {
   createTag: (t: NewTag) => req<Tag>("/tags", body(t)),
   deleteTag: (id: string) =>
     req<{ deleted: boolean }>(`/tags/${id}`, { method: "DELETE" }),
+  // Fetches one asset's full DTO by id (issue #55). The collection view holds only
+  // asset ids (GET /collections/:id/items) and needs the complete Asset to open
+  // the shared detail modal.
+  getAsset: (id: string) => req<Asset>(`/assets/${id}`),
   assetTags: (id: string) => req<Tag[]>(`/assets/${id}/tags`),
   assetColors: (id: string) => req<Swatch[]>(`/assets/${id}/colors`),
 
@@ -236,6 +252,29 @@ export const api = {
   deleteBoardItem: (id: string, itemId: string) =>
     req<{ deleted: boolean }>(`/boards/${id}/items/${itemId}`, {
       method: "DELETE",
+    }),
+
+  // Collections (issue #55): a manually-curated, nestable asset group. Cover is
+  // resolved server-side (explicit value, else the ord-smallest member, else "");
+  // PATCH cover to a member asset id, or "" to clear back to that fallback.
+  listCollections: () => req<Collection[]>("/collections"),
+  createCollection: (c: NewCollection) => req<Collection>("/collections", body(c)),
+  updateCollection: (id: string, data: CollectionPatch) =>
+    req<{ ok: boolean }>(`/collections/${id}`, patch(data)),
+  deleteCollection: (id: string) =>
+    req<{ deleted: boolean }>(`/collections/${id}`, { method: "DELETE" }),
+
+  listCollectionItems: (id: string) => req<CollectionItem[]>(`/collections/${id}/items`),
+  addCollectionItem: (id: string, asset_id: string) =>
+    req<{ added: boolean }>(`/collections/${id}/items`, body({ asset_id })),
+  removeCollectionItem: (id: string, assetId: string) =>
+    req<{ deleted: boolean }>(`/collections/${id}/items/${assetId}`, { method: "DELETE" }),
+  // asset_ids must be the complete, reordered member list (the server 400s on a
+  // set mismatch), so the collection view always sends every member's id.
+  reorderCollectionItems: (id: string, asset_ids: string[]) =>
+    req<{ reordered: number }>(`/collections/${id}/items/order`, {
+      method: "PUT",
+      body: JSON.stringify({ asset_ids }),
     }),
 
   listMissing: (limit = 200, offset = 0) =>

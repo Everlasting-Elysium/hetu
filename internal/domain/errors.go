@@ -16,4 +16,12 @@ var (
 	// ErrInvalidQuery is returned when a search query is malformed (e.g. it
 	// produces an invalid FTS5 MATCH expression). Callers map it to HTTP 400.
 	ErrInvalidQuery = errors.New("domain: invalid query")
+	// ErrCollectionItemsMismatch is returned when a reorder request's asset set
+	// does not match the collection's current members exactly (differing count,
+	// unknown member, or a duplicate). Callers map it to HTTP 400.
+	ErrCollectionItemsMismatch = errors.New("domain: collection items mismatch")
+	// ErrCollectionCycle is returned when a collection's parent_id would make it
+	// its own ancestor (self-reference or a multi-step cycle). Callers map it to
+	// HTTP 400.
+	ErrCollectionCycle = errors.New("domain: collection parent cycle")
 )

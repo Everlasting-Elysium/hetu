@@ -58,6 +58,13 @@ export function AssetCard({ asset, selected, focused, onSelect, onToggleCheck, o
     <div
       className={`${styles.card} ${selected ? styles.selected : ""} ${focused ? styles.focused : ""}`}
       data-testid="asset-card"
+      draggable
+      onDragStart={(e) => {
+        // Native drag source for "drop onto a collection" (issue #55), mirroring
+        // BoardAssetPanel: carry the asset id on text/plain; Sidebar reads it on drop.
+        e.dataTransfer.setData("text/plain", asset.id);
+        e.dataTransfer.effectAllowed = "copy";
+      }}
       onClick={onSelect}
       onDoubleClick={onDetail}
       onMouseEnter={startHover}
@@ -73,6 +80,7 @@ export function AssetCard({ asset, selected, focused, onSelect, onToggleCheck, o
             alt={label}
             loading="lazy"
             decoding="async"
+            draggable={false}
             className={loaded ? styles.loaded : ""}
             onLoad={() => setLoaded(true)}
             onError={() => setFailed(true)}

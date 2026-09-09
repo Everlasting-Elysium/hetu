@@ -87,6 +87,61 @@ v0 仅有一条系统用户记录。
 
 ---
 
+### collections
+
+手动分组（[#55](https://github.com/Everlasting-Elysium/hetu/issues/55)），独立于文件夹树的用户自定义集合。可嵌套子合集（`parent_id` 自引用），一个资产可归属多个合集，成员支持手动排序。DDL 与实现见 [schema.sql](../internal/store/schema.sql)、[queries/collection.sql](../internal/store/queries/collection.sql)、[store/sqlite_collections.go](../internal/store/sqlite_collections.go)、[plugins/dam/collections.go](../internal/plugins/dam/collections.go)。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | TEXT (UUID v7) | 主键 |
+| owner_id | TEXT | 外键 → users.id |
+| parent_id | TEXT | 外键 → collections.id，顶级合集为空字符串（`NOT NULL DEFAULT ''`） |
+| name | TEXT | 合集名称。**不加唯一约束**：允许同名、允许不同父下重名（区别于 folders/tags） |
+| cover | TEXT | 可选封面 asset_id 覆盖；空字符串表示自动取 `ord` 最小成员 |
+
+索引：`idx_collections_owner`、`idx_collections_owner_parent`。
+
+**有效封面解析**：`ListCollections`（经单条 `ListCollectionsWithCover` query，用 `CASE` 一次性算出，避免逐合集 N+1）返回**有效封面**——`cover` 非空则用它，否则回退到 `ord` 最小成员的 asset_id，合集为空则为空字符串；`GetCollection` 则返回**原始** `cover`，编辑路径据此区分显式覆盖与自动回退，不会把回退值误存为显式覆盖。`cover` 经 `UpdateCollection` 设置时在 store 层校验其为当前成员，非成员返回 `domain.ErrNotFound`。
+
+---
+
+### collection_items
+
+合集的有序成员关系。`ord` 决定成员在合集内的手动排序（升序），联合主键保证同一资产在一个合集内至多一条。实现见 [store/sqlite_collection_items.go](../internal/store/sqlite_collection_items.go)、[plugins/dam/collection_items.go](../internal/plugins/dam/collection_items.go)。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| collection_id | TEXT | 外键 → collections.id |
+| asset_id | TEXT | 外键 → assets.id |
+| ord | INTEGER | 合集内排序位（升序，`NOT NULL DEFAULT 0`） |
+
+联合主键：`(collection_id, asset_id)`；`idx_collection_items_collection` 覆盖 `(collection_id, ord)` 排序。
+
+**增删 / 排序语义**：
+- **追加**：`AddCollectionItem` 在同一事务内取 `MAX(ord)+1` 再 upsert，`ON CONFLICT(collection_id, asset_id) DO UPDATE SET ord` 保证幂等（重复 add 同一资产更新 `ord` 而非报错、不产生重复行）。
+- **重排**：`ReorderCollectionItems` 事务内按传入数组下标重写全部 `ord`（`0..n-1`），先校验数组与当前成员**完全一致**（数量、成员相同、无重复），不一致返回 `domain.ErrCollectionItemsMismatch`（HTTP 400）。
+- **删除合集级联**：`DeleteCollection` 在事务内先清空 `collection_items` 再删 `collections`，不留孤儿行（区别于 folders/tags 对关联表不做显式清理）。
+- **成员富化**：`ListCollectionItems` 用单条 `ListCollectionItemsEnriched`（JOIN `assets`）返回成员的 kind/name/thumb，一次查询而非 N+1。
+
+---
+
+### 组织方式边界：folder / tag / collection / smart-folder
+
+DAM 提供多种正交的资产组织方式，四者边界清晰，实现者据此选择或扩展：
+
+| 方式 | 归属 | 结构 | 成员排序 | 状态 | 表 |
+|------|------|------|----------|------|------|
+| **folder（文件夹）** | 单归属（一个资产恰属一个文件夹） | 嵌套树 + 物理路径（`path` 冗余存储） | 无 | 已实现 | `folders` + `assets.folder_id` |
+| **tag（标签）** | 多对多（一个资产多个标签） | 扁平（`parent_id` 仅用于组织标签自身） | 无 | 已实现 | `tags` + `asset_tags` |
+| **collection（合集，[#55](https://github.com/Everlasting-Elysium/hetu/issues/55)）** | 多对多（一个资产多个合集） | 嵌套树（`parent_id`） | 手动排序（`ord`）+ 可指定封面 | 已实现 | `collections` + `collection_items` |
+| **smart-folder（智能文件夹，[#17](https://github.com/Everlasting-Elysium/hetu/issues/17)）** | 多对多（命中条件即属于） | 由保存的查询条件自动聚合，无显式成员 | 由查询决定 | **未实现** | 计划：仅存查询条件，不落地成员表 |
+
+- **folder vs collection**：folder 是资产的**唯一物理归属**（移动即改写 `assets.folder_id`）；collection 是**叠加的手动分组**，一个资产可同时在多个合集，且成员有 `ord` 手动排序与可选封面。
+- **tag vs collection**：tag 是**扁平多对多标签**（无成员排序、无封面）；collection 是**嵌套 + 有序 + 有封面**的分组。
+- **collection vs smart-folder**：collection 成员**手动**增删并排序（落地到 `collection_items`）；smart-folder（[#17](https://github.com/Everlasting-Elysium/hetu/issues/17)，尚未实现）成员由**保存的查询条件自动聚合**，不落地成员表。
+
+---
+
 ### annotations
 
 分层元数据存储（已实现）。每条记录是一个键值对，附带层标识和模型信息。

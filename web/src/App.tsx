@@ -14,6 +14,7 @@ import { useLibraryQuery } from "./hooks/useLibraryQuery";
 import { useBoardPanelQuery } from "./hooks/useBoardPanelQuery";
 import { useLibrary } from "./hooks/useLibrary";
 import { useBoards } from "./hooks/useBoards";
+import { useCollections } from "./hooks/useCollections";
 import { useSelection } from "./hooks/useSelection";
 import { useViewMode } from "./hooks/useViewMode";
 import { useImport } from "./hooks/useImport";
@@ -29,6 +30,7 @@ import { TrashView } from "./components/TrashView";
 import { InspectorPanel } from "./components/InspectorPanel";
 import { BoardList } from "./components/BoardList";
 import { BoardCanvas } from "./components/BoardCanvas";
+import { CollectionView } from "./components/CollectionView";
 import { copyAssetsToClipboard } from "./lib/clipboard";
 import brand from "./components/Sidebar.module.css";
 import styles from "./App.module.css";
@@ -51,6 +53,10 @@ export default function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [inspectorTags, setInspectorTags] = useState<Tag[]>([]);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
+  const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null);
+  // Bumped when an asset is dropped onto the currently-open collection's sidebar
+  // node, so CollectionView refetches its member grid without a remount.
+  const [colRefresh, setColRefresh] = useState(0);
   const [detail, setDetail] = useState<Asset | null>(null);
   const [immersiveIndex, setImmersiveIndex] = useState(0);
   // Keyboard cursor: tracks which card is "current" for Space-to-open-detail and
@@ -64,6 +70,7 @@ export default function App() {
   const bump = useCallback(() => setVersion((v) => v + 1), []);
   const lib = useLibrary(setError);
   const boards = useBoards(setError);
+  const collections = useCollections(setError);
   const { assets, loading, error: loadErr } = useAssets(view, lq.query, version);
   // The sidebar's facet controls act on whichever query is "active" for the
   // current view: the board panel's query on the board canvas, `lq` everywhere
@@ -91,9 +98,14 @@ export default function App() {
     ? assets.find((a) => a.id === inspectedId)
     : undefined;
 
-  // Board views (list + canvas) own their full-area chrome, so the search and
+  // Board + collection detail views own their full-area chrome, so the search and
   // batch bars hide there; every other view keeps the asset chrome.
-  const isAssetView = view !== "boards" && view !== "board";
+  const isAssetView = view !== "boards" && view !== "board" && view !== "collection";
+
+  // The active collection (resolved from the tree list) — null while none is open
+  // or after it (or an ancestor) was deleted, which the effect below navigates on.
+  const activeCollection =
+    collections.list.find((c) => c.id === activeCollectionId) ?? null;
 
   // Remember the last browse layout so exiting immersive/trash/missing returns to it.
   const prevBrowse = useRef<BrowseLayout>(isBrowseLayout(view) ? view : "grid");
@@ -189,6 +201,20 @@ export default function App() {
     sel.clear();
     setActiveBoardId(id);
     setView("board");
+  };
+  const openCollection = (id: string) => {
+    sel.clear();
+    setActiveCollectionId(id);
+    setView("collection");
+  };
+  // Drop an asset (dragged from any grid card) onto a sidebar collection node.
+  // Reuses the notice/error toasts; refetches the member grid if that collection
+  // is the one currently open.
+  const dropOnCollection = async (collectionId: string, assetId: string) => {
+    if (!(await collections.addItem(collectionId, assetId))) return;
+    const c = collections.list.find((x) => x.id === collectionId);
+    setNotice(`已加入「${c?.name ?? "合集"}」`);
+    if (collectionId === activeCollectionId) setColRefresh((v) => v + 1);
   };
   const createAndOpen = async () => {
     const created = await boards.createBoard("未命名图板");
@@ -303,6 +329,20 @@ export default function App() {
     setFocusedId(null);
   }, [view, lq.query]);
 
+  // If the open collection itself is deleted, it drops out of the reloaded list
+  // (deleting a collection never cascades to its children — an orphaned child
+  // re-parents to root instead, so viewing a child while its ancestor is deleted
+  // never triggers this). Leave the now-dangling detail view for the last browse layout.
+  useEffect(() => {
+    if (
+      view === "collection" &&
+      activeCollectionId &&
+      !collections.list.some((c) => c.id === activeCollectionId)
+    ) {
+      setView(prevBrowse.current);
+    }
+  }, [view, activeCollectionId, collections.list, setView]);
+
   return (
     <div
       className={`app ${isAssetView && inspectedAsset && !detail ? "inspect" : ""}`}
@@ -331,6 +371,14 @@ export default function App() {
         onDeleteFolder={(id) => void lib.deleteFolder(id)}
         onCreateTag={(n) => void lib.createTag(n)}
         onDeleteTag={(id) => void lib.deleteTag(id)}
+        collections={collections.tree}
+        activeCollectionId={view === "collection" ? activeCollectionId : null}
+        onPickCollection={openCollection}
+        onCreateCollection={(name, parentId) => void collections.createCollection(name, parentId)}
+        onDeleteCollection={(id) => void collections.deleteCollection(id)}
+        onDropAssetToCollection={(collectionId, assetId) =>
+          void dropOnCollection(collectionId, assetId)
+        }
         missingCount={lib.missingCount}
         onPickMissing={setMissing}
         activeMissing={view === "missing"}
@@ -378,6 +426,18 @@ export default function App() {
             boardQuery={bpq.boardQuery}
             setKeyword={bpq.setKeyword}
             onBack={() => changeView("boards")}
+            onError={setError}
+          />
+        ) : view === "collection" && activeCollection ? (
+          <CollectionView
+            collection={activeCollection}
+            refreshSignal={colRefresh}
+            onBack={() => setView(prevBrowse.current)}
+            onOpenDetail={setDetail}
+            onSetCover={(assetId) =>
+              void collections.updateCollection(activeCollection.id, { cover: assetId })
+            }
+            onMembersChanged={() => collections.reload()}
             onError={setError}
           />
         ) : (

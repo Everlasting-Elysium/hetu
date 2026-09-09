@@ -120,6 +120,51 @@
 .del:hover {
   color: var(--danger);
 }
+
+/* Collection tree (issue #55). A node is an .item div (not a button) so it can
+   host the twist/create/delete controls and act as a drag-drop target. */
+.node {
+  cursor: pointer;
+}
+/* Twist (expand/collapse chevron); hidden-but-spaced for leaf nodes so names
+   stay aligned. */
+.twist {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+}
+/* Resolved cover thumbnail shown in place of the collection glyph. */
+.cover {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+}
+/* Per-node "new sub-collection" affordance — hover-revealed like .del but neutral. */
+.act {
+  opacity: 0;
+  color: var(--text-muted);
+  padding: 2px;
+  line-height: 0;
+  border-radius: var(--r-sm);
+  transition: opacity var(--t-fast), color var(--t-fast);
+}
+.item:hover .act {
+  opacity: 1;
+}
+.act:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+/* Drag-over highlight when an asset is dragged onto a collection node. */
+.dragOver {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
 .count {
   font-size: var(--fs-xs);
   color: var(--text-muted);

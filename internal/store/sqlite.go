@@ -35,11 +35,24 @@ var _ kernel.Store = (*SQLite)(nil)
 const ftsSchemaVersion = 2
 
 // Open opens (creating if needed) the database at path and applies the schema.
+//
+// Two settings make the single-writer assumption load-bearing code throughout
+// this package (e.g. collections' MAX(ord)+1-then-insert in sqlite_collection_
+// items.go) actually hold under concurrent HTTP requests, not just in the
+// common case: SetMaxOpenConns(1) serializes every access through one
+// connection (modernc.org/sqlite has no true multi-connection WAL story here,
+// and this app's scale — a personal NAS — never needs one), and the
+// busy_timeout pragma makes SQLite's file lock block-and-retry instead of
+// failing fast with SQLITE_BUSY on the rare cross-process contention. Without
+// both, concurrent writers to the same table (e.g. a user dragging several
+// assets onto a collection in quick succession) can silently 500 on all but
+// one request instead of queuing.
 func Open(ctx context.Context, path string) (*SQLite, error) {
-	sqldb, err := sql.Open("sqlite", path)
+	sqldb, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite %s: %w", path, err)
 	}
+	sqldb.SetMaxOpenConns(1)
 	if err := migrateFTS(ctx, sqldb); err != nil {
 		_ = sqldb.Close()
 		return nil, err
