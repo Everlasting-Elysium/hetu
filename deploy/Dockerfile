@@ -16,11 +16,13 @@ FROM alpine:3.20
 # belong to `hetu` (uid 10001) or the non-root process cannot create the SQLite
 # DB on a root-owned named volume (SQLITE_CANTOPEN).
 RUN adduser -D -u 10001 hetu && mkdir -p /data /library && chown hetu:hetu /data /library
-# Video (mp4/mov/...) and PDF thumbnails are produced by external tools invoked
-# as subprocesses, keeping the kernel CGO-free. They are OPTIONAL: without them
-# those assets are still indexed, just without a thumbnail/dimensions. Enable by
-# uncommenting (ffmpeg -> ffmpeg+ffprobe; poppler-utils -> pdftoppm):
-#   RUN apk add --no-cache ffmpeg poppler-utils
+# Video (mp4/mov/...), PDF, and office-document (ppt/pptx) thumbnails are
+# produced by external tools invoked as subprocesses, keeping the kernel
+# CGO-free. They are OPTIONAL: without them those assets are still indexed, just
+# without a thumbnail/dimensions/pages. Enable by uncommenting (ffmpeg ->
+# ffmpeg+ffprobe; poppler-utils -> pdftoppm+pdfinfo; libreoffice converts
+# ppt/pptx to PDF for page rendering, and is large):
+#   RUN apk add --no-cache ffmpeg poppler-utils libreoffice
 COPY --from=build /out/hetu /usr/local/bin/hetu
 USER hetu
 ENV HETU_ADDR=":8080" \

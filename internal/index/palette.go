@@ -53,7 +53,13 @@ func (ix *Indexer) extractPalette(ctx context.Context, p kernel.StorageProvider,
 			return nil, err
 		}
 		defer rc.Close()
-		return pe.Palette(ctx, rc)
+		var pal color.Palette
+		err = guard(func() error {
+			var e error
+			pal, e = pe.Palette(ctx, rc)
+			return e
+		})
+		return pal, err
 	}
 	if thumbPath == "" {
 		return nil, nil

@@ -64,6 +64,18 @@ const (
 	// audio.duration so the duration facet can range over both with one
 	// annotation query (issue #53); dimensions stay on the asset row.
 	KeyVideoDuration = "video.duration" // JSON float64, seconds
+
+	// PSD keys (layer=extracted, prefix "psd."). Extracted from the Photoshop
+	// file header + layer records (issue #48); PSD assets are kind=image.
+	KeyPSDLayerCount = "psd.layer_count" // JSON int, number of layers (0 for a flattened file)
+	KeyPSDColorMode  = "psd.color_mode"  // JSON string, e.g. "RGB", "CMYK", "Grayscale", "Lab"
+	KeyPSDBitDepth   = "psd.bit_depth"   // JSON int, bits per channel (1/8/16/32)
+
+	// Font keys (layer=extracted, prefix "font."). Read from the OpenType/
+	// TrueType name table (issue #48); font assets are kind=font.
+	KeyFontFamily = "font.family" // JSON string, typographic family name
+	KeyFontWeight = "font.weight" // JSON string, weight class derived from the subfamily (e.g. "Bold")
+	KeyFontStyle  = "font.style"  // JSON string, subfamily / style name (e.g. "Regular", "Italic")
 )
 
 // Annotation is one layered metadata key/value for an asset. Value is a

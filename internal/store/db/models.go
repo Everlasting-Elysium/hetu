@@ -119,6 +119,15 @@ type CollectionItem struct {
 	Ord          int64
 }
 
+type DocumentPage struct {
+	AssetID   string
+	OwnerID   string
+	PageNo    int64
+	ThumbPath string
+	Width     int64
+	Height    int64
+}
+
 type Embedding struct {
 	AssetID   string
 	Embedding []byte

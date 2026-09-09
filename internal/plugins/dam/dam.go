@@ -79,6 +79,11 @@ func (p *Plugin) Routes() []kernel.Route {
 		// timeline scrubbing; deterministic per (asset, ms), so long-cached.
 		{Method: http.MethodGet, Pattern: "/assets/{id}/frame", Handler: p.extractFrame},
 
+		// Multi-page document previews (issue #48): list a document's rendered
+		// pages, and stream one page's thumbnail (always JPEG, long-cached).
+		{Method: http.MethodGet, Pattern: "/assets/{id}/pages", Handler: p.listAssetPages},
+		{Method: http.MethodGet, Pattern: "/assets/{id}/pages/{pageNo}/thumb", Handler: p.servePageThumb},
+
 		// Version / revision history (issue #58): list, upload a new current
 		// version, roll back to an existing version, delete an old version.
 		{Method: http.MethodGet, Pattern: "/assets/{id}/versions", Handler: p.listVersions},

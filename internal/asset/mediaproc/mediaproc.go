@@ -46,6 +46,10 @@ func Run(ctx context.Context, timeout time.Duration, name string, args ...string
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, name, args...)
+	// Run the child in its own process group so a timeout/cancel kills the whole
+	// group, not just the direct child: soffice forks soffice.bin, which would
+	// otherwise be orphaned and keep holding resources. (No-op on non-Unix.)
+	configureProcessGroup(cmd)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

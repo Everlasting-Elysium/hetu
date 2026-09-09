@@ -55,6 +55,7 @@ type Querier interface {
 	DeleteBoardItemsByBoard(ctx context.Context, boardID string) error
 	DeleteCollection(ctx context.Context, arg DeleteCollectionParams) error
 	DeleteCollectionItemsByCollection(ctx context.Context, collectionID string) error
+	DeleteDocumentPagesByAsset(ctx context.Context, assetID string) error
 	DeleteFolder(ctx context.Context, arg DeleteFolderParams) error
 	DeleteTag(ctx context.Context, arg DeleteTagParams) error
 	DeleteVersion(ctx context.Context, arg DeleteVersionParams) error
@@ -93,6 +94,7 @@ type Querier interface {
 	// the version belongs to the asset. Used by set-current and delete.
 	GetVersionByNo(ctx context.Context, arg GetVersionByNoParams) (AssetVersion, error)
 	InsertAssetColor(ctx context.Context, arg InsertAssetColorParams) error
+	InsertDocumentPage(ctx context.Context, arg InsertDocumentPageParams) error
 	IsCollectionMember(ctx context.Context, arg IsCollectionMemberParams) (int64, error)
 	ListAssetTags(ctx context.Context, assetID string) ([]Tag, error)
 	// thumb_path/width/height resolve to the current version (see GetAsset).
@@ -109,6 +111,7 @@ type Querier interface {
 	// override when set, otherwise the lowest-ord member's asset_id, otherwise '' for
 	// an empty collection. CAST(... AS TEXT) pins the CASE result to a Go string.
 	ListCollectionsWithCover(ctx context.Context, ownerID string) ([]ListCollectionsWithCoverRow, error)
+	ListDocumentPages(ctx context.Context, arg ListDocumentPagesParams) ([]ListDocumentPagesRow, error)
 	// Returns hashes that appear more than once among the owner's live assets.
 	ListDuplicateHashes(ctx context.Context, arg ListDuplicateHashesParams) ([]ListDuplicateHashesRow, error)
 	ListFolders(ctx context.Context, ownerID string) ([]Folder, error)

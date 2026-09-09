@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/Everlasting-Elysium/hetu/internal/domain"
 	"github.com/Everlasting-Elysium/hetu/internal/kernel"
 )
 
@@ -23,7 +24,12 @@ func (ix *Indexer) indexMetadata(ctx context.Context, p kernel.StorageProvider, 
 		return
 	}
 	defer rc.Close()
-	md, err := me.ExtractMetadata(ctx, rc)
+	var md domain.ExtractedMetadata
+	err = guard(func() error {
+		var e error
+		md, e = me.ExtractMetadata(ctx, rc)
+		return e
+	})
 	if err != nil {
 		ix.warnMetadata(ctx, "extract", path, err)
 		return

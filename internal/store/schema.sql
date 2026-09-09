@@ -102,6 +102,24 @@ CREATE TABLE IF NOT EXISTS asset_colors (
 );
 CREATE INDEX IF NOT EXISTS idx_asset_colors_owner ON asset_colors (owner_id);
 
+-- document_pages is the per-page thumbnail index for multi-page documents
+-- (issue #48): PDFs rendered natively, and office files (ppt/pptx) rendered
+-- after a LibreOffice conversion to PDF. One row per page; thumb_path points at
+-- a rendered {assetID}_p{pageNo}.jpg under the thumbnail dir. Rows are rebuilt
+-- wholesale on every scan (DELETE by asset then re-INSERT), so a shrinking page
+-- count leaves no stale rows. Single-page and thumbnail-less documents get no
+-- rows (the single main thumbnail already covers them).
+CREATE TABLE IF NOT EXISTS document_pages (
+    asset_id   TEXT NOT NULL,
+    owner_id   TEXT NOT NULL,
+    page_no    INTEGER NOT NULL,
+    thumb_path TEXT NOT NULL,
+    width      INTEGER NOT NULL DEFAULT 0,
+    height     INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (asset_id, page_no)
+);
+CREATE INDEX IF NOT EXISTS idx_document_pages_owner ON document_pages (owner_id);
+
 CREATE TABLE IF NOT EXISTS folders (
     id        TEXT PRIMARY KEY,
     owner_id  TEXT NOT NULL,
