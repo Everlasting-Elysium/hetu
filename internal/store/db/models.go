@@ -105,6 +105,20 @@ type BoardItem struct {
 	CreatedAt int64
 }
 
+type Collection struct {
+	ID       string
+	OwnerID  string
+	ParentID string
+	Name     string
+	Cover    string
+}
+
+type CollectionItem struct {
+	CollectionID string
+	AssetID      string
+	Ord          int64
+}
+
 type Embedding struct {
 	AssetID   string
 	Embedding []byte

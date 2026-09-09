@@ -10,6 +10,8 @@ import (
 
 type Querier interface {
 	AddAssetTag(ctx context.Context, arg AddAssetTagParams) error
+	// Idempotent: re-adding an existing member updates its ord instead of failing.
+	AddCollectionItem(ctx context.Context, arg AddCollectionItemParams) error
 	AssetIDByPath(ctx context.Context, arg AssetIDByPathParams) (string, error)
 	// Color-search / visual-similar results. thumb/dims stay the anchor's (not the
 	// current version): the color and pHash indexes are built from the anchor at
@@ -29,12 +31,19 @@ type Querier interface {
 	// (source='manual') are left intact so the ai layer is separately clearable
 	// without touching user data (see docs/ai-and-3d.md).
 	ClearAIAssetTags(ctx context.Context, ownerID string) error
+	// Clears an explicit cover override when the just-removed asset was it, so a
+	// removed member's thumbnail can never linger as the collection's cover (the
+	// effective-cover CASE in ListCollectionsWithCover has no membership check of
+	// its own; this keeps "cover is empty or a current member" true on the write
+	// side instead).
+	ClearCollectionCoverIfMatches(ctx context.Context, arg ClearCollectionCoverIfMatchesParams) error
 	ColorCandidates(ctx context.Context, ownerID string) ([]ColorCandidatesRow, error)
 	// Existence probe for a version by identity. Used inside SetCurrentVersion's
 	// transaction so a concurrent delete cannot leave current_version_id dangling.
 	CountVersion(ctx context.Context, arg CountVersionParams) (int64, error)
 	CreateBoard(ctx context.Context, arg CreateBoardParams) error
 	CreateBoardItem(ctx context.Context, arg CreateBoardItemParams) (BoardItem, error)
+	CreateCollection(ctx context.Context, arg CreateCollectionParams) error
 	CreateFolder(ctx context.Context, arg CreateFolderParams) error
 	CreateShare(ctx context.Context, arg CreateShareParams) error
 	CreateTag(ctx context.Context, arg CreateTagParams) error
@@ -44,6 +53,8 @@ type Querier interface {
 	DeleteBoard(ctx context.Context, arg DeleteBoardParams) error
 	DeleteBoardItem(ctx context.Context, arg DeleteBoardItemParams) error
 	DeleteBoardItemsByBoard(ctx context.Context, boardID string) error
+	DeleteCollection(ctx context.Context, arg DeleteCollectionParams) error
+	DeleteCollectionItemsByCollection(ctx context.Context, collectionID string) error
 	DeleteFolder(ctx context.Context, arg DeleteFolderParams) error
 	DeleteTag(ctx context.Context, arg DeleteTagParams) error
 	DeleteVersion(ctx context.Context, arg DeleteVersionParams) error
@@ -65,6 +76,10 @@ type Querier interface {
 	// versions yet; the anchor row itself is the implicit single version).
 	GetAssetCurrentVersion(ctx context.Context, arg GetAssetCurrentVersionParams) (string, error)
 	GetBoard(ctx context.Context, arg GetBoardParams) (Board, error)
+	// Returns the collection with its RAW stored cover (empty when auto-derived), so
+	// the edit path can distinguish an explicit override from the fallback. The
+	// resolved effective cover is a read-only concern of ListCollectionsWithCover.
+	GetCollection(ctx context.Context, arg GetCollectionParams) (Collection, error)
 	GetEmbedding(ctx context.Context, assetID string) (Embedding, error)
 	GetShareByToken(ctx context.Context, token string) (Share, error)
 	// Resolves an owner's tag id by name so the AI pipeline can reuse an existing
@@ -78,6 +93,7 @@ type Querier interface {
 	// the version belongs to the asset. Used by set-current and delete.
 	GetVersionByNo(ctx context.Context, arg GetVersionByNoParams) (AssetVersion, error)
 	InsertAssetColor(ctx context.Context, arg InsertAssetColorParams) error
+	IsCollectionMember(ctx context.Context, arg IsCollectionMemberParams) (int64, error)
 	ListAssetTags(ctx context.Context, assetID string) ([]Tag, error)
 	// thumb_path/width/height resolve to the current version (see GetAsset).
 	ListAssets(ctx context.Context, arg ListAssetsParams) ([]ListAssetsRow, error)
@@ -85,6 +101,14 @@ type Querier interface {
 	ListAssetsByHash(ctx context.Context, arg ListAssetsByHashParams) ([]Asset, error)
 	ListBoardItems(ctx context.Context, boardID string) ([]BoardItem, error)
 	ListBoards(ctx context.Context, ownerID string) ([]Board, error)
+	ListCollectionItemAssetIDs(ctx context.Context, collectionID string) ([]string, error)
+	// Ordered membership joined to assets so kind/name/thumb are resolved in one
+	// query (mirroring boards' enrichment, but as a JOIN instead of N+1 GetAsset).
+	ListCollectionItemsEnriched(ctx context.Context, collectionID string) ([]ListCollectionItemsEnrichedRow, error)
+	// Resolves each collection's effective cover in one pass: the explicit cover
+	// override when set, otherwise the lowest-ord member's asset_id, otherwise '' for
+	// an empty collection. CAST(... AS TEXT) pins the CASE result to a Go string.
+	ListCollectionsWithCover(ctx context.Context, ownerID string) ([]ListCollectionsWithCoverRow, error)
 	// Returns hashes that appear more than once among the owner's live assets.
 	ListDuplicateHashes(ctx context.Context, arg ListDuplicateHashesParams) ([]ListDuplicateHashesRow, error)
 	ListFolders(ctx context.Context, ownerID string) ([]Folder, error)
@@ -112,6 +136,8 @@ type Querier interface {
 	// Highest allocated version number for an asset (0 when none). CAST forces an
 	// int64 return so version-number allocation is MaxVersionNo + 1.
 	MaxVersionNo(ctx context.Context, assetID string) (int64, error)
+	// max(ord)+1 for the next appended member; 0 for an empty collection.
+	NextCollectionItemOrd(ctx context.Context, collectionID string) (int64, error)
 	PurgeTrash(ctx context.Context, arg PurgeTrashParams) error
 	// Batch-updates storage_path by replacing old_prefix with new_prefix for all
 	// assets whose path starts with old_prefix, and clears missing_at.
@@ -119,7 +145,9 @@ type Querier interface {
 	// Updates the storage path (and optionally provider) of a single asset and
 	// clears missing_at. Used for manual relocate and hash-based auto-reconnect.
 	RelocateAsset(ctx context.Context, arg RelocateAssetParams) error
+	RemoveCollectionItem(ctx context.Context, arg RemoveCollectionItemParams) error
 	SetAssetCurrentVersion(ctx context.Context, arg SetAssetCurrentVersionParams) error
+	SetCollectionItemOrd(ctx context.Context, arg SetCollectionItemOrdParams) error
 	SetDisplayName(ctx context.Context, arg SetDisplayNameParams) error
 	TouchBoard(ctx context.Context, arg TouchBoardParams) error
 	// Updates asset.created_at when embedded metadata (EXIF) provides a capture
@@ -131,6 +159,7 @@ type Querier interface {
 	// 3D thumbnails). Owner-scoped so a caller can only touch its own assets.
 	UpdateAssetThumbPath(ctx context.Context, arg UpdateAssetThumbPathParams) error
 	UpdateBoardName(ctx context.Context, arg UpdateBoardNameParams) error
+	UpdateCollection(ctx context.Context, arg UpdateCollectionParams) error
 	// Updates status and payload together so a long-running job (e.g. a migration
 	// import) can persist progress counts in the payload JSON without a schema
 	// change. See internal/importers batch progress.

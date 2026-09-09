@@ -1,6 +1,9 @@
 import { useState } from "react";
 import type { AssetKind, Folder, KindCount, Tag } from "../types";
+import type { CollectionNode } from "../hooks/useCollections";
 import { FilterFacets } from "./FilterFacets";
+import { SidebarCollections } from "./SidebarCollections";
+import { AddForm } from "./SidebarAddForm";
 import { IconAlert, IconBoard, IconFolder, IconGrid, IconPlus, IconTag, IconTrash } from "./icons";
 import styles from "./Sidebar.module.css";
 
@@ -17,6 +20,12 @@ interface Props {
   onDeleteFolder: (id: string) => void;
   onCreateTag: (name: string) => void;
   onDeleteTag: (id: string) => void;
+  collections: CollectionNode[];
+  activeCollectionId: string | null;
+  onPickCollection: (id: string) => void;
+  onCreateCollection: (name: string, parentId: string) => void;
+  onDeleteCollection: (id: string) => void;
+  onDropAssetToCollection: (collectionId: string, assetId: string) => void;
   missingCount: number;
   onPickMissing: () => void;
   activeMissing: boolean;
@@ -26,34 +35,6 @@ interface Props {
   onToggleKind: (kind: AssetKind) => void;
   onSetRating: (rating: number) => void;
   onClearFilters: () => void;
-}
-
-// Inline "add" form toggled per section.
-function AddForm({ placeholder, onSubmit }: { placeholder: string; onSubmit: (v: string) => void }) {
-  const [v, setV] = useState("");
-  return (
-    <form
-      className={styles.form}
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (v.trim()) {
-          onSubmit(v.trim());
-          setV("");
-        }
-      }}
-    >
-      <input
-        autoFocus
-        className="input"
-        placeholder={placeholder}
-        value={v}
-        onChange={(e) => setV(e.target.value)}
-      />
-      <button type="submit" className="btn btn-primary btn-icon" title="创建">
-        <IconPlus width={14} height={14} />
-      </button>
-    </form>
-  );
 }
 
 export function Sidebar(p: Props) {
@@ -176,6 +157,15 @@ export function Sidebar(p: Props) {
           </button>
         ))}
       </div>
+
+      <SidebarCollections
+        nodes={p.collections}
+        activeId={p.activeCollectionId}
+        onPick={p.onPickCollection}
+        onCreate={p.onCreateCollection}
+        onDelete={p.onDeleteCollection}
+        onDropAsset={p.onDropAssetToCollection}
+      />
 
       <FilterFacets
         counts={p.kindCounts}

@@ -197,7 +197,13 @@ test("import lands in the active folder when one is selected", async ({ page, re
   await expect.poll(() => assetCount(request), { timeout: 15_000 }).toBe(before + 1);
 
   // The imported asset is moved into the selected folder (client-side move #89).
-  const a = await findAssetByName(request, "folder-drop");
-  expect(a, "the dropped file should be imported").toBeTruthy();
-  expect(a?.folder_id).toBe(folder?.id);
+  // The create and the move are two sequential awaited requests inside the same
+  // importFiles() call (see useImport.ts) — assetCount reaching before+1 only
+  // proves the create landed, not that the follow-up move has committed yet — so
+  // poll folder_id instead of asserting immediately after the count.
+  await expect
+    .poll(async () => (await findAssetByName(request, "folder-drop"))?.folder_id, {
+      timeout: 15_000,
+    })
+    .toBe(folder?.id);
 });

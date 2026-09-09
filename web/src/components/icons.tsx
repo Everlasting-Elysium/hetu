@@ -51,6 +51,14 @@ export const IconTag = (p: P) => (
     <circle cx="7.5" cy="7.5" r="1.4" fill="currentColor" stroke="none" />
   </svg>
 );
+// Collection — a stack of layers, distinct from the folder/tag/board glyphs.
+export const IconCollection = (p: P) => (
+  <svg {...base(p)}>
+    <path d="m12 2 9 5-9 5-9-5 9-5Z" />
+    <path d="m3 12 9 5 9-5" />
+    <path d="m3 17 9 5 9-5" />
+  </svg>
+);
 export const IconPlus = (p: P) => (
   <svg {...base(p)}>
     <path d="M12 5v14M5 12h14" />

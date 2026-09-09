@@ -297,3 +297,33 @@ CREATE TABLE IF NOT EXISTS board_items (
     created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_board_items_board ON board_items (board_id);
+
+-- collections is a manual, user-curated grouping of assets, independent of the
+-- folder tree (issue #55). Unlike folders (one physical home per asset, keyed on
+-- a unique path) and tags (a flat many-to-many label with a unique name), a
+-- collection nests via parent_id and its members carry an explicit manual order.
+-- One asset may belong to many collections. cover is an optional asset_id
+-- override; when empty the effective cover is derived from the lowest-ord member
+-- (see queries/collection.sql ListCollectionsWithCover). name is intentionally
+-- NOT unique: collections may share a name across or within the same parent.
+CREATE TABLE IF NOT EXISTS collections (
+    id        TEXT PRIMARY KEY,
+    owner_id  TEXT NOT NULL,
+    parent_id TEXT NOT NULL DEFAULT '',
+    name      TEXT NOT NULL,
+    cover     TEXT NOT NULL DEFAULT ''   -- optional asset_id override; empty = auto-derive from lowest-ord member
+);
+CREATE INDEX IF NOT EXISTS idx_collections_owner ON collections (owner_id);
+CREATE INDEX IF NOT EXISTS idx_collections_owner_parent ON collections (owner_id, parent_id);
+
+-- collection_items is the ordered membership of a collection. ord positions a
+-- member within its collection (ascending); the composite primary key keeps a
+-- given asset at most once per collection. Rows are cleared explicitly when the
+-- collection is deleted (see DeleteCollection) so no orphaned membership remains.
+CREATE TABLE IF NOT EXISTS collection_items (
+    collection_id TEXT NOT NULL,
+    asset_id      TEXT NOT NULL,
+    ord           INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (collection_id, asset_id)
+);
+CREATE INDEX IF NOT EXISTS idx_collection_items_collection ON collection_items (collection_id, ord);

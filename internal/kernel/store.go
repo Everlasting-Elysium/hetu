@@ -176,5 +176,31 @@ type Store interface {
 	BatchUpdateBoardItems(ctx context.Context, boardID domain.BoardID, updates []domain.BoardItem) error
 	DeleteBoardItem(ctx context.Context, boardID domain.BoardID, itemID domain.BoardItemID) error
 
+	// Collections: manual, nested groupings of assets with ordered membership
+	// (issue #55). A collection is neither a folder (single physical home) nor a
+	// flat tag; it nests via ParentID and orders its members. ListCollections
+	// returns each collection's effective Cover (explicit override, else the
+	// lowest-ord member, else empty); GetCollection returns the raw stored cover
+	// so the edit path can distinguish an override from the fallback.
+	CreateCollection(ctx context.Context, c domain.Collection) error
+	ListCollections(ctx context.Context, owner domain.OwnerID) ([]domain.Collection, error)
+	GetCollection(ctx context.Context, owner domain.OwnerID, id domain.CollectionID) (domain.Collection, error)
+	// UpdateCollection sets name/parent_id/cover. A non-empty cover must be a
+	// current member (verified in-store) or ErrNotFound is returned; an empty
+	// cover clears the override so the effective cover falls back to the members.
+	UpdateCollection(ctx context.Context, owner domain.OwnerID, id domain.CollectionID, name, parentID, cover string) error
+	// DeleteCollection removes the collection and its membership rows in one
+	// transaction, leaving no orphaned collection_items.
+	DeleteCollection(ctx context.Context, owner domain.OwnerID, id domain.CollectionID) error
+
+	// Collection items: ordered membership. AddCollectionItem appends at the next
+	// ord (idempotent — re-adding updates ord); ReorderCollectionItems rewrites
+	// every member's ord to the given order after verifying the set matches the
+	// current members exactly, else domain.ErrCollectionItemsMismatch.
+	AddCollectionItem(ctx context.Context, owner domain.OwnerID, collectionID domain.CollectionID, assetID domain.AssetID) error
+	RemoveCollectionItem(ctx context.Context, owner domain.OwnerID, collectionID domain.CollectionID, assetID domain.AssetID) error
+	ListCollectionItems(ctx context.Context, owner domain.OwnerID, collectionID domain.CollectionID) ([]domain.CollectionItem, error)
+	ReorderCollectionItems(ctx context.Context, owner domain.OwnerID, collectionID domain.CollectionID, assetIDsInOrder []domain.AssetID) error
+
 	Close() error
 }

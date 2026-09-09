@@ -73,6 +73,35 @@ export interface NewTag {
   parent_id?: string;
 }
 
+// A collection: a manually-curated, nestable group of assets (issue #55). An
+// asset may belong to many collections. `parent_id` is "" for a root-level
+// collection; `cover` is the server-resolved cover asset id (an explicit value,
+// else the ord-smallest member, else "").
+export interface Collection {
+  id: string;
+  name: string;
+  parent_id: string;
+  cover: string;
+}
+
+// One member of a collection (GET /collections/:id/items), ordered by `ord`
+// ascending and enriched server-side with the asset's kind/name/thumb — the same
+// pattern as BoardItem's asset_* fields — so the collection view renders each
+// member without a per-asset request. Opening the detail modal still fetches the
+// full Asset via GET /assets/:id.
+export interface CollectionItem {
+  asset_id: string;
+  ord: number;
+  asset_kind: AssetKind;
+  asset_name: string;
+  asset_thumb: string;
+}
+
+export interface NewCollection {
+  name: string;
+  parent_id?: string;
+}
+
 // A moodboard / infinite canvas. `items` is only populated by GET /boards/:id.
 export interface Board {
   id: string;
@@ -119,6 +148,8 @@ export interface PickerAsset {
 // The active view. Browse layouts (grid/waterfall/gallery/immersive) all show the
 // library dataset in different arrangements; trash/missing are distinct datasets.
 // "boards" lists moodboards; "board" is the infinite-canvas editor for one board.
+// "collection" is the member-grid detail for one collection — the collection tree
+// itself lives permanently in the sidebar, so there is no separate list view.
 export type ViewMode =
   | "grid"
   | "waterfall"
@@ -127,7 +158,8 @@ export type ViewMode =
   | "trash"
   | "missing"
   | "boards"
-  | "board";
+  | "board"
+  | "collection";
 
 // Layouts that browse the library dataset (as opposed to trash/missing).
 export const LIBRARY_LAYOUTS = ["grid", "waterfall", "gallery", "immersive"] as const;

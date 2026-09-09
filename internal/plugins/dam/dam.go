@@ -63,6 +63,7 @@ func (p *Plugin) Init(_ context.Context, k *kernel.Kernel) error {
 func (p *Plugin) Routes() []kernel.Route {
 	return []kernel.Route{
 		{Method: http.MethodGet, Pattern: "/assets", Handler: p.listAssets},
+		{Method: http.MethodGet, Pattern: "/assets/{id}", Handler: p.getAsset},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/tags", Handler: p.assetTags},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/colors", Handler: p.assetColors},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/thumb", Handler: p.serveThumb},
@@ -128,6 +129,17 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodPatch, Pattern: "/boards/{id}/items", Handler: p.updateBoardItems},
 		{Method: http.MethodDelete, Pattern: "/boards/{id}/items/{itemId}", Handler: p.deleteBoardItem},
 
+		// Collections (issue #55): manual, nested groupings with ordered members
+		// and an optional cover override. Independent of the folder tree.
+		{Method: http.MethodPost, Pattern: "/collections", Handler: p.createCollection},
+		{Method: http.MethodGet, Pattern: "/collections", Handler: p.listCollections},
+		{Method: http.MethodPatch, Pattern: "/collections/{id}", Handler: p.updateCollection},
+		{Method: http.MethodDelete, Pattern: "/collections/{id}", Handler: p.deleteCollection},
+		{Method: http.MethodGet, Pattern: "/collections/{id}/items", Handler: p.listCollectionItems},
+		{Method: http.MethodPost, Pattern: "/collections/{id}/items", Handler: p.addCollectionItem},
+		{Method: http.MethodDelete, Pattern: "/collections/{id}/items/{assetId}", Handler: p.removeCollectionItem},
+		{Method: http.MethodPut, Pattern: "/collections/{id}/items/order", Handler: p.reorderCollectionItems},
+
 		// Missing-file relocate (issue #45): repoint one asset, or rebase a
 		// path prefix for many after a folder move. The missing set is listed
 		// via GET /assets?status=missing.
@@ -159,6 +171,37 @@ func (p *Plugin) listAssets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpjson.WriteJSON(w, http.StatusOK, toDTOs(assets, notes))
+}
+
+// getAsset returns a single asset by id. Callers that only hold an asset id
+// without it being present in an already-loaded list (e.g. opening a
+// collection item's detail view, issue #55) use this instead of re-filtering
+// the paged list endpoint.
+func (p *Plugin) getAsset(w http.ResponseWriter, r *http.Request) {
+	id, err := domain.NewAssetID(r.PathValue("id"))
+	if err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	a, err := p.k.Store.GetAsset(r.Context(), p.owner, id)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, domain.ErrNotFound) {
+			status = http.StatusNotFound
+		}
+		httpjson.WriteError(w, status, err)
+		return
+	}
+	notes, err := p.fetchNotes(r.Context(), []domain.AssetID{id})
+	if err != nil {
+		httpjson.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+	dto := toDTO(a)
+	if notes != nil {
+		dto.Note = notes[id.String()]
+	}
+	httpjson.WriteJSON(w, http.StatusOK, dto)
 }
 
 type assetDTO struct {
