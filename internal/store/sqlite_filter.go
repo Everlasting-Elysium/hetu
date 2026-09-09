@@ -27,6 +27,21 @@ const assetColumns = `a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.na
 // COALESCE falls back to the anchor's own thumb_path/width/height.
 const currentVersionJoin = ` LEFT JOIN asset_versions cv ON cv.id = a.current_version_id `
 
+// durationJoin resolves an asset's duration annotation (audio.duration or
+// video.duration, extracted layer) into the adur alias so the duration facet
+// can range over it via CAST(adur.value AS REAL) (issue #53). The two keys are
+// mutually exclusive per asset — each asset is processed by exactly one handler
+// (audio XOR video) — so this LEFT JOIN yields at most one row per asset and
+// never inflates a COUNT, the same guarantee currentVersionJoin gives on its
+// primary key. Assets with no duration (images/documents/most 3D) get
+// adur.value = NULL, which every range comparison excludes without an extra
+// guard. The layer and key list are domain constants (never user input), so the
+// concatenation is injection-safe. Every SELECT that runs appendFacetConds must
+// carry this join so the adur alias resolves (issue #101's cv-alias lesson).
+var durationJoin = ` LEFT JOIN annotations adur ON adur.asset_id = a.id` +
+	` AND adur.layer = '` + string(domain.LayerExtracted) + `'` +
+	` AND adur."key" IN ('` + domain.KeyAudioDuration + `', '` + domain.KeyVideoDuration + `') `
+
 // ListAssetsFiltered returns the owner's live assets narrowed by folder, tag,
 // and minimum rating, newest first. Empty FolderID/TagID and MinRating 0 are
 // ignored. Hand-written (not sqlc) because sqlc's SQLite engine cannot type
@@ -39,7 +54,7 @@ func (s *SQLite) ListAssetsFiltered(ctx context.Context, owner domain.OwnerID, f
 	conds := []string{"a.owner_id = ?", statusCond}
 	args := []any{owner.String()}
 	conds, args = appendFacetConds(conds, args, f)
-	query := "SELECT " + assetColumns + " FROM assets a" + currentVersionJoin + "WHERE " +
+	query := "SELECT " + assetColumns + " FROM assets a" + currentVersionJoin + durationJoin + "WHERE " +
 		strings.Join(conds, " AND ") + " ORDER BY a.indexed_at DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
 
@@ -55,14 +70,18 @@ func (s *SQLite) ListAssetsFiltered(ctx context.Context, owner domain.OwnerID, f
 }
 
 // appendFacetConds appends the folder/rating/tag/kind plus size/dimension/shape
-// narrowing conditions from f to conds (and their bind args to args), returning
-// the extended slices. Size narrows the anchor a.size; width/height/shape narrow
-// the current-version-resolved COALESCE(cv.*, a.*) (issue #101). It is
-// shared by ListAssetsFiltered and SearchAssets so the sidebar facets narrow a
-// plain listing and a keyword search identically. Lifecycle (Status) is the
-// caller's concern — it differs, since search is always over live assets. Kinds
-// are pre-validated against the AssetKind enum by the HTTP layer and every value
-// is bound as a parameter, so a.kind IN (...) is injection-safe.
+// (issue #101) plus duration/created-indexed-time (issue #53) narrowing
+// conditions from f to conds (and their bind args to args), returning the
+// extended slices. Size narrows the anchor a.size; width/height/shape narrow the
+// current-version-resolved COALESCE(cv.*, a.*); created/indexed times narrow the
+// anchor's own unix-second columns; duration ranges over the adur alias (see
+// durationJoin). It is shared by ListAssetsFiltered and SearchAssets so the
+// sidebar facets narrow a plain listing and a keyword search identically. Any
+// SELECT using it must carry currentVersionJoin AND durationJoin so the cv/adur
+// aliases resolve. Lifecycle (Status) is the caller's concern — it differs,
+// since search is always over live assets. Kinds are pre-validated against the
+// AssetKind enum by the HTTP layer and every value is bound as a parameter, so
+// a.kind IN (...) is injection-safe.
 func appendFacetConds(conds []string, args []any, f domain.AssetFilter) ([]string, []any) {
 	if f.FolderID != "" {
 		conds = append(conds, "a.folder_id = ?")
@@ -140,6 +159,37 @@ func appendFacetConds(conds []string, args []any, f domain.AssetFilter) ([]strin
 			conds = append(conds, "("+shapeGuard+") AND ("+strings.Join(buckets, " OR ")+")")
 		}
 	}
+	// Created/indexed time ranges narrow directly on the asset's own unix-second
+	// columns — no join needed, unlike duration below (issue #53). Each bound is
+	// independent; 0 disables that side (normalized in parseAssetFilter).
+	if f.CreatedAfter > 0 {
+		conds = append(conds, "a.created_at >= ?")
+		args = append(args, f.CreatedAfter)
+	}
+	if f.CreatedBefore > 0 {
+		conds = append(conds, "a.created_at <= ?")
+		args = append(args, f.CreatedBefore)
+	}
+	if f.IndexedAfter > 0 {
+		conds = append(conds, "a.indexed_at >= ?")
+		args = append(args, f.IndexedAfter)
+	}
+	if f.IndexedBefore > 0 {
+		conds = append(conds, "a.indexed_at <= ?")
+		args = append(args, f.IndexedBefore)
+	}
+	// Duration (seconds) ranges over the adur alias durationJoin supplies. CAST
+	// AS REAL parses the stored JSON float; an asset with no duration annotation
+	// has adur.value = NULL, which both comparisons exclude, so images/documents
+	// and most 3D never fall into a duration band (issue #53).
+	if f.MinDuration > 0 {
+		conds = append(conds, "CAST(adur.value AS REAL) >= ?")
+		args = append(args, f.MinDuration)
+	}
+	if f.MaxDuration > 0 {
+		conds = append(conds, "CAST(adur.value AS REAL) <= ?")
+		args = append(args, f.MaxDuration)
+	}
 	return conds, args
 }
 
@@ -147,16 +197,17 @@ func appendFacetConds(conds []string, args []any, f domain.AssetFilter) ([]strin
 // narrowed by f's folder/tag/rating but NOT by f.Kinds: the format facet needs a
 // count for every format regardless of which formats are currently selected.
 // Kinds absent from the (narrowed) library are absent from the map. It drives
-// the sidebar/board format facet counts. It carries currentVersionJoin (the same
-// 1:1 LEFT JOIN ListAssetsFiltered uses) so f's size/dimension/shape conditions
-// can reference the cv alias; keyed on the version primary key it never inflates
-// the per-kind counts.
+// the sidebar/board format facet counts. It carries currentVersionJoin AND
+// durationJoin (the same LEFT JOINs ListAssetsFiltered uses) so f's size/
+// dimension/shape conditions can reference the cv alias and its duration
+// condition the adur alias; both are keyed 1:1 (version primary key / mutually-
+// exclusive duration keys) so neither inflates the per-kind counts.
 func (s *SQLite) KindCounts(ctx context.Context, owner domain.OwnerID, f domain.AssetFilter) (map[domain.AssetKind]int, error) {
 	f.Kinds = nil // counts span all formats regardless of the active kind facet
 	conds := []string{"a.owner_id = ?", "a.deleted_at IS NULL"}
 	args := []any{owner.String()}
 	conds, args = appendFacetConds(conds, args, f)
-	query := "SELECT a.kind, COUNT(*) FROM assets a" + currentVersionJoin + "WHERE " +
+	query := "SELECT a.kind, COUNT(*) FROM assets a" + currentVersionJoin + durationJoin + "WHERE " +
 		strings.Join(conds, " AND ") + " GROUP BY a.kind"
 
 	rows, err := s.sqldb.QueryContext(ctx, query, args...)

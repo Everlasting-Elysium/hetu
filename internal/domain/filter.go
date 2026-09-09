@@ -8,8 +8,10 @@ package domain
 // default) and "missing" lists only assets whose backing file is missing from
 // storage. Size (bytes), pixel dimensions (width/height), and Shapes narrow the
 // same way, each zero/empty value disabling that side exactly like MinRating/
-// Kinds (issue #101). The same filter drives both ListAssetsFiltered and
-// SearchAssets so keyword search and the sidebar facets compose server-side.
+// Kinds (issue #101). Duration (seconds) and the created/indexed time ranges
+// (issue #53) follow the same zero-disables-each-side contract. The same filter
+// drives both ListAssetsFiltered and SearchAssets so keyword search and the
+// sidebar facets compose server-side.
 type AssetFilter struct {
 	FolderID  string
 	TagID     string
@@ -24,4 +26,17 @@ type AssetFilter struct {
 	MinSize, MaxSize                         int64
 	MinWidth, MaxWidth, MinHeight, MaxHeight int
 	Shapes                                   []AssetShape
+
+	// Duration (seconds) and created/indexed time-range narrowing, issue #53.
+	// MinDuration/MaxDuration range over the audio.duration/video.duration
+	// annotation (float64 seconds — see appendFacetConds' durationJoin); 0
+	// disables that side, so images/documents (no duration) never match a
+	// duration filter. CreatedAfter/CreatedBefore and IndexedAfter/IndexedBefore
+	// are unix-second bounds on assets.created_at / assets.indexed_at (the
+	// INTEGER columns); 0 disables that side. Each side follows the same
+	// contract as the size/dimension ranges (negative -> unbounded, inverted
+	// max<min -> drop max; normalized in parseAssetFilter).
+	MinDuration, MaxDuration    float64
+	CreatedAfter, CreatedBefore int64
+	IndexedAfter, IndexedBefore int64
 }

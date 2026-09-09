@@ -59,6 +59,11 @@ const (
 	KeyAudioSampleRate = "audio.sample_rate" // JSON int, Hz
 	KeyAudioChannels   = "audio.channels"    // JSON int
 	KeyAudioCodec      = "audio.codec"       // JSON string, e.g. "mp3", "flac"
+
+	// Video keys (layer=extracted, prefix "video."). Duration mirrors
+	// audio.duration so the duration facet can range over both with one
+	// annotation query (issue #53); dimensions stay on the asset row.
+	KeyVideoDuration = "video.duration" // JSON float64, seconds
 )
 
 // Annotation is one layered metadata key/value for an asset. Value is a

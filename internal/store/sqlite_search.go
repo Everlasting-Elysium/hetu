@@ -19,8 +19,11 @@ import (
 // Scan below and rowToAsset stay aligned with sqlc's ListAssets.
 // thumb_path/width/height resolve to the current version (issue #58) via the
 // LEFT JOIN on current_version_id, so search results reflect the current
-// revision's thumbnail; storage_path/hash stay anchored to the original.
-const searchAssetsSelect = `
+// revision's thumbnail; storage_path/hash stay anchored to the original. It also
+// carries durationJoin (the adur alias) so appendFacetConds' duration condition
+// resolves here exactly as in ListAssetsFiltered (issue #53); it is a var, not a
+// const, only so it can concatenate that shared join.
+var searchAssetsSelect = `
 SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext,
        a.size, a.hash,
        COALESCE(cv.thumb_path, a.thumb_path) AS thumb_path,
@@ -31,8 +34,9 @@ SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext,
        a.current_version_id
 FROM assets_fts
 JOIN assets a ON a.rowid = assets_fts.rowid
-LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
-WHERE assets_fts MATCH ? AND a.owner_id = ? AND a.deleted_at IS NULL`
+LEFT JOIN asset_versions cv ON cv.id = a.current_version_id` +
+	durationJoin +
+	`WHERE assets_fts MATCH ? AND a.owner_id = ? AND a.deleted_at IS NULL`
 
 // SearchAssets performs FTS5 full-text search, narrowed by f (folder/tag/rating/
 // kind) so keyword search composes with the sidebar facets server-side. ftsQuery

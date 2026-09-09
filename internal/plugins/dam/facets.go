@@ -10,28 +10,40 @@ import (
 
 // parseAssetFilter builds an AssetFilter from the query params shared by
 // /assets, /search, and /facets: ?folder=, ?tag=, ?rating=, ?kind= (comma-
-// separated), ?status=, and the issue #101 range/shape params ?minSize=/
-// ?maxSize= (bytes), ?minWidth=/?maxWidth=/?minHeight=/?maxHeight= (pixels), and
-// ?shape= (comma-separated landscape/portrait/square). Kind and shape values are
-// whitelisted against their enums (see parseKinds/parseShapes) and ranges are
-// clamped by normalizeRange, so only sane, enum-checked values reach the SQL layer.
+// separated), ?status=, the issue #101 range/shape params ?minSize=/?maxSize=
+// (bytes), ?minWidth=/?maxWidth=/?minHeight=/?maxHeight= (pixels), ?shape=
+// (comma-separated landscape/portrait/square), and the issue #53 params
+// ?minDuration=/?maxDuration= (seconds, float) and ?createdAfter=/?createdBefore=/
+// ?indexedAfter=/?indexedBefore= (unix seconds). Kind and shape values are
+// whitelisted against their enums (see parseKinds/parseShapes) and every range
+// is clamped by normalizeRange/normalizeRangeFloat, so only sane, enum-checked
+// values reach the SQL layer.
 func parseAssetFilter(r *http.Request) domain.AssetFilter {
 	minSize, maxSize := normalizeRange(httpjson.QueryInt64(r, "minSize", 0), httpjson.QueryInt64(r, "maxSize", 0))
 	minW, maxW := normalizeRange(int64(httpjson.QueryInt(r, "minWidth", 0)), int64(httpjson.QueryInt(r, "maxWidth", 0)))
 	minH, maxH := normalizeRange(int64(httpjson.QueryInt(r, "minHeight", 0)), int64(httpjson.QueryInt(r, "maxHeight", 0)))
+	minDur, maxDur := normalizeRangeFloat(httpjson.QueryFloat64(r, "minDuration", 0), httpjson.QueryFloat64(r, "maxDuration", 0))
+	createdAfter, createdBefore := normalizeRange(httpjson.QueryInt64(r, "createdAfter", 0), httpjson.QueryInt64(r, "createdBefore", 0))
+	indexedAfter, indexedBefore := normalizeRange(httpjson.QueryInt64(r, "indexedAfter", 0), httpjson.QueryInt64(r, "indexedBefore", 0))
 	return domain.AssetFilter{
-		FolderID:  r.URL.Query().Get("folder"),
-		TagID:     r.URL.Query().Get("tag"),
-		MinRating: httpjson.QueryInt(r, "rating", 0),
-		Kinds:     parseKinds(r.URL.Query().Get("kind")),
-		Status:    r.URL.Query().Get("status"),
-		MinSize:   minSize,
-		MaxSize:   maxSize,
-		MinWidth:  int(minW),
-		MaxWidth:  int(maxW),
-		MinHeight: int(minH),
-		MaxHeight: int(maxH),
-		Shapes:    parseShapes(r.URL.Query().Get("shape")),
+		FolderID:      r.URL.Query().Get("folder"),
+		TagID:         r.URL.Query().Get("tag"),
+		MinRating:     httpjson.QueryInt(r, "rating", 0),
+		Kinds:         parseKinds(r.URL.Query().Get("kind")),
+		Status:        r.URL.Query().Get("status"),
+		MinSize:       minSize,
+		MaxSize:       maxSize,
+		MinWidth:      int(minW),
+		MaxWidth:      int(maxW),
+		MinHeight:     int(minH),
+		MaxHeight:     int(maxH),
+		Shapes:        parseShapes(r.URL.Query().Get("shape")),
+		MinDuration:   minDur,
+		MaxDuration:   maxDur,
+		CreatedAfter:  createdAfter,
+		CreatedBefore: createdBefore,
+		IndexedAfter:  indexedAfter,
+		IndexedBefore: indexedBefore,
 	}
 }
 
@@ -59,6 +71,23 @@ func parseKinds(raw string) []domain.AssetKind {
 // decision 3; the issue explicitly permits either "ignore max" or "swap" —
 // this picks "ignore max").
 func normalizeRange(min, max int64) (int64, int64) {
+	if min < 0 {
+		min = 0
+	}
+	if max < 0 {
+		max = 0
+	}
+	if max > 0 && max < min {
+		max = 0
+	}
+	return min, max
+}
+
+// normalizeRangeFloat is normalizeRange for float64 ranges (the duration facet,
+// seconds — which may be fractional, so it cannot reuse the int64 version). Same
+// contract: negative -> 0 (unbounded), inverted max<min -> drop max to unbounded
+// rather than swapping (issue #53).
+func normalizeRangeFloat(min, max float64) (float64, float64) {
 	if min < 0 {
 		min = 0
 	}
