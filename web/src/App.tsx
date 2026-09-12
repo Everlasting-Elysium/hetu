@@ -244,6 +244,18 @@ export default function App() {
     const created = await boards.createBoard("未命名图板");
     if (created) await sendToBoard(created.id, created.name);
   };
+  // Export the current selection as a zip download (issue #62). Non-mutating, so
+  // unlike run() it leaves the selection and grid untouched — the browser's save
+  // dialog (triggered inside api.exportZip) is the only side effect.
+  const exportSelection = async () => {
+    const targets = [...sel.selected];
+    if (targets.length === 0) return;
+    try {
+      await api.exportZip(targets);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   // An active narrowing (search or a facet) means an empty grid is "no match",
   // not "empty library" — so the hint nudges toward relaxing the filter.
@@ -562,6 +574,7 @@ export default function App() {
           onMove={(folderId) => void run((t) => api.move(t, folderId))()}
           onAddToBoard={(boardId, boardName) => void sendToBoard(boardId, boardName)}
           onAddToNewBoard={() => void sendToNewBoard()}
+          onExport={() => void exportSelection()}
           onTrash={() => void run((t) => api.trash(t))()}
           onRestore={() => void run((t) => api.restore(t))()}
         />
