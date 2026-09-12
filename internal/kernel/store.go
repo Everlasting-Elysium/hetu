@@ -210,7 +210,13 @@ type Store interface {
 	AddCollectionItem(ctx context.Context, owner domain.OwnerID, collectionID domain.CollectionID, assetID domain.AssetID) error
 	RemoveCollectionItem(ctx context.Context, owner domain.OwnerID, collectionID domain.CollectionID, assetID domain.AssetID) error
 	ListCollectionItems(ctx context.Context, owner domain.OwnerID, collectionID domain.CollectionID) ([]domain.CollectionItem, error)
+	ListCollectionAssets(ctx context.Context, owner domain.OwnerID, collectionID domain.CollectionID, limit, offset int) ([]domain.Asset, error)
 	ReorderCollectionItems(ctx context.Context, owner domain.OwnerID, collectionID domain.CollectionID, assetIDsInOrder []domain.AssetID) error
+
+	// CountAssetsFiltered returns how many of the owner's assets match f (the
+	// same facets as ListAssetsFiltered, f.Kinds included). It backs the
+	// wallpaper daily-pick's deterministic date-seeded offset (issue #114).
+	CountAssetsFiltered(ctx context.Context, owner domain.OwnerID, f domain.AssetFilter) (int, error)
 
 	Close() error
 }

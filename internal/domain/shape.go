@@ -1,5 +1,7 @@
 package domain
 
+import "strings"
+
 // AssetShape is the coarse aspect-ratio bucket derived from an asset's
 // width/height (issue #101), mirroring the AssetKind enum pattern (asset.go):
 // a fixed whitelist that gates the ?shape= query param before it reaches SQL.
@@ -24,6 +26,23 @@ func ValidShape(s string) bool {
 		}
 	}
 	return false
+}
+
+// ParseShapes splits a comma-separated ?shape= value into known AssetShapes,
+// mirroring ParseKinds exactly — the whitelist guard before any value reaches
+// the SQL layer, returning nil for empty/all-invalid input. Shared by the DAM
+// facet parser and the wallpaper filter (issue #114).
+func ParseShapes(raw string) []AssetShape {
+	if raw == "" {
+		return nil
+	}
+	var shapes []AssetShape
+	for _, tok := range strings.Split(raw, ",") {
+		if tok = strings.TrimSpace(tok); ValidShape(tok) {
+			shapes = append(shapes, AssetShape(tok))
+		}
+	}
+	return shapes
 }
 
 // Aspect-ratio thresholds for the shape bucket, where ratio = width/height.

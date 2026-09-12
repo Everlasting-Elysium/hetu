@@ -39,4 +39,15 @@ type AssetFilter struct {
 	MinDuration, MaxDuration    float64
 	CreatedAfter, CreatedBefore int64
 	IndexedAfter, IndexedBefore int64
+
+	// Sort selects the ORDER BY (issue #114); "" = indexed_at DESC, the
+	// unchanged default every DAM caller relies on. See domain.AssetSort.
+	Sort AssetSort
+
+	// CollectionID narrows to a single collection's members (issue #114's
+	// optional ?collection= on /list,/random,/daily). Empty = no collection
+	// constraint. The /collections/{id} endpoint does NOT use this field — it
+	// calls the dedicated ListCollectionAssets store method instead, ordered by
+	// the collection's manual ord rather than Sort.
+	CollectionID string
 }

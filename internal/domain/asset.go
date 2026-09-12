@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // AssetKind is the coarse category of an asset, stored as a string in the DB.
 type AssetKind string
@@ -30,6 +33,25 @@ func ValidKind(s string) bool {
 		}
 	}
 	return false
+}
+
+// ParseKinds splits a comma-separated ?kind= value into known AssetKinds,
+// silently dropping blanks and any token outside the enum (ValidKind is the
+// injection guard: an unknown string never reaches an a.kind IN (...) clause).
+// It returns nil for an empty or all-invalid input, which callers read as "no
+// kind constraint". Living next to AllKinds keeps the whitelist in one place;
+// it is shared by the DAM facet parser and the wallpaper filter (issue #114).
+func ParseKinds(raw string) []AssetKind {
+	if raw == "" {
+		return nil
+	}
+	var kinds []AssetKind
+	for _, tok := range strings.Split(raw, ",") {
+		if tok = strings.TrimSpace(tok); ValidKind(tok) {
+			kinds = append(kinds, AssetKind(tok))
+		}
+	}
+	return kinds
 }
 
 // SupportsColorPalette reports whether extracted-color palette and color search
