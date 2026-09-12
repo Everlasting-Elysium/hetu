@@ -17,6 +17,8 @@
     # GET http://localhost:8080/healthz
     # GET http://localhost:8080/api/dam/assets
     # GET http://localhost:8080/api/nas/browse?path=
+    # 公开匿名壁纸画廊（需显式启用 HETU_PLUGINS=dam,nas,wallpaper）
+    # GET http://localhost:8080/api/wallpaper/list
 
 ## 配置
 
