@@ -53,11 +53,18 @@ export interface Facets {
   kinds: KindCount[];
 }
 
+// A virtual folder (issue #62). `cover` is the server-resolved cover asset id
+// (an explicit override, else the folder's earliest-indexed live asset, else
+// ""); `cover_url` is that asset's /thumb path when resolvable, omitted
+// otherwise. `color` is a hex label (e.g. "#e5484d") styled like a tag color.
 export interface Folder {
   id: string;
   name: string;
   parent_id: string;
   path: string;
+  cover: string;
+  cover_url?: string;
+  color: string;
 }
 
 export interface Tag {

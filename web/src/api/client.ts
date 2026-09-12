@@ -63,6 +63,13 @@ export interface CollectionPatch {
   cover?: string;
 }
 
+// Partial body for PATCH /folders/:id (issue #62). Only the keys being changed
+// are sent; `cover` set to "" clears the manual cover back to the auto-fallback.
+export interface FolderPatch {
+  cover?: string;
+  color?: string;
+}
+
 // queryFilter maps the composable facets of a Query onto the wire params. It is
 // the single Query -> filter bridge shared by useAssets and useFacets, so the
 // two never drift on which fields narrow a request.
@@ -194,8 +201,13 @@ export const api = {
       `/search?color=${encodeURIComponent(hex.replace("#", ""))}&tol=${tol}&limit=${limit}`,
     ),
 
+  // Folders (issue #62): the cover is resolved server-side (explicit override,
+  // else the folder's earliest-indexed live asset, else ""); PATCH cover to an
+  // asset id or "" to clear, and color to a hex label or "" to clear.
   listFolders: () => req<Folder[]>("/folders"),
   createFolder: (f: NewFolder) => req<Folder>("/folders", body(f)),
+  updateFolder: (id: string, data: FolderPatch) =>
+    req<{ ok: boolean }>(`/folders/${id}`, patch(data)),
   deleteFolder: (id: string) =>
     req<{ deleted: boolean }>(`/folders/${id}`, { method: "DELETE" }),
 

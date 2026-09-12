@@ -9,9 +9,28 @@ import (
 	"context"
 )
 
+const countOwnedLiveAsset = `-- name: CountOwnedLiveAsset :one
+SELECT COUNT(*) AS n FROM assets
+WHERE id = ? AND owner_id = ? AND deleted_at IS NULL
+`
+
+type CountOwnedLiveAssetParams struct {
+	ID      string
+	OwnerID string
+}
+
+// 1 when the asset id names a live (non-trashed) asset owned by owner, else 0.
+// Guards folder cover writes against dangling or cross-owner (IDOR) references.
+func (q *Queries) CountOwnedLiveAsset(ctx context.Context, arg CountOwnedLiveAssetParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOwnedLiveAsset, arg.ID, arg.OwnerID)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
+}
+
 const createFolder = `-- name: CreateFolder :exec
-INSERT INTO folders (id, owner_id, parent_id, name, path)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO folders (id, owner_id, parent_id, name, path, cover, color)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateFolderParams struct {
@@ -20,6 +39,8 @@ type CreateFolderParams struct {
 	ParentID string
 	Name     string
 	Path     string
+	Cover    string
+	Color    string
 }
 
 func (q *Queries) CreateFolder(ctx context.Context, arg CreateFolderParams) error {
@@ -29,6 +50,8 @@ func (q *Queries) CreateFolder(ctx context.Context, arg CreateFolderParams) erro
 		arg.ParentID,
 		arg.Name,
 		arg.Path,
+		arg.Cover,
+		arg.Color,
 	)
 	return err
 }
@@ -47,28 +70,77 @@ func (q *Queries) DeleteFolder(ctx context.Context, arg DeleteFolderParams) erro
 	return err
 }
 
-const listFolders = `-- name: ListFolders :many
-SELECT id, owner_id, parent_id, name, path
+const getFolder = `-- name: GetFolder :one
+SELECT id, owner_id, parent_id, name, path, cover, color
 FROM folders
-WHERE owner_id = ?
-ORDER BY path
+WHERE id = ? AND owner_id = ?
 `
 
-func (q *Queries) ListFolders(ctx context.Context, ownerID string) ([]Folder, error) {
-	rows, err := q.db.QueryContext(ctx, listFolders, ownerID)
+type GetFolderParams struct {
+	ID      string
+	OwnerID string
+}
+
+// Returns the folder with its RAW stored cover (empty when auto-derived), so the
+// edit path can distinguish an explicit override from the fallback. The resolved
+// effective cover is a read-only concern of ListFoldersWithCover.
+func (q *Queries) GetFolder(ctx context.Context, arg GetFolderParams) (Folder, error) {
+	row := q.db.QueryRowContext(ctx, getFolder, arg.ID, arg.OwnerID)
+	var i Folder
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.ParentID,
+		&i.Name,
+		&i.Path,
+		&i.Cover,
+		&i.Color,
+	)
+	return i, err
+}
+
+const listFoldersWithCover = `-- name: ListFoldersWithCover :many
+SELECT f.id, f.owner_id, f.parent_id, f.name, f.path, f.color,
+    CAST(CASE
+        WHEN f.cover != '' THEN f.cover
+        ELSE COALESCE((SELECT a.id FROM assets a WHERE a.folder_id = f.id AND a.deleted_at IS NULL ORDER BY a.indexed_at ASC, a.id ASC LIMIT 1), '')
+    END AS TEXT) AS effective_cover
+FROM folders f
+WHERE f.owner_id = ?
+ORDER BY f.path
+`
+
+type ListFoldersWithCoverRow struct {
+	ID             string
+	OwnerID        string
+	ParentID       string
+	Name           string
+	Path           string
+	Color          string
+	EffectiveCover string
+}
+
+// Resolves each folder's effective cover in one pass: the explicit cover override
+// when set, otherwise the folder's earliest-indexed live asset (folder_id match,
+// not trashed, oldest indexed_at first), otherwise empty for an empty folder.
+// CAST(... AS TEXT) pins the CASE result to a Go string.
+func (q *Queries) ListFoldersWithCover(ctx context.Context, ownerID string) ([]ListFoldersWithCoverRow, error) {
+	rows, err := q.db.QueryContext(ctx, listFoldersWithCover, ownerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Folder{}
+	items := []ListFoldersWithCoverRow{}
 	for rows.Next() {
-		var i Folder
+		var i ListFoldersWithCoverRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
 			&i.ParentID,
 			&i.Name,
 			&i.Path,
+			&i.Color,
+			&i.EffectiveCover,
 		); err != nil {
 			return nil, err
 		}
@@ -81,4 +153,26 @@ func (q *Queries) ListFolders(ctx context.Context, ownerID string) ([]Folder, er
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateFolderCover = `-- name: UpdateFolderCover :exec
+UPDATE folders SET cover = ?, color = ?
+WHERE id = ? AND owner_id = ?
+`
+
+type UpdateFolderCoverParams struct {
+	Cover   string
+	Color   string
+	ID      string
+	OwnerID string
+}
+
+func (q *Queries) UpdateFolderCover(ctx context.Context, arg UpdateFolderCoverParams) error {
+	_, err := q.db.ExecContext(ctx, updateFolderCover,
+		arg.Cover,
+		arg.Color,
+		arg.ID,
+		arg.OwnerID,
+	)
+	return err
 }

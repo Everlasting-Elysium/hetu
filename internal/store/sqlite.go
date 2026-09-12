@@ -64,6 +64,10 @@ func Open(ctx context.Context, path string) (*SQLite, error) {
 		_ = sqldb.Close()
 		return nil, err
 	}
+	if err := migrateFolderColumns(ctx, sqldb); err != nil {
+		_ = sqldb.Close()
+		return nil, err
+	}
 	if _, err := sqldb.ExecContext(ctx, schemaSQL); err != nil {
 		_ = sqldb.Close()
 		return nil, fmt.Errorf("apply schema: %w", err)

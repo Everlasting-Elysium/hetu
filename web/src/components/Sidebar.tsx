@@ -1,9 +1,11 @@
 import { useState } from "react";
 import type { AssetKind, AssetShape, Folder, KindCount, Tag } from "../types";
 import type { CollectionNode } from "../hooks/useCollections";
+import { thumbUrl } from "../api/client";
 import { FilterFacets } from "./FilterFacets";
 import { SidebarCollections } from "./SidebarCollections";
 import { AddForm } from "./SidebarAddForm";
+import { ColorPopover } from "./ColorPicker";
 import type { TimeDurationFacetsProps } from "./TimeDurationFacets";
 import { IconAlert, IconBoard, IconFolder, IconGrid, IconPlus, IconTag, IconTrash } from "./icons";
 import styles from "./Sidebar.module.css";
@@ -18,6 +20,7 @@ interface Props {
   onPickTag: (id: string | null) => void;
   onViewBoards: () => void;
   onCreateFolder: (name: string) => void;
+  onSetFolderColor: (id: string, color: string) => void;
   onDeleteFolder: (id: string) => void;
   onCreateTag: (name: string) => void;
   onDeleteTag: (id: string) => void;
@@ -54,6 +57,7 @@ interface Props {
 export function Sidebar(p: Props) {
   const [addFolder, setAddFolder] = useState(false);
   const [addTag, setAddTag] = useState(false);
+  const [colorFolder, setColorFolder] = useState<string | null>(null);
   const allActive =
     !p.activeFolder &&
     !p.activeTag &&
@@ -109,14 +113,47 @@ export function Sidebar(p: Props) {
           />
         )}
         {p.folders.map((f) => (
-          <button
+          <div
             key={f.id}
-            className={`${styles.item} ${p.activeFolder === f.id ? styles.active : ""}`}
+            className={`${styles.item} ${styles.node} ${p.activeFolder === f.id ? styles.active : ""}`}
+            data-testid="folder-node"
+            data-folder-id={f.id}
             title={f.path || f.name}
             onClick={() => p.onPickFolder(f.id)}
           >
-            <IconFolder width={15} height={15} />
+            {f.cover_url ? (
+              <img className={styles.cover} src={thumbUrl(f.cover)} alt="" draggable={false} />
+            ) : (
+              <IconFolder width={15} height={15} />
+            )}
             <span className={styles.txt}>{f.name}</span>
+            {f.color && (
+              <i
+                className={styles.swatch}
+                data-testid="folder-color"
+                style={{ background: f.color }}
+              />
+            )}
+            <ColorPopover
+              open={colorFolder === f.id}
+              value={f.color}
+              onPick={(hex) => {
+                p.onSetFolderColor(f.id, hex);
+                setColorFolder(null);
+              }}
+            >
+              <span
+                className={styles.act}
+                title="文件夹颜色"
+                data-testid="folder-color-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setColorFolder((cur) => (cur === f.id ? null : f.id));
+                }}
+              >
+                <span className={styles.dot} style={f.color ? { background: f.color } : undefined} />
+              </span>
+            </ColorPopover>
             <span
               className={styles.del}
               title="删除"
@@ -127,7 +164,7 @@ export function Sidebar(p: Props) {
             >
               <IconTrash width={13} height={13} />
             </span>
-          </button>
+          </div>
         ))}
       </div>
 

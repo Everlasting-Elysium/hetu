@@ -104,9 +104,15 @@ type Store interface {
 	BatchRemoveTags(ctx context.Context, owner domain.OwnerID, assetIDs []domain.AssetID, tagID domain.TagID) error
 	ListAssetTags(ctx context.Context, assetID domain.AssetID) ([]domain.Tag, error)
 
-	// Folders: virtual organization tree.
+	// Folders: virtual organization tree. ListFolders resolves each folder's
+	// effective cover (explicit override, else the earliest-indexed live asset,
+	// else empty); GetFolder returns the raw stored cover so the edit path stays
+	// lossless. UpdateFolderCover sets the cover override and color label; a
+	// non-empty cover must be a live, owner-scoped asset (issue #62).
 	CreateFolder(ctx context.Context, f domain.Folder) error
 	ListFolders(ctx context.Context, owner domain.OwnerID) ([]domain.Folder, error)
+	GetFolder(ctx context.Context, owner domain.OwnerID, id domain.FolderID) (domain.Folder, error)
+	UpdateFolderCover(ctx context.Context, owner domain.OwnerID, id domain.FolderID, cover, color string) error
 	DeleteFolder(ctx context.Context, owner domain.OwnerID, id domain.FolderID) error
 
 	// Versions: revision history (issue #58). AddVersion appends newVersion and

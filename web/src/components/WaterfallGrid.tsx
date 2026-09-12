@@ -28,6 +28,9 @@ interface Props {
   onColor: (id: string, hex: string) => void;
   onFavorite: (id: string, favorite: boolean) => void;
   onDetail: (id: string) => void;
+  // Set only when browsing inside a folder (issue #62): points that folder's
+  // cover at the given asset id.
+  onSetFolderCover?: (id: string) => void;
 }
 
 // Masonry: equal-width columns, per-item height from the asset's aspect ratio.
@@ -45,6 +48,7 @@ export function WaterfallGrid({
   onColor,
   onFavorite,
   onDetail,
+  onSetFolderCover,
 }: Props) {
   const [scrollRef, width] = useContainerWidth<HTMLDivElement>();
   const { columns, columnWidth } = columnMetrics(width, WATERFALL_COL_TARGET);
@@ -145,6 +149,7 @@ export function WaterfallGrid({
                   onColor={(hex) => onColor(a.id, hex)}
                   onFavorite={(fav) => onFavorite(a.id, fav)}
                   onDetail={() => onDetail(a.id)}
+                  {...(onSetFolderCover ? { onSetFolderCover: () => onSetFolderCover(a.id) } : {})}
                 />
               </div>
             );

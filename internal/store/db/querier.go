@@ -39,6 +39,9 @@ type Querier interface {
 	// side instead).
 	ClearCollectionCoverIfMatches(ctx context.Context, arg ClearCollectionCoverIfMatchesParams) error
 	ColorCandidates(ctx context.Context, ownerID string) ([]ColorCandidatesRow, error)
+	// 1 when the asset id names a live (non-trashed) asset owned by owner, else 0.
+	// Guards folder cover writes against dangling or cross-owner (IDOR) references.
+	CountOwnedLiveAsset(ctx context.Context, arg CountOwnedLiveAssetParams) (int64, error)
 	// Existence probe for a version by identity. Used inside SetCurrentVersion's
 	// transaction so a concurrent delete cannot leave current_version_id dangling.
 	CountVersion(ctx context.Context, arg CountVersionParams) (int64, error)
@@ -83,6 +86,10 @@ type Querier interface {
 	// resolved effective cover is a read-only concern of ListCollectionsWithCover.
 	GetCollection(ctx context.Context, arg GetCollectionParams) (Collection, error)
 	GetEmbedding(ctx context.Context, assetID string) (Embedding, error)
+	// Returns the folder with its RAW stored cover (empty when auto-derived), so the
+	// edit path can distinguish an explicit override from the fallback. The resolved
+	// effective cover is a read-only concern of ListFoldersWithCover.
+	GetFolder(ctx context.Context, arg GetFolderParams) (Folder, error)
 	GetShareByToken(ctx context.Context, token string) (Share, error)
 	// Resolves an owner's tag id by name so the AI pipeline can reuse an existing
 	// (possibly manual) tag instead of creating a duplicate. Returns sql.ErrNoRows
@@ -115,7 +122,11 @@ type Querier interface {
 	ListDocumentPages(ctx context.Context, arg ListDocumentPagesParams) ([]ListDocumentPagesRow, error)
 	// Returns hashes that appear more than once among the owner's live assets.
 	ListDuplicateHashes(ctx context.Context, arg ListDuplicateHashesParams) ([]ListDuplicateHashesRow, error)
-	ListFolders(ctx context.Context, ownerID string) ([]Folder, error)
+	// Resolves each folder's effective cover in one pass: the explicit cover override
+	// when set, otherwise the folder's earliest-indexed live asset (folder_id match,
+	// not trashed, oldest indexed_at first), otherwise empty for an empty folder.
+	// CAST(... AS TEXT) pins the CASE result to a Go string.
+	ListFoldersWithCover(ctx context.Context, ownerID string) ([]ListFoldersWithCoverRow, error)
 	ListJobs(ctx context.Context, arg ListJobsParams) ([]Job, error)
 	// Returns all live (non-trashed, non-missing) assets for a provider, used by
 	// the missing-file detector to check which indexed paths still exist on disk.
@@ -164,6 +175,7 @@ type Querier interface {
 	UpdateAssetThumbPath(ctx context.Context, arg UpdateAssetThumbPathParams) error
 	UpdateBoardName(ctx context.Context, arg UpdateBoardNameParams) error
 	UpdateCollection(ctx context.Context, arg UpdateCollectionParams) error
+	UpdateFolderCover(ctx context.Context, arg UpdateFolderCoverParams) error
 	// Updates status and payload together so a long-running job (e.g. a migration
 	// import) can persist progress counts in the payload JSON without a schema
 	// change. See internal/importers batch progress.

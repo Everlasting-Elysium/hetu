@@ -90,6 +90,33 @@
   border-color: var(--accent);
 }
 
+/* "Set as folder cover" action (issue #62): a hover-revealed pin in the thumb's
+   top-right, shown only when browsing inside a folder. Mirrors the collection
+   member's "设为封面" affordance but styled to match the card's .check overlay. */
+.coverBtn {
+  position: absolute;
+  top: var(--sp-2);
+  right: var(--sp-2);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-sm);
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  opacity: 0;
+  transition: opacity var(--t-fast), background var(--t-fast);
+}
+.card:hover .coverBtn {
+  opacity: 1;
+}
+.coverBtn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 .distance {
   position: absolute;
   top: var(--sp-2);
