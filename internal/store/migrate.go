@@ -11,8 +11,9 @@ import (
 // columns to an existing table, and schema.sql's indexes reference the newer
 // columns, so a database created before a column existed must gain it via
 // ALTER TABLE first. Each column is added only when the assets table exists but
-// lacks it: missing_at (issue #45) and current_version_id (issue #58). Fresh
-// databases (no assets table yet) and already-migrated ones are left untouched.
+// lacks it: missing_at (issue #45), current_version_id (issue #58), and
+// favorite (issue #62). Fresh databases (no assets table yet) and already-
+// migrated ones are left untouched.
 func migrateAssetColumns(ctx context.Context, sqldb *sql.DB) error {
 	var cols int
 	if err := sqldb.QueryRowContext(ctx,
@@ -27,6 +28,7 @@ func migrateAssetColumns(ctx context.Context, sqldb *sql.DB) error {
 	addColumns := []struct{ name, ddl string }{
 		{"missing_at", "ALTER TABLE assets ADD COLUMN missing_at INTEGER"},
 		{"current_version_id", "ALTER TABLE assets ADD COLUMN current_version_id TEXT NOT NULL DEFAULT ''"},
+		{"favorite", "ALTER TABLE assets ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0"},
 	}
 	for _, c := range addColumns {
 		var has int

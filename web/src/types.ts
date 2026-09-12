@@ -27,6 +27,7 @@ export interface Asset {
   indexed_at: string;
   rating: number;
   color: string;
+  favorite: boolean;
   display_name: string;
   folder_id: string;
   note: string;
@@ -193,6 +194,7 @@ export interface Query {
   tagId: string | null;
   kind: AssetKind[];
   minRating: number;
+  favorite: boolean; // false = no favorite constraint; true = only favorited
   keyword: string;
   colorHex: string | null;
   shapes: AssetShape[]; // shape multi-select; empty = any shape
@@ -215,6 +217,7 @@ export const EMPTY_QUERY: Query = {
   tagId: null,
   kind: [],
   minRating: 0,
+  favorite: false,
   keyword: "",
   colorHex: null,
   shapes: [],

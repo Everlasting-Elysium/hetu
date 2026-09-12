@@ -1,6 +1,7 @@
 import type { AssetKind, AssetShape, KindCount, Tag } from "../types";
 import { KindIcon } from "./icons";
 import { RatingStars } from "./RatingStars";
+import { FavoriteButton } from "./FavoriteButton";
 import { AdvancedFacets } from "./AdvancedFacets";
 import type { TimeDurationFacetsProps } from "./TimeDurationFacets";
 import styles from "./FilterFacets.module.css";
@@ -22,8 +23,10 @@ interface Props {
   counts: KindCount[];
   activeKinds: AssetKind[];
   minRating: number;
+  favorite: boolean;
   onToggleKind: (kind: AssetKind) => void;
   onSetRating: (rating: number) => void;
+  onSetFavorite: (favorite: boolean) => void;
   activeShapes: AssetShape[];
   onToggleShape: (shape: AssetShape) => void;
   minWidth: number;
@@ -59,8 +62,10 @@ export function FilterFacets({
   counts,
   activeKinds,
   minRating,
+  favorite,
   onToggleKind,
   onSetRating,
+  onSetFavorite,
   activeShapes,
   onToggleShape,
   minWidth,
@@ -148,6 +153,21 @@ export function FilterFacets({
         <div className={styles.rating}>
           <RatingStars value={minRating} size={16} onChange={onSetRating} />
           <span className={styles.ratingLabel}>{minRating > 0 ? `${minRating} 星以上` : "全部星级"}</span>
+        </div>
+      </div>
+
+      <div className={styles.section}>
+        <div className={styles.head}>
+          <span>收藏</span>
+          {favorite && (
+            <button className={styles.clear} onClick={() => onSetFavorite(false)}>
+              清除
+            </button>
+          )}
+        </div>
+        <div className={styles.rating} data-testid="favorite-facet">
+          <FavoriteButton value={favorite} size={16} onChange={onSetFavorite} />
+          <span className={styles.ratingLabel}>{favorite ? "只看收藏" : "全部素材"}</span>
         </div>
       </div>
 

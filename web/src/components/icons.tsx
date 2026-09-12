@@ -69,6 +69,13 @@ export const IconStar = (p: P) => (
     <path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 17l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8Z" />
   </svg>
 );
+// Favorite heart (issue #62). Outlined when not favorited; the FavoriteButton
+// fills it via CSS when active, mirroring how RatingStars fills a lit star.
+export const IconHeart = (p: P) => (
+  <svg {...base(p)} strokeWidth={1.6}>
+    <path d="M12 20s-7-4.35-9.3-8.6C1.1 8.1 2.6 4.8 5.9 4.8c2 0 3.3 1.2 4.1 2.4.8-1.2 2.1-2.4 4.1-2.4 3.3 0 4.8 3.3 3.2 6.6C19 15.65 12 20 12 20Z" />
+  </svg>
+);
 // Aspect-ratio glyphs for the shape facet: a single rounded rect whose
 // proportions read as landscape / portrait / square at a glance.
 export const IconLandscape = (p: P) => (

@@ -40,6 +40,20 @@ func (s *SQLite) BatchUpdateColor(ctx context.Context, owner domain.OwnerID, ids
 	return nil
 }
 
+// BatchUpdateFavorite sets the favorite flag on all live assets in ids owned by
+// owner (issue #62). favorite=true favorites, false unfavorites — one endpoint
+// covers both directions, mirroring BatchUpdateRating/Color taking a value.
+func (s *SQLite) BatchUpdateFavorite(ctx context.Context, owner domain.OwnerID, ids []domain.AssetID, favorite bool) error {
+	if err := s.q.BatchUpdateFavorite(ctx, db.BatchUpdateFavoriteParams{
+		Favorite: boolToInt64(favorite),
+		Ids:      idStrings(ids),
+		OwnerID:  owner.String(),
+	}); err != nil {
+		return fmt.Errorf("batch update favorite: %w", err)
+	}
+	return nil
+}
+
 // BatchUpdateDisplayName sets the same display name on all live assets in ids.
 func (s *SQLite) BatchUpdateDisplayName(ctx context.Context, owner domain.OwnerID, ids []domain.AssetID, displayName string) error {
 	if err := s.q.BatchUpdateDisplayName(ctx, db.BatchUpdateDisplayNameParams{

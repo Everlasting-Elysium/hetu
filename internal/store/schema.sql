@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS assets (
     deleted_at   INTEGER,                          -- NULL = live, unix ts = trashed
     rating       INTEGER NOT NULL DEFAULT 0,       -- 0-5 stars
     color        TEXT NOT NULL DEFAULT '',         -- color label, e.g. '#FF5733'
+    favorite     INTEGER NOT NULL DEFAULT 0,       -- 0 = not favorited, 1 = favorited
     display_name TEXT NOT NULL DEFAULT '',         -- user rename; empty = use name
     folder_id    TEXT NOT NULL DEFAULT '',         -- FK -> folders.id; empty = root
     missing_at   INTEGER,                          -- NULL = found; unix ts = marked missing

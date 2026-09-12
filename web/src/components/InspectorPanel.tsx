@@ -3,6 +3,7 @@ import type { Asset, AssetKind, Swatch, Tag } from "../types";
 import { COLOR_LABELS } from "../types";
 import { api } from "../api/client";
 import { RatingStars } from "./RatingStars";
+import { FavoriteButton } from "./FavoriteButton";
 import { ColorPopover } from "./ColorPicker";
 import { AssetMedia } from "./AssetDetail";
 import styles from "./InspectorPanel.module.css";
@@ -12,6 +13,7 @@ interface InspectorProps {
   tags: Tag[];
   onRate: (rating: number) => void;
   onColor: (hex: string) => void;
+  onFavorite: (favorite: boolean) => void;
   onColorSearch: (hex: string) => void;
   onNoteChange: (text: string) => void;
   onNoteDelete: () => void;
@@ -52,6 +54,7 @@ export function InspectorPanel({
   tags,
   onRate,
   onColor,
+  onFavorite,
   onColorSearch,
   onNoteChange,
   onNoteDelete,
@@ -119,7 +122,11 @@ export function InspectorPanel({
 
       <div className={styles.section}>
         <div className={styles.label}>评分</div>
-        <RatingStars value={asset.rating} size={16} onChange={onRate} />
+        <div className={styles.colorRow}>
+          <RatingStars value={asset.rating} size={16} onChange={onRate} />
+          <FavoriteButton value={asset.favorite} size={16} onChange={onFavorite} />
+          <span className={styles.value}>{asset.favorite ? "已收藏" : "未收藏"}</span>
+        </div>
       </div>
 
       <div className={styles.section}>

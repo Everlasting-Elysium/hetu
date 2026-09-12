@@ -16,7 +16,7 @@ SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext, a.si
        COALESCE(cv.width, a.width) AS width,
        COALESCE(cv.height, a.height) AS height,
        a.created_at, a.indexed_at,
-       a.deleted_at, a.rating, a.color, a.display_name, a.folder_id, a.missing_at,
+       a.deleted_at, a.rating, a.color, a.favorite, a.display_name, a.folder_id, a.missing_at,
        a.current_version_id
 FROM assets a
 LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
@@ -46,6 +46,7 @@ type GetAssetRow struct {
 	DeletedAt        sql.NullInt64
 	Rating           int64
 	Color            string
+	Favorite         int64
 	DisplayName      string
 	FolderID         string
 	MissingAt        sql.NullInt64
@@ -77,6 +78,7 @@ func (q *Queries) GetAsset(ctx context.Context, arg GetAssetParams) (GetAssetRow
 		&i.DeletedAt,
 		&i.Rating,
 		&i.Color,
+		&i.Favorite,
 		&i.DisplayName,
 		&i.FolderID,
 		&i.MissingAt,
@@ -91,7 +93,7 @@ SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext, a.si
        COALESCE(cv.width, a.width) AS width,
        COALESCE(cv.height, a.height) AS height,
        a.created_at, a.indexed_at,
-       a.deleted_at, a.rating, a.color, a.display_name, a.folder_id, a.missing_at,
+       a.deleted_at, a.rating, a.color, a.favorite, a.display_name, a.folder_id, a.missing_at,
        a.current_version_id
 FROM assets a
 LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
@@ -122,6 +124,7 @@ type GetAssetByPathRow struct {
 	DeletedAt        sql.NullInt64
 	Rating           int64
 	Color            string
+	Favorite         int64
 	DisplayName      string
 	FolderID         string
 	MissingAt        sql.NullInt64
@@ -154,6 +157,7 @@ func (q *Queries) GetAssetByPath(ctx context.Context, arg GetAssetByPathParams) 
 		&i.DeletedAt,
 		&i.Rating,
 		&i.Color,
+		&i.Favorite,
 		&i.DisplayName,
 		&i.FolderID,
 		&i.MissingAt,
@@ -168,7 +172,7 @@ SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext, a.si
        COALESCE(cv.width, a.width) AS width,
        COALESCE(cv.height, a.height) AS height,
        a.created_at, a.indexed_at,
-       a.deleted_at, a.rating, a.color, a.display_name, a.folder_id, a.missing_at,
+       a.deleted_at, a.rating, a.color, a.favorite, a.display_name, a.folder_id, a.missing_at,
        a.current_version_id
 FROM assets a
 LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
@@ -201,6 +205,7 @@ type ListAssetsRow struct {
 	DeletedAt        sql.NullInt64
 	Rating           int64
 	Color            string
+	Favorite         int64
 	DisplayName      string
 	FolderID         string
 	MissingAt        sql.NullInt64
@@ -235,6 +240,7 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]ListA
 			&i.DeletedAt,
 			&i.Rating,
 			&i.Color,
+			&i.Favorite,
 			&i.DisplayName,
 			&i.FolderID,
 			&i.MissingAt,
@@ -256,7 +262,7 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]ListA
 const listAssetsByHash = `-- name: ListAssetsByHash :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at,
+       deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
        current_version_id
 FROM assets
 WHERE owner_id = ? AND hash = ? AND deleted_at IS NULL
@@ -296,6 +302,7 @@ func (q *Queries) ListAssetsByHash(ctx context.Context, arg ListAssetsByHashPara
 			&i.DeletedAt,
 			&i.Rating,
 			&i.Color,
+			&i.Favorite,
 			&i.DisplayName,
 			&i.FolderID,
 			&i.MissingAt,
@@ -362,7 +369,7 @@ func (q *Queries) ListDuplicateHashes(ctx context.Context, arg ListDuplicateHash
 const listLiveAssetsByProvider = `-- name: ListLiveAssetsByProvider :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at,
+       deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
        current_version_id
 FROM assets
 WHERE owner_id = ? AND provider = ? AND deleted_at IS NULL AND missing_at IS NULL
@@ -403,6 +410,7 @@ func (q *Queries) ListLiveAssetsByProvider(ctx context.Context, arg ListLiveAsse
 			&i.DeletedAt,
 			&i.Rating,
 			&i.Color,
+			&i.Favorite,
 			&i.DisplayName,
 			&i.FolderID,
 			&i.MissingAt,
@@ -424,7 +432,7 @@ func (q *Queries) ListLiveAssetsByProvider(ctx context.Context, arg ListLiveAsse
 const listMissingAssets = `-- name: ListMissingAssets :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at,
+       deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
        current_version_id
 FROM assets
 WHERE owner_id = ? AND missing_at IS NOT NULL AND deleted_at IS NULL
@@ -465,6 +473,7 @@ func (q *Queries) ListMissingAssets(ctx context.Context, arg ListMissingAssetsPa
 			&i.DeletedAt,
 			&i.Rating,
 			&i.Color,
+			&i.Favorite,
 			&i.DisplayName,
 			&i.FolderID,
 			&i.MissingAt,
@@ -486,7 +495,7 @@ func (q *Queries) ListMissingAssets(ctx context.Context, arg ListMissingAssetsPa
 const listMissingAssetsByHash = `-- name: ListMissingAssetsByHash :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at,
+       deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
        current_version_id
 FROM assets
 WHERE owner_id = ? AND hash = ? AND missing_at IS NOT NULL AND deleted_at IS NULL
@@ -528,6 +537,7 @@ func (q *Queries) ListMissingAssetsByHash(ctx context.Context, arg ListMissingAs
 			&i.DeletedAt,
 			&i.Rating,
 			&i.Color,
+			&i.Favorite,
 			&i.DisplayName,
 			&i.FolderID,
 			&i.MissingAt,
@@ -621,8 +631,8 @@ const upsertAsset = `-- name: UpsertAsset :exec
 INSERT INTO assets (
     id, owner_id, kind, provider, storage_path, name, ext, size, hash,
     thumb_path, width, height, created_at, indexed_at,
-    deleted_at, rating, color, display_name, folder_id, missing_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    deleted_at, rating, color, favorite, display_name, folder_id, missing_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(owner_id, provider, storage_path) DO UPDATE SET
     kind       = excluded.kind,
     name       = excluded.name,
@@ -653,6 +663,7 @@ type UpsertAssetParams struct {
 	DeletedAt   sql.NullInt64
 	Rating      int64
 	Color       string
+	Favorite    int64
 	DisplayName string
 	FolderID    string
 	MissingAt   sql.NullInt64
@@ -680,6 +691,7 @@ func (q *Queries) UpsertAsset(ctx context.Context, arg UpsertAssetParams) error 
 		arg.DeletedAt,
 		arg.Rating,
 		arg.Color,
+		arg.Favorite,
 		arg.DisplayName,
 		arg.FolderID,
 		arg.MissingAt,

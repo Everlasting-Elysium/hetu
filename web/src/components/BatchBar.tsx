@@ -8,6 +8,7 @@ import {
   IconClose,
   IconDroplet,
   IconFolder,
+  IconHeart,
   IconPlus,
   IconRestore,
   IconStar,
@@ -26,6 +27,7 @@ interface Props {
   onTag: (tagId: string) => void;
   onRate: (rating: number) => void;
   onColor: (hex: string) => void;
+  onFavorite: (favorite: boolean) => void;
   onMove: (folderId: string) => void;
   onAddToBoard: (boardId: string, boardName: string) => void;
   onAddToNewBoard: () => void;
@@ -33,7 +35,7 @@ interface Props {
   onRestore: () => void;
 }
 
-type Menu = "tag" | "rate" | "color" | "move" | "board" | null;
+type Menu = "tag" | "rate" | "color" | "favorite" | "move" | "board" | null;
 
 // Floating action bar shown while assets are selected. Adapts to the current
 // view: library selections expose tag/rate/color/move/trash; trash selections
@@ -115,6 +117,35 @@ export function BatchBar(p: Props) {
                     close();
                   }}
                 />
+              </div>
+            )}
+          </div>
+
+          <div className={styles.menuWrap}>
+            <button className="btn btn-ghost" onClick={() => toggle("favorite")}>
+              <IconHeart width={14} height={14} /> 收藏
+            </button>
+            {menu === "favorite" && (
+              <div className={styles.menu}>
+                <div className={styles.menuTitle}>收藏</div>
+                <button
+                  className={styles.menuItem}
+                  onClick={() => {
+                    p.onFavorite(true);
+                    close();
+                  }}
+                >
+                  <IconHeart width={14} height={14} /> 收藏
+                </button>
+                <button
+                  className={styles.menuItem}
+                  onClick={() => {
+                    p.onFavorite(false);
+                    close();
+                  }}
+                >
+                  <IconClose width={14} height={14} /> 取消收藏
+                </button>
               </div>
             )}
           </div>

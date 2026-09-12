@@ -258,6 +258,7 @@ export default function App() {
 
   const rate = (id: string, rating: number) => void run((t) => api.rate(t, rating), [id])();
   const color = (id: string, hex: string) => void run((t) => api.colorLabel(t, hex), [id])();
+  const favorite = (id: string, fav: boolean) => void run((t) => api.favorite(t, fav), [id])();
   const openDetail = (id: string) => setDetail(assets.find((a) => a.id === id) ?? null);
 
   // App-level keyboard handler — single canonical path for shortcuts across all
@@ -385,8 +386,10 @@ export default function App() {
         kindCounts={kindCounts}
         activeKinds={activeQuery.kind}
         minRating={activeQuery.minRating}
+        favorite={activeQuery.favorite}
         onToggleKind={view === "board" ? bpq.toggleKind : lq.toggleKind}
         onSetRating={view === "board" ? bpq.setRating : lq.setRating}
+        onSetFavorite={view === "board" ? bpq.setFavorite : lq.setFavorite}
         activeShapes={activeQuery.shapes}
         onToggleShape={view === "board" ? bpq.toggleShape : lq.toggleShape}
         minWidth={activeQuery.minWidth}
@@ -474,6 +477,7 @@ export default function App() {
                   onDetail={openDetail}
                   onRate={rate}
                   onColor={color}
+                  onFavorite={favorite}
                 />
               ) : view === "waterfall" ? (
                 <WaterfallGrid
@@ -486,6 +490,7 @@ export default function App() {
                   emptyHint={emptyHint}
                   onRate={rate}
                   onColor={color}
+                  onFavorite={favorite}
                   onDetail={openDetail}
                 />
               ) : (
@@ -499,6 +504,7 @@ export default function App() {
                   emptyHint={emptyHint}
                   onRate={rate}
                   onColor={color}
+                  onFavorite={favorite}
                   onDetail={openDetail}
                 />
               )}
@@ -513,6 +519,7 @@ export default function App() {
           tags={inspectorTags}
           onRate={(rating) => void run((t) => api.rate(t, rating), [inspectedAsset.id])()}
           onColor={(hex) => void run((t) => api.colorLabel(t, hex), [inspectedAsset.id])()}
+          onFavorite={(fav) => void run((t) => api.favorite(t, fav), [inspectedAsset.id])()}
           onColorSearch={lq.setColor}
           onNoteChange={(text) =>
             void run(() => api.updateNote(inspectedAsset.id, text), [inspectedAsset.id])()
@@ -537,6 +544,7 @@ export default function App() {
           onTag={(tagId) => void run((t) => api.tag(t, [tagId]))()}
           onRate={(rating) => void run((t) => api.rate(t, rating))()}
           onColor={(hex) => void run((t) => api.colorLabel(t, hex))()}
+          onFavorite={(fav) => void run((t) => api.favorite(t, fav))()}
           onMove={(folderId) => void run((t) => api.move(t, folderId))()}
           onAddToBoard={(boardId, boardName) => void sendToBoard(boardId, boardName)}
           onAddToNewBoard={() => void sendToNewBoard()}

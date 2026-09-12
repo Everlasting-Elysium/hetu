@@ -25,6 +25,7 @@ interface Props {
   emptyHint: string;
   onRate: (id: string, rating: number) => void;
   onColor: (id: string, hex: string) => void;
+  onFavorite: (id: string, favorite: boolean) => void;
   onDetail: (id: string) => void;
 }
 
@@ -40,6 +41,7 @@ export function AssetGrid({
   emptyHint,
   onRate,
   onColor,
+  onFavorite,
   onDetail,
 }: Props) {
   const [scrollRef, width] = useContainerWidth<HTMLDivElement>();
@@ -133,6 +135,7 @@ export function AssetGrid({
                     onToggleCheck={() => selection.toggle(a.id)}
                     onRate={(r) => onRate(a.id, r)}
                     onColor={(hex) => onColor(a.id, hex)}
+                    onFavorite={(fav) => onFavorite(a.id, fav)}
                     onDetail={() => onDetail(a.id)}
                   />
                 ))}

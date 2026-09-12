@@ -6,6 +6,7 @@ import { thumbUrl } from "../api/client";
 import { AssetMedia } from "./AssetDetail";
 import { GridEmpty, GridError, GridSpinner } from "./GridStates";
 import { RatingStars } from "./RatingStars";
+import { FavoriteButton } from "./FavoriteButton";
 import { ColorPopover } from "./ColorPicker";
 import styles from "./GalleryView.module.css";
 
@@ -21,6 +22,7 @@ interface Props {
   onDetail: (id: string) => void;
   onRate: (id: string, rating: number) => void;
   onColor: (id: string, hex: string) => void;
+  onFavorite: (id: string, favorite: boolean) => void;
 }
 
 const STRIP_THUMB_W = 84;
@@ -40,6 +42,7 @@ export function GalleryView({
   onDetail,
   onRate,
   onColor,
+  onFavorite,
 }: Props) {
   const [active, setActive] = useState(0);
   const [colorOpen, setColorOpen] = useState(false);
@@ -115,6 +118,7 @@ export function GalleryView({
         </span>
         <div className={styles.actions}>
           <RatingStars value={current.rating} onChange={(r) => onRate(current.id, r)} />
+          <FavoriteButton value={current.favorite} onChange={(fav) => onFavorite(current.id, fav)} />
           <ColorPopover
             open={colorOpen}
             value={current.color}

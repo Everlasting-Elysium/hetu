@@ -1,0 +1,18 @@
+.fav {
+  color: var(--text-muted);
+  padding: 0;
+  line-height: 0;
+  transition: color var(--t-fast), transform var(--t-fast);
+}
+.fav:hover {
+  transform: scale(1.18);
+}
+.on {
+  color: var(--star);
+}
+.on svg {
+  fill: var(--star);
+}
+.readonly {
+  pointer-events: none;
+}

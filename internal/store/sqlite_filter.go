@@ -19,11 +19,11 @@ const assetColumns = `a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.na
 	`COALESCE(cv.thumb_path, a.thumb_path) AS thumb_path, ` +
 	`COALESCE(cv.width, a.width) AS width, ` +
 	`COALESCE(cv.height, a.height) AS height, a.created_at, ` +
-	`a.indexed_at, a.deleted_at, a.rating, a.color, a.display_name, a.folder_id, ` +
+	`a.indexed_at, a.deleted_at, a.rating, a.color, a.favorite, a.display_name, a.folder_id, ` +
 	`a.missing_at, a.current_version_id`
 
 // currentVersionJoin resolves an asset's current version for display-field
-// COALESCE. current_version_id is '' for un-versioned assets, so cv is NULL and
+// COALESCE. current_version_id is ” for un-versioned assets, so cv is NULL and
 // COALESCE falls back to the anchor's own thumb_path/width/height.
 const currentVersionJoin = ` LEFT JOIN asset_versions cv ON cv.id = a.current_version_id `
 
@@ -87,7 +87,7 @@ func orderByClause(sort domain.AssetSort) string {
 	}
 }
 
-// appendFacetConds appends the folder/rating/tag/kind plus size/dimension/shape
+// appendFacetConds appends the folder/rating/favorite/tag/kind plus size/dimension/shape
 // (issue #101) plus duration/created-indexed-time (issue #53) narrowing
 // conditions from f to conds (and their bind args to args), returning the
 // extended slices. Size narrows the anchor a.size; width/height/shape narrow the
@@ -108,6 +108,12 @@ func appendFacetConds(conds []string, args []any, f domain.AssetFilter) ([]strin
 	if f.MinRating > 0 {
 		conds = append(conds, "a.rating >= ?")
 		args = append(args, f.MinRating)
+	}
+	// Favorite narrows to favorited assets only (issue #62). The literal 1 is a
+	// constant, not user input, so no bind arg is needed; false imposes no
+	// constraint, matching MinRating 0's zero-disables contract.
+	if f.Favorite {
+		conds = append(conds, "a.favorite = 1")
 	}
 	if f.TagID != "" {
 		conds = append(conds, "EXISTS (SELECT 1 FROM asset_tags atg WHERE atg.asset_id = a.id AND atg.tag_id = ?)")
@@ -266,7 +272,7 @@ func scanAssetRows(rows *sql.Rows) ([]db.Asset, error) {
 		if err := rows.Scan(
 			&r.ID, &r.OwnerID, &r.Kind, &r.Provider, &r.StoragePath, &r.Name,
 			&r.Ext, &r.Size, &r.Hash, &r.ThumbPath, &r.Width, &r.Height,
-			&r.CreatedAt, &r.IndexedAt, &r.DeletedAt, &r.Rating, &r.Color,
+			&r.CreatedAt, &r.IndexedAt, &r.DeletedAt, &r.Rating, &r.Color, &r.Favorite,
 			&r.DisplayName, &r.FolderID, &r.MissingAt, &r.CurrentVersionID,
 		); err != nil {
 			return nil, fmt.Errorf("scan asset row: %w", err)

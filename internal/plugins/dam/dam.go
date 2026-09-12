@@ -100,6 +100,7 @@ func (p *Plugin) Routes() []kernel.Route {
 
 		{Method: http.MethodPost, Pattern: "/batch/rate", Handler: p.batchRate},
 		{Method: http.MethodPost, Pattern: "/batch/color", Handler: p.batchColor},
+		{Method: http.MethodPost, Pattern: "/batch/favorite", Handler: p.batchFavorite},
 		{Method: http.MethodPost, Pattern: "/batch/rename", Handler: p.batchRename},
 		{Method: http.MethodPost, Pattern: "/batch/move", Handler: p.batchMove},
 		{Method: http.MethodPost, Pattern: "/batch/trash", Handler: p.batchTrash},
@@ -222,6 +223,7 @@ type assetDTO struct {
 	IndexedAt   string `json:"indexed_at"`
 	Rating      int    `json:"rating"`
 	Color       string `json:"color"`
+	Favorite    bool   `json:"favorite"`
 	DisplayName string `json:"display_name"`
 	FolderID    string `json:"folder_id"`
 	DeletedAt   string `json:"deleted_at,omitempty"`
@@ -255,6 +257,7 @@ func toDTO(a domain.Asset) assetDTO {
 		IndexedAt:   a.IndexedAt.Format(time.RFC3339),
 		Rating:      a.Rating,
 		Color:       a.Color,
+		Favorite:    a.Favorite,
 		DisplayName: a.DisplayName,
 		FolderID:    a.FolderID,
 	}

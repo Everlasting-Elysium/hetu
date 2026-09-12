@@ -4,7 +4,9 @@ package domain
 // empty FolderID/TagID match any folder/tag, MinRating 0 matches any rating,
 // and an empty Kinds slice matches any format. When set, MinRating keeps assets
 // rated at least that many stars and Kinds keeps assets in one of the listed
-// formats. Status selects the lifecycle view: "" lists live assets (the
+// formats. Favorite false imposes no constraint; true keeps only favorited
+// assets (issue #62), the same zero-disables contract as MinRating. Status
+// selects the lifecycle view: "" lists live assets (the
 // default) and "missing" lists only assets whose backing file is missing from
 // storage. Size (bytes), pixel dimensions (width/height), and Shapes narrow the
 // same way, each zero/empty value disabling that side exactly like MinRating/
@@ -16,6 +18,7 @@ type AssetFilter struct {
 	FolderID  string
 	TagID     string
 	MinRating int
+	Favorite  bool        // false = no favorite constraint; true = keep only favorited assets
 	Kinds     []AssetKind // empty = any format; else keep assets whose kind is in the set
 	Status    string      // "" = normal (live), "missing" = missing files only
 
