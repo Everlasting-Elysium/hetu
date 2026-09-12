@@ -4,10 +4,11 @@ import type { CollectionNode } from "../hooks/useCollections";
 import { thumbUrl } from "../api/client";
 import { FilterFacets } from "./FilterFacets";
 import { SidebarCollections } from "./SidebarCollections";
+import { SidebarTags } from "./SidebarTags";
 import { AddForm } from "./SidebarAddForm";
 import { ColorPopover } from "./ColorPicker";
 import type { TimeDurationFacetsProps } from "./TimeDurationFacets";
-import { IconAlert, IconBoard, IconFolder, IconGrid, IconPlus, IconTag, IconTrash } from "./icons";
+import { IconAlert, IconBoard, IconFolder, IconGrid, IconPlus, IconTrash } from "./icons";
 import styles from "./Sidebar.module.css";
 
 interface Props {
@@ -24,6 +25,10 @@ interface Props {
   onDeleteFolder: (id: string) => void;
   onCreateTag: (name: string) => void;
   onDeleteTag: (id: string) => void;
+  // Global tag merge (issue #62): fold fromId into toId across all assets and
+  // delete fromId. Triggered by dragging one tag onto another; the Sidebar owns
+  // the confirmation gate before this fires (destructive, irreversible).
+  onMergeTags: (fromId: string, toId: string) => void;
   collections: CollectionNode[];
   activeCollectionId: string | null;
   onPickCollection: (id: string) => void;
@@ -56,7 +61,6 @@ interface Props {
 
 export function Sidebar(p: Props) {
   const [addFolder, setAddFolder] = useState(false);
-  const [addTag, setAddTag] = useState(false);
   const [colorFolder, setColorFolder] = useState<string | null>(null);
   const allActive =
     !p.activeFolder &&
@@ -168,47 +172,14 @@ export function Sidebar(p: Props) {
         ))}
       </div>
 
-      <div className={styles.section}>
-        <div className={styles.head}>
-          <span>标签</span>
-          <button className={styles.add} title="新建标签" onClick={() => setAddTag((x) => !x)}>
-            <IconPlus width={13} height={13} />
-          </button>
-        </div>
-        {addTag && (
-          <AddForm
-            placeholder="标签名称"
-            onSubmit={(v) => {
-              p.onCreateTag(v);
-              setAddTag(false);
-            }}
-          />
-        )}
-        {p.tags.map((t) => (
-          <button
-            key={t.id}
-            className={`${styles.item} ${p.activeTag === t.id ? styles.active : ""}`}
-            onClick={() => p.onPickTag(t.id)}
-          >
-            {t.color ? (
-              <i className={styles.swatch} style={{ background: t.color }} />
-            ) : (
-              <IconTag width={14} height={14} />
-            )}
-            <span className={styles.txt}>{t.name}</span>
-            <span
-              className={styles.del}
-              title="删除"
-              onClick={(e) => {
-                e.stopPropagation();
-                p.onDeleteTag(t.id);
-              }}
-            >
-              <IconTrash width={13} height={13} />
-            </span>
-          </button>
-        ))}
-      </div>
+      <SidebarTags
+        tags={p.tags}
+        activeTag={p.activeTag}
+        onPickTag={p.onPickTag}
+        onCreateTag={p.onCreateTag}
+        onDeleteTag={p.onDeleteTag}
+        onMergeTags={p.onMergeTags}
+      />
 
       <SidebarCollections
         nodes={p.collections}

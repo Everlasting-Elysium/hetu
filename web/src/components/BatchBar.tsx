@@ -3,6 +3,7 @@ import { isLibraryView } from "../types";
 import type { Board, Folder, Tag, ViewMode } from "../types";
 import { RatingStars } from "./RatingStars";
 import { ColorSwatches } from "./ColorPicker";
+import { ReplaceTagMenu } from "./ReplaceTagMenu";
 import {
   IconBoard,
   IconClose,
@@ -25,6 +26,9 @@ interface Props {
   boards: Board[];
   onClear: () => void;
   onTag: (tagId: string) => void;
+  // Swap fromTagId for toTagId on the selected assets only (issue #62); the
+  // source tag survives for assets outside the selection.
+  onReplaceTag: (fromTagId: string, toTagId: string) => void;
   onRate: (rating: number) => void;
   onColor: (hex: string) => void;
   onFavorite: (favorite: boolean) => void;
@@ -35,7 +39,7 @@ interface Props {
   onRestore: () => void;
 }
 
-type Menu = "tag" | "rate" | "color" | "favorite" | "move" | "board" | null;
+type Menu = "tag" | "replaceTag" | "rate" | "color" | "favorite" | "move" | "board" | null;
 
 // Floating action bar shown while assets are selected. Adapts to the current
 // view: library selections expose tag/rate/color/move/trash; trash selections
@@ -80,6 +84,14 @@ export function BatchBar(p: Props) {
               </div>
             )}
           </div>
+
+          <ReplaceTagMenu
+            tags={p.tags}
+            open={menu === "replaceTag"}
+            onToggle={() => toggle("replaceTag")}
+            onClose={close}
+            onReplaceTag={p.onReplaceTag}
+          />
 
           <div className={styles.menuWrap}>
             <button className="btn btn-ghost" onClick={() => toggle("rate")}>

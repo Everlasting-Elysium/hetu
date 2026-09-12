@@ -24,4 +24,10 @@ var (
 	// its own ancestor (self-reference or a multi-step cycle). Callers map it to
 	// HTTP 400.
 	ErrCollectionCycle = errors.New("domain: collection parent cycle")
+	// ErrSameTag is returned when a tag merge or batch replace names the same
+	// tag as both source and target. For merge it would delete a tag into
+	// itself; for replace it would delete the tag from the selected assets
+	// (INSERT OR IGNORE self-copies, then the DELETE strips it). Callers map it
+	// to HTTP 400.
+	ErrSameTag = errors.New("domain: source and target tag are the same")
 )

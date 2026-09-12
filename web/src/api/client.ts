@@ -215,6 +215,10 @@ export const api = {
   createTag: (t: NewTag) => req<Tag>("/tags", body(t)),
   deleteTag: (id: string) =>
     req<{ deleted: boolean }>(`/tags/${id}`, { method: "DELETE" }),
+  // Global tag merge (issue #62): fold fromTagId into toTagId across ALL assets
+  // and delete fromTagId. Destructive/irreversible — the caller confirms first.
+  mergeTags: (fromTagId: string, toTagId: string) =>
+    req<{ merged: boolean }>("/tags/merge", body({ from_tag_id: fromTagId, to_tag_id: toTagId })),
   // Fetches one asset's full DTO by id (issue #55). The collection view holds only
   // asset ids (GET /collections/:id/items) and needs the complete Asset to open
   // the shared detail modal.
@@ -252,6 +256,10 @@ export const api = {
     req<{ tagged: number }>("/batch/tag", body({ asset_ids, tag_ids })),
   untag: (asset_ids: string[], tag_id: string) =>
     req<{ untagged: number }>("/batch/untag", body({ asset_ids, tag_id })),
+  // Swaps from_tag_id for to_tag_id on the selected assets ONLY (issue #62); the
+  // source tag survives for assets outside the selection (unlike mergeTags).
+  replaceTag: (asset_ids: string[], from_tag_id: string, to_tag_id: string) =>
+    req<{ replaced: number }>("/batch/replace-tag", body({ asset_ids, from_tag_id, to_tag_id })),
   rename: (asset_ids: string[], display_name: string) =>
     req<{ renamed: number }>(
       "/batch/rename",

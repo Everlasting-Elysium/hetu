@@ -107,6 +107,10 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodPost, Pattern: "/batch/restore", Handler: p.batchRestore},
 		{Method: http.MethodPost, Pattern: "/batch/tag", Handler: p.batchTag},
 		{Method: http.MethodPost, Pattern: "/batch/untag", Handler: p.batchUntag},
+		// Swap one tag for another on the selected assets only (issue #62); the
+		// source tag survives for assets outside the selection. Global tag folding
+		// (deleting the source) is POST /tags/merge instead.
+		{Method: http.MethodPost, Pattern: "/batch/replace-tag", Handler: p.batchReplaceTag},
 
 		{Method: http.MethodGet, Pattern: "/trash", Handler: p.listTrash},
 		{Method: http.MethodDelete, Pattern: "/trash", Handler: p.emptyTrash},
@@ -114,6 +118,9 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodPost, Pattern: "/tags", Handler: p.createTag},
 		{Method: http.MethodGet, Pattern: "/tags", Handler: p.listTags},
 		{Method: http.MethodDelete, Pattern: "/tags/{id}", Handler: p.deleteTag},
+		// Global tag merge (issue #62): fold from_tag_id into to_tag_id across all
+		// assets and delete from_tag_id. Destructive/irreversible; the UI confirms.
+		{Method: http.MethodPost, Pattern: "/tags/merge", Handler: p.mergeTags},
 
 		// Folders carry an optional cover override + color label (issue #62); the
 		// cover falls back to the folder's earliest-indexed live asset when unset.

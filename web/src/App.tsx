@@ -379,6 +379,10 @@ export default function App() {
         onDeleteFolder={(id) => void lib.deleteFolder(id)}
         onCreateTag={(n) => void lib.createTag(n)}
         onDeleteTag={(id) => void lib.deleteTag(id)}
+        onMergeTags={(fromId, toId) => {
+          void lib.mergeTag(fromId, toId);
+          bump();
+        }}
         collections={collections.tree}
         activeCollectionId={view === "collection" ? activeCollectionId : null}
         onPickCollection={openCollection}
@@ -551,6 +555,7 @@ export default function App() {
             setFocusedId(null);
           }}
           onTag={(tagId) => void run((t) => api.tag(t, [tagId]))()}
+          onReplaceTag={(fromId, toId) => void run((t) => api.replaceTag(t, fromId, toId))()}
           onRate={(rating) => void run((t) => api.rate(t, rating))()}
           onColor={(hex) => void run((t) => api.colorLabel(t, hex))()}
           onFavorite={(fav) => void run((t) => api.favorite(t, fav))()}

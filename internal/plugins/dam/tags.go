@@ -132,6 +132,48 @@ func (p *Plugin) batchUntag(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusOK, map[string]int{"untagged": len(assetIDs)})
 }
 
+// mergeTags folds one tag into another globally, deleting the source tag
+// (issue #62). Body: {from_tag_id, to_tag_id}. A same-source-and-target request
+// is a client error (400); an unknown or foreign tag id is 404. This is a
+// destructive, all-assets operation — the UI gates it behind a confirmation.
+func (p *Plugin) mergeTags(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		FromTagID string `json:"from_tag_id"`
+		ToTagID   string `json:"to_tag_id"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	fromID, err := domain.NewTagID(req.FromTagID)
+	if err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	toID, err := domain.NewTagID(req.ToTagID)
+	if err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := p.k.Store.MergeTags(r.Context(), p.owner, fromID, toID); err != nil {
+		httpjson.WriteError(w, tagOpStatus(err), err)
+		return
+	}
+	httpjson.WriteJSON(w, http.StatusOK, map[string]bool{"merged": true})
+}
+
+// tagOpStatus maps merge/replace store errors to HTTP codes: a missing/foreign
+// tag is 404, a same-source-and-target request is 400, everything else 500.
+func tagOpStatus(err error) int {
+	switch {
+	case errors.Is(err, domain.ErrNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, domain.ErrSameTag):
+		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
 func (p *Plugin) assetTags(w http.ResponseWriter, r *http.Request) {
 	id, err := domain.NewAssetID(chi.URLParam(r, "id"))
 	if err != nil {
