@@ -163,6 +163,8 @@ export interface PickerAsset {
 // "boards" lists moodboards; "board" is the infinite-canvas editor for one board.
 // "collection" is the member-grid detail for one collection — the collection tree
 // itself lives permanently in the sidebar, so there is no separate list view.
+// "compare" is the transient two-image comparison page (issue #127), entered from
+// the batch bar when exactly two assets are selected.
 export type ViewMode =
   | "grid"
   | "waterfall"
@@ -172,7 +174,8 @@ export type ViewMode =
   | "missing"
   | "boards"
   | "board"
-  | "collection";
+  | "collection"
+  | "compare";
 
 // Layouts that browse the library dataset (as opposed to trash/missing).
 export const LIBRARY_LAYOUTS = ["grid", "waterfall", "gallery", "immersive"] as const;
@@ -285,3 +288,129 @@ export const COLOR_LABELS: ColorLabel[] = [
   { name: "蓝", hex: "#4f8ff7" },
   { name: "紫", hex: "#8e6fe8" },
 ];
+
+// --- Image comparison (issue #127) ----------------------------------------
+// Mirrors the Go json contract in internal/plugins/dam/compare.go and
+// internal/imgcompare/*. A dimension the backend could not compute (e.g.
+// action/element with no Tagger) is omitted, so every dimension field is
+// optional and the UI renders an "unavailable" card for the missing ones.
+
+// One side of a comparison: an existing library asset, or a transient local file
+// uploaded straight to /compare (multipart) and never imported into the library.
+export type CompareSide =
+  | { kind: "asset"; assetId: string }
+  | { kind: "file"; file: File };
+
+// Request payload for api.compare. `dimensions` narrows the five default axes
+// (color/tone/lighting/action/element); omitted means all five.
+export interface CompareInput {
+  reference: CompareSide;
+  target: CompareSide;
+  dimensions?: string[];
+}
+
+// One reference→target swatch mapping (imgcompare.SwatchMatch).
+export interface SwatchMatch {
+  ref: Swatch;
+  target: Swatch;
+  delta_e: number;
+}
+
+// Color dimension (imgcompare.ColorResult): both palettes plus ΔE00/warmth/chroma
+// metrics. Palettes reuse the {hex,weight} Swatch shape (color.Swatch.MarshalJSON).
+export interface ColorResult {
+  score: number;
+  ref_palette: Swatch[];
+  target_palette: Swatch[];
+  dominant_delta_e: number;
+  average_delta_e: number;
+  warmth_shift: number;
+  chroma_diff: number;
+  matches: SwatchMatch[];
+}
+
+// One image's brightness stats (imgcompare.ToneStats). `histogram` has 32 buckets
+// summing to 1 (imgcompare.HistogramBins); `key` classes overall brightness.
+export interface ToneStats {
+  histogram: number[];
+  mean: number;
+  median: number;
+  std_dev: number;
+  dynamic_range: number;
+  key: "high" | "mid" | "low";
+}
+
+// Tone dimension (imgcompare.ToneResult): per-image stats + histogram intersection.
+export interface ToneResult {
+  score: number;
+  ref_stats: ToneStats;
+  target_stats: ToneStats;
+  hist_intersection: number;
+}
+
+// Shadow/midtone/highlight pixel fractions, each 0..1 (imgcompare.ToneZones).
+export interface ToneZones {
+  shadow: number;
+  midtone: number;
+  highlight: number;
+}
+
+// Lighting dimension (imgcompare.LightingResult): per-image tonal zones, their
+// diff, contrast (std-dev), and coarse light direction. *_light is a LightDir
+// enum string (top-left/top-right/bottom-left/bottom-right/center-even).
+export interface LightingResult {
+  score: number;
+  ref_zones: ToneZones;
+  target_zones: ToneZones;
+  zone_diff: ToneZones;
+  ref_contrast: number;
+  target_contrast: number;
+  ref_light: string;
+  target_light: string;
+  light_matches: boolean;
+}
+
+// Action dimension (imgcompare.ActionResult): pose-tag set diff.
+export interface ActionResult {
+  score: number;
+  common: string[];
+  missing: string[];
+  extra: string[];
+}
+
+// Element dimension (imgcompare.ElementResult): full-tag diff + embedding cosine.
+export interface ElementResult {
+  score: number;
+  common: string[];
+  missing: string[];
+  extra: string[];
+  tag_jaccard: number;
+  cosine: number;
+}
+
+// The critique block is always present; `available` is false (with the rest
+// omitted) when no VisionCritic/VLM is configured — the UI shows a guidance box,
+// never an error or a blank.
+export interface CritiqueResult {
+  available: boolean;
+  summary?: string;
+  dimensions?: Record<string, string>;
+  model?: string;
+}
+
+// POST /compare response (dam.compareResponse). `dimensions` lists the axes
+// actually scored (canonical order color/tone/lighting/action/element subset);
+// each detail field is present only for a scored dimension. overlays.*_url are
+// ready-to-use /api/dam paths (consumed directly as <img src>, like thumb_url).
+export interface CompareResponse {
+  req_id: string;
+  dimensions: string[];
+  overall_score: number;
+  color?: ColorResult;
+  tone?: ToneResult;
+  lighting?: LightingResult;
+  action?: ActionResult;
+  element?: ElementResult;
+  overlays: { reference_url: string; target_url: string };
+  critique: CritiqueResult;
+}

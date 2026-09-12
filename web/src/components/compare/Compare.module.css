@@ -1,0 +1,284 @@
+/* Image comparison page layout + feature-specific styles (issue #127). Shared
+   card/chart/chip primitives live in CompareCharts.module.css. Every value
+   resolves to a design token from variables.css — no hardcoded literals. */
+
+/* Page shell ---------------------------------------------------------------- */
+.page {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+}
+.pageHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.pageTitle {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.spacer {
+  flex: 1;
+}
+
+/* Slots --------------------------------------------------------------------- */
+.slots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
+}
+@media (max-width: 720px) {
+  .slots {
+    grid-template-columns: 1fr;
+  }
+}
+.slot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+.slotLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: var(--fw-semibold);
+}
+.slotFilled {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  align-items: center;
+}
+.slotThumb {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  background: var(--bg-inset);
+  border-radius: var(--r-md);
+}
+.slotName {
+  width: 100%;
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Local-upload drop zone (never touches useImport/importAsset). */
+.dropZone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 220px;
+  padding: var(--sp-4);
+  color: var(--text-muted);
+  background: var(--bg-inset);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: border-color var(--t-fast), background var(--t-fast), color var(--t-fast);
+}
+.dropZone:hover {
+  color: var(--text-dim);
+  border-color: var(--text-muted);
+}
+.dropOver {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+.dropText {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+.dropHint {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.dropActions {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.runRow {
+  display: flex;
+  justify-content: center;
+}
+
+/* Result region ------------------------------------------------------------- */
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--sp-4);
+}
+
+/* Overall score banner spans the whole card grid (composed onto .card). */
+.overall {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-4);
+}
+.overallScore {
+  font-size: 40px;
+  font-weight: var(--fw-semibold);
+  color: var(--accent-hover);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.overallLabel {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+.dimTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+.dimTag {
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  font-size: var(--fs-xs);
+}
+
+/* Overlay viewer ------------------------------------------------------------ */
+.overlayBar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-inset);
+  border-radius: var(--r-md);
+}
+.tab {
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.tab:hover {
+  color: var(--text);
+}
+.tabOn {
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+.onion {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+.onion input[type="range"] {
+  width: 120px;
+  accent-color: var(--accent);
+}
+.viewport {
+  position: relative;
+  height: 420px;
+  overflow: hidden;
+  background: var(--bg-inset);
+  border-radius: var(--r-md);
+  cursor: grab;
+  user-select: none;
+}
+.viewport:active {
+  cursor: grabbing;
+}
+.viewport img {
+  pointer-events: none;
+}
+.sideBySide {
+  display: flex;
+  gap: var(--sp-2);
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+}
+.sideBySide img {
+  flex: 1;
+  min-width: 0;
+  max-height: 100%;
+  object-fit: contain;
+}
+.stack {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+}
+.stack img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.onionTop,
+.diffTop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.diffTop {
+  mix-blend-mode: difference;
+}
+
+/* AI critique --------------------------------------------------------------- */
+.critiqueOff {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.critiqueSummary {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  line-height: 1.6;
+}
+.critiqueList {
+  margin: 0;
+  padding-left: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.critiqueModel {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}

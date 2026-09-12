@@ -176,6 +176,21 @@ export const IconCompress = (p: P) => (
     <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
   </svg>
 );
+// Compare (issue #127) — a split viewport with inward-facing arrows, reading as
+// two images set against each other.
+export const IconCompare = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M12 3v18" />
+    <path d="M8 9.5 5.5 12 8 14.5M16 9.5 18.5 12 16 14.5" />
+  </svg>
+);
+// Swap — two arrows exchanging direction, for the reference/target互换 action.
+export const IconSwap = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M7 4 4 7l3 3M4 7h13M17 20l3-3-3-3M20 17H7" />
+  </svg>
+);
 
 // File-type placeholder glyphs, keyed by asset kind, for missing thumbnails.
 const KIND_PATHS: Record<AssetKind, string> = {
