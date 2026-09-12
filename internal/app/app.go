@@ -23,6 +23,7 @@ import (
 	"github.com/Everlasting-Elysium/hetu/internal/kernel"
 	"github.com/Everlasting-Elysium/hetu/internal/plugins/dam"
 	"github.com/Everlasting-Elysium/hetu/internal/plugins/nas"
+	"github.com/Everlasting-Elysium/hetu/internal/plugins/wallpaper"
 	"github.com/Everlasting-Elysium/hetu/internal/storage/fs"
 	"github.com/Everlasting-Elysium/hetu/internal/storage/local"
 	"github.com/Everlasting-Elysium/hetu/internal/storage/rclone"
@@ -140,6 +141,8 @@ func buildPlugins(names []string, owner domain.OwnerID, nasProvider string) ([]k
 			plugins = append(plugins, dam.New(owner))
 		case nas.Name:
 			plugins = append(plugins, nas.New(owner, nasProvider))
+		case wallpaper.Name:
+			plugins = append(plugins, wallpaper.New(owner))
 		default:
 			return nil, fmt.Errorf("unknown plugin %q", name)
 		}

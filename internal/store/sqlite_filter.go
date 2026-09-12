@@ -55,7 +55,7 @@ func (s *SQLite) ListAssetsFiltered(ctx context.Context, owner domain.OwnerID, f
 	args := []any{owner.String()}
 	conds, args = appendFacetConds(conds, args, f)
 	query := "SELECT " + assetColumns + " FROM assets a" + currentVersionJoin + durationJoin + "WHERE " +
-		strings.Join(conds, " AND ") + " ORDER BY a.indexed_at DESC LIMIT ? OFFSET ?"
+		strings.Join(conds, " AND ") + " ORDER BY " + orderByClause(f.Sort) + " LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
 
 	rows, err := s.sqldb.QueryContext(ctx, query, args...)
@@ -67,6 +67,24 @@ func (s *SQLite) ListAssetsFiltered(ctx context.Context, owner domain.OwnerID, f
 		return nil, err
 	}
 	return rowsToAssets(dbRows)
+}
+
+// orderByClause maps an AssetSort to a fixed ORDER BY fragment (issue #114).
+// The mapping — never string interpolation of the raw param — is what keeps
+// ?sort= injection-safe, mirroring the shape-bucket whitelist. The zero value
+// (and any unknown sort) yields the pre-#114 default so DAM callers that never
+// set Sort are byte-for-byte unchanged. Rating adds indexed_at as a stable
+// tiebreaker; Random uses SQLite RANDOM() (the /random endpoint's whole point,
+// and never used by /daily, which needs a deterministic order).
+func orderByClause(sort domain.AssetSort) string {
+	switch sort {
+	case domain.SortRating:
+		return "a.rating DESC, a.indexed_at DESC"
+	case domain.SortRandom:
+		return "RANDOM()"
+	default:
+		return "a.indexed_at DESC"
+	}
 }
 
 // appendFacetConds appends the folder/rating/tag/kind plus size/dimension/shape
@@ -94,6 +112,14 @@ func appendFacetConds(conds []string, args []any, f domain.AssetFilter) ([]strin
 	if f.TagID != "" {
 		conds = append(conds, "EXISTS (SELECT 1 FROM asset_tags atg WHERE atg.asset_id = a.id AND atg.tag_id = ?)")
 		args = append(args, f.TagID)
+	}
+	// CollectionID narrows to a single collection's members (issue #114's
+	// ?collection= on the wallpaper /list,/random,/daily), mirroring the TagID
+	// EXISTS subquery so it composes with every other facet without a JOIN that
+	// could inflate rows.
+	if f.CollectionID != "" {
+		conds = append(conds, "EXISTS (SELECT 1 FROM collection_items ci WHERE ci.collection_id = ? AND ci.asset_id = a.id)")
+		args = append(args, f.CollectionID)
 	}
 	if len(f.Kinds) > 0 {
 		ph := make([]string, len(f.Kinds))
