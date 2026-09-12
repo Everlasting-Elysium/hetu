@@ -17,6 +17,7 @@ import type {
   NewFolder,
   NewTag,
   Query,
+  SequenceFrame,
   Swatch,
   Tag,
 } from "../types";
@@ -180,6 +181,13 @@ export const modelUrl = (id: string): string => `${BASE}/assets/${id}/model`;
 export const frameUrl = (id: string, ms: number): string =>
   `${BASE}/assets/${id}/frame?ms=${ms}`;
 
+// Streams the original bytes of one frame of an image sequence (issue #62), by
+// 1-based frame number. Safe as an <img> src; owner-scoped and resolved
+// server-side so the disk path is never exposed. Distinct from frameUrl, which
+// decodes a VIDEO frame at a millisecond offset.
+export const sequenceFrameUrl = (id: string, n: number): string =>
+  `${BASE}/assets/${id}/frames/${n}`;
+
 export const api = {
   // listAssets and searchKeyword push the folder/tag/kind/rating facets to the
   // server (issue #75), so the client never filters an asset list in memory.
@@ -243,6 +251,10 @@ export const api = {
   // ordered by page number; [] for a single-page or non-document asset. Same
   // plain-GET-returns-enriched-list shape as listCollectionItems, sharing req<T>.
   listAssetPages: (id: string) => req<DocumentPage[]>(`/assets/${id}/pages`),
+  // Lists the frames of an image sequence (issue #62), ordered by frame number;
+  // [] for a non-sequence asset. Same plain-GET-returns-list shape as
+  // listAssetPages, sharing req<T>.
+  listAssetFrames: (id: string) => req<SequenceFrame[]>(`/assets/${id}/frames`),
 
   updateNote: (id: string, text: string) =>
     req<{ note: string }>(`/assets/${id}/note`, {

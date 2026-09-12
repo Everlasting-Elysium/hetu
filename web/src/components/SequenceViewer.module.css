@@ -1,0 +1,56 @@
+.viewer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  outline: none;
+}
+
+.stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.frameImg {
+  max-width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  border-radius: var(--r-md);
+  background: var(--bg-inset);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-4);
+}
+.navBtn {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  color: var(--text-dim);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+.navBtn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.navBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.counter {
+  min-width: 6em;
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}

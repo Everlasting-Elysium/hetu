@@ -94,6 +94,11 @@ func (ix *Indexer) walk(ctx context.Context, p kernel.StorageProvider, path stri
 	if err != nil {
 		return err
 	}
+	// Recurse into subdirectories, and collect this directory's files so
+	// consecutively-numbered images can be folded into a single sequence asset
+	// (issue #62) before any file is indexed on its own — grouping needs the
+	// whole directory listing at once, not one entry at a time (see indexFiles).
+	files := make([]domain.Entry, 0, len(entries))
 	for _, e := range entries {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -110,20 +115,9 @@ func (ix *Indexer) walk(ctx context.Context, p kernel.StorageProvider, path stri
 			}
 			continue
 		}
-		reconnected, err := ix.indexOne(ctx, p, e)
-		if err != nil {
-			ix.k.Log.WarnContext(ctx, "index skip",
-				slog.String("path", e.Path), slog.Any("err", err))
-			res.Skipped++
-			continue
-		}
-		if reconnected {
-			res.Reconnected++
-			continue
-		}
-		res.Indexed++
+		files = append(files, e)
 	}
-	return nil
+	return ix.indexFiles(ctx, p, files, res)
 }
 
 // indexOne indexes a single file. It returns reconnected=true when the file's

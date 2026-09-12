@@ -54,6 +54,7 @@ type Querier interface {
 	CreateVersion(ctx context.Context, arg CreateVersionParams) error
 	DeleteAnnotation(ctx context.Context, arg DeleteAnnotationParams) error
 	DeleteAssetColors(ctx context.Context, assetID string) error
+	DeleteAssetFramesByAsset(ctx context.Context, assetID string) error
 	DeleteAssetTagsByTag(ctx context.Context, tagID string) error
 	DeleteBoard(ctx context.Context, arg DeleteBoardParams) error
 	DeleteBoardItem(ctx context.Context, arg DeleteBoardItemParams) error
@@ -107,12 +108,14 @@ type Querier interface {
 	// the version belongs to the asset. Used by set-current and delete.
 	GetVersionByNo(ctx context.Context, arg GetVersionByNoParams) (AssetVersion, error)
 	InsertAssetColor(ctx context.Context, arg InsertAssetColorParams) error
+	InsertAssetFrame(ctx context.Context, arg InsertAssetFrameParams) error
 	InsertDocumentPage(ctx context.Context, arg InsertDocumentPageParams) error
 	IsCollectionMember(ctx context.Context, arg IsCollectionMemberParams) (int64, error)
 	// Every swatch with its full Lab coordinates, ord-ascending. Used by the manual
 	// delete path to re-insert the survivors with contiguous ords (0..N-1) without
 	// recomputing Lab, and to locate the target ord before deleting.
 	ListAssetColorsFull(ctx context.Context, arg ListAssetColorsFullParams) ([]ListAssetColorsFullRow, error)
+	ListAssetFrames(ctx context.Context, arg ListAssetFramesParams) ([]ListAssetFramesRow, error)
 	ListAssetTags(ctx context.Context, assetID string) ([]Tag, error)
 	// thumb_path/width/height resolve to the current version (see GetAsset).
 	ListAssets(ctx context.Context, arg ListAssetsParams) ([]ListAssetsRow, error)

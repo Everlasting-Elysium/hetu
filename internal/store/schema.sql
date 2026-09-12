@@ -126,6 +126,28 @@ CREATE TABLE IF NOT EXISTS document_pages (
 );
 CREATE INDEX IF NOT EXISTS idx_document_pages_owner ON document_pages (owner_id);
 
+-- asset_frames is the per-frame index for image sequences (issue #62): a run of
+-- consecutively-numbered image files (explosion_0001.png, explosion_0002.png,
+-- ...) is indexed as ONE sequence asset anchored at the lowest-numbered frame,
+-- instead of one asset per file. One row per frame, including the anchor
+-- (frame_no 1); storage_path points at the original file — frames get no
+-- generated thumbnail, so the detail-view stepper serves the original bytes on
+-- demand (keeping a 240-frame sequence from flooding the thumbnail dir). Rows
+-- are rebuilt wholesale on every scan (DELETE by asset then re-INSERT), so a
+-- sequence that gains/loses frames leaves no stale rows. The recognition rule is
+-- purely name-based and cannot distinguish an animation's frames from
+-- consecutively-numbered camera photos (IMG_1234.jpg, IMG_1235.jpg, ...); such a
+-- burst is collapsed into one sequence asset (accepted limitation, issue #62).
+CREATE TABLE IF NOT EXISTS asset_frames (
+    asset_id     TEXT NOT NULL,
+    owner_id     TEXT NOT NULL,
+    frame_no     INTEGER NOT NULL,
+    storage_path TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    PRIMARY KEY (asset_id, frame_no)
+);
+CREATE INDEX IF NOT EXISTS idx_asset_frames_owner ON asset_frames (owner_id);
+
 -- folders is the virtual folder tree: an asset's single physical home, keyed on
 -- a unique (owner_id, path). cover is an optional asset_id override (issue #62);
 -- when empty the effective cover is derived from the folder's earliest-indexed
