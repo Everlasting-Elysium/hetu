@@ -124,24 +124,6 @@
   }
 }
 
-.palette {
-  display: flex;
-  height: 24px;
-  border-radius: var(--r-md);
-  overflow: hidden;
-  margin-bottom: var(--sp-5);
-}
-.paletteSwatch {
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  min-width: 10px;
-  transition: opacity var(--t-fast);
-}
-.paletteSwatch:hover {
-  opacity: 0.75;
-}
-
 .info {
   display: grid;
   grid-template-columns: auto 1fr;

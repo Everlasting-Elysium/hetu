@@ -40,6 +40,7 @@ type Asset struct {
 	FolderID         string
 	MissingAt        sql.NullInt64
 	CurrentVersionID string
+	PaletteManual    int64
 }
 
 type AssetColor struct {

@@ -29,7 +29,7 @@ SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext, a.si
        COALESCE(cv.height, a.height) AS height,
        a.created_at, a.indexed_at,
        a.deleted_at, a.rating, a.color, a.favorite, a.display_name, a.folder_id, a.missing_at,
-       a.current_version_id
+       a.current_version_id, a.palette_manual
 FROM assets a
 LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
 WHERE a.id = ? AND a.owner_id = ?;
@@ -46,7 +46,7 @@ SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext, a.si
        COALESCE(cv.height, a.height) AS height,
        a.created_at, a.indexed_at,
        a.deleted_at, a.rating, a.color, a.favorite, a.display_name, a.folder_id, a.missing_at,
-       a.current_version_id
+       a.current_version_id, a.palette_manual
 FROM assets a
 LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
 WHERE a.owner_id = ? AND a.provider = ? AND a.storage_path = ?;
@@ -59,7 +59,7 @@ SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext, a.si
        COALESCE(cv.height, a.height) AS height,
        a.created_at, a.indexed_at,
        a.deleted_at, a.rating, a.color, a.favorite, a.display_name, a.folder_id, a.missing_at,
-       a.current_version_id
+       a.current_version_id, a.palette_manual
 FROM assets a
 LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
 WHERE a.owner_id = ? AND a.deleted_at IS NULL
@@ -81,7 +81,7 @@ LIMIT ? OFFSET ?;
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
        deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
-       current_version_id
+       current_version_id, palette_manual
 FROM assets
 WHERE owner_id = ? AND hash = ? AND deleted_at IS NULL
 ORDER BY indexed_at ASC;
@@ -90,7 +90,7 @@ ORDER BY indexed_at ASC;
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
        deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
-       current_version_id
+       current_version_id, palette_manual
 FROM assets
 WHERE owner_id = ? AND missing_at IS NOT NULL AND deleted_at IS NULL
 ORDER BY missing_at DESC
@@ -102,7 +102,7 @@ LIMIT ? OFFSET ?;
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
        deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
-       current_version_id
+       current_version_id, palette_manual
 FROM assets
 WHERE owner_id = ? AND provider = ? AND deleted_at IS NULL AND missing_at IS NULL
 ORDER BY storage_path ASC;
@@ -113,7 +113,7 @@ ORDER BY storage_path ASC;
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
        deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
-       current_version_id
+       current_version_id, palette_manual
 FROM assets
 WHERE owner_id = ? AND hash = ? AND missing_at IS NOT NULL AND deleted_at IS NULL
 ORDER BY created_at ASC

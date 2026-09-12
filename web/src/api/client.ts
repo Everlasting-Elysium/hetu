@@ -225,6 +225,20 @@ export const api = {
   getAsset: (id: string) => req<Asset>(`/assets/${id}`),
   assetTags: (id: string) => req<Tag[]>(`/assets/${id}/tags`),
   assetColors: (id: string) => req<Swatch[]>(`/assets/${id}/colors`),
+  // Manual palette editing (issue #62): add/adjust/remove a swatch. Each call
+  // flags the palette user-curated server-side so a re-scan won't overwrite it,
+  // and returns the full updated palette (ord order, dominant first) so the
+  // caller replaces its state in one round-trip. `ord` is the swatch's array
+  // index — the backend keeps ords contiguous 0..N-1 after every edit.
+  addAssetColor: (id: string, hex: string) =>
+    req<Swatch[]>(`/assets/${id}/colors`, body({ hex })),
+  updateAssetColor: (id: string, ord: number, hex: string) =>
+    req<Swatch[]>(`/assets/${id}/colors/${ord}`, {
+      method: "PUT",
+      body: JSON.stringify({ hex }),
+    }),
+  deleteAssetColor: (id: string, ord: number) =>
+    req<Swatch[]>(`/assets/${id}/colors/${ord}`, { method: "DELETE" }),
   // Lists the per-page thumbnail index of a multi-page document (issue #48),
   // ordered by page number; [] for a single-page or non-document asset. Same
   // plain-GET-returns-enriched-list shape as listCollectionItems, sharing req<T>.

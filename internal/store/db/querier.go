@@ -91,6 +91,9 @@ type Querier interface {
 	// edit path can distinguish an explicit override from the fallback. The resolved
 	// effective cover is a read-only concern of ListFoldersWithCover.
 	GetFolder(ctx context.Context, arg GetFolderParams) (Folder, error)
+	// The asset's palette_manual flag (0 = auto, 1 = user-curated). writePaletteTx
+	// reads it to skip re-scan overwrites of a curated palette (issue #62).
+	GetPaletteManual(ctx context.Context, arg GetPaletteManualParams) (int64, error)
 	GetShareByToken(ctx context.Context, token string) (Share, error)
 	GetTag(ctx context.Context, arg GetTagParams) (Tag, error)
 	// Resolves an owner's tag id by name so the AI pipeline can reuse an existing
@@ -106,6 +109,10 @@ type Querier interface {
 	InsertAssetColor(ctx context.Context, arg InsertAssetColorParams) error
 	InsertDocumentPage(ctx context.Context, arg InsertDocumentPageParams) error
 	IsCollectionMember(ctx context.Context, arg IsCollectionMemberParams) (int64, error)
+	// Every swatch with its full Lab coordinates, ord-ascending. Used by the manual
+	// delete path to re-insert the survivors with contiguous ords (0..N-1) without
+	// recomputing Lab, and to locate the target ord before deleting.
+	ListAssetColorsFull(ctx context.Context, arg ListAssetColorsFullParams) ([]ListAssetColorsFullRow, error)
 	ListAssetTags(ctx context.Context, assetID string) ([]Tag, error)
 	// thumb_path/width/height resolve to the current version (see GetAsset).
 	ListAssets(ctx context.Context, arg ListAssetsParams) ([]ListAssetsRow, error)
@@ -184,7 +191,13 @@ type Querier interface {
 	SetAssetCurrentVersion(ctx context.Context, arg SetAssetCurrentVersionParams) error
 	SetCollectionItemOrd(ctx context.Context, arg SetCollectionItemOrdParams) error
 	SetDisplayName(ctx context.Context, arg SetDisplayNameParams) error
+	// Flips an asset's palette_manual flag; set to 1 by every manual edit so a later
+	// scan/thumb re-extract leaves the curated asset_colors rows untouched.
+	SetPaletteManual(ctx context.Context, arg SetPaletteManualParams) error
 	TouchBoard(ctx context.Context, arg TouchBoardParams) error
+	// Repoints one swatch (by ord) at a new color; l/a/b are recomputed by the
+	// caller. :execrows so a missing ord reports 0 rows -> the handler answers 404.
+	UpdateAssetColorAt(ctx context.Context, arg UpdateAssetColorAtParams) (int64, error)
 	// Updates asset.created_at when embedded metadata (EXIF) provides a capture
 	// time that should take priority over the filesystem modification time.
 	// Uses the natural key (owner_id, provider, storage_path) so the canonical

@@ -43,14 +43,15 @@ func addMissingColumns(ctx context.Context, sqldb *sql.DB, table string, cols []
 }
 
 // migrateAssetColumns adds columns introduced after the initial assets schema:
-// missing_at (issue #45), current_version_id (issue #58), and favorite (issue
-// #62). Its indexes reference the newer columns, so this must run before
-// schema.sql.
+// missing_at (issue #45), current_version_id (issue #58), favorite and
+// palette_manual (issue #62). Its indexes reference the newer columns, so this
+// must run before schema.sql.
 func migrateAssetColumns(ctx context.Context, sqldb *sql.DB) error {
 	return addMissingColumns(ctx, sqldb, "assets", []columnAdd{
 		{"missing_at", "ALTER TABLE assets ADD COLUMN missing_at INTEGER"},
 		{"current_version_id", "ALTER TABLE assets ADD COLUMN current_version_id TEXT NOT NULL DEFAULT ''"},
 		{"favorite", "ALTER TABLE assets ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0"},
+		{"palette_manual", "ALTER TABLE assets ADD COLUMN palette_manual INTEGER NOT NULL DEFAULT 0"},
 	})
 }
 

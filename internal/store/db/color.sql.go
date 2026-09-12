@@ -32,7 +32,7 @@ const assetsByIDs = `-- name: AssetsByIDs :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
        deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
-       current_version_id
+       current_version_id, palette_manual
 FROM assets
 WHERE owner_id = ? AND id IN (/*SLICE:ids*/?)
 `
@@ -88,6 +88,7 @@ func (q *Queries) AssetsByIDs(ctx context.Context, arg AssetsByIDsParams) ([]Ass
 			&i.FolderID,
 			&i.MissingAt,
 			&i.CurrentVersionID,
+			&i.PaletteManual,
 		); err != nil {
 			return nil, err
 		}
@@ -193,6 +194,24 @@ func (q *Queries) GetAssetColors(ctx context.Context, arg GetAssetColorsParams) 
 	return items, nil
 }
 
+const getPaletteManual = `-- name: GetPaletteManual :one
+SELECT palette_manual FROM assets WHERE id = ? AND owner_id = ?
+`
+
+type GetPaletteManualParams struct {
+	ID      string
+	OwnerID string
+}
+
+// The asset's palette_manual flag (0 = auto, 1 = user-curated). writePaletteTx
+// reads it to skip re-scan overwrites of a curated palette (issue #62).
+func (q *Queries) GetPaletteManual(ctx context.Context, arg GetPaletteManualParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getPaletteManual, arg.ID, arg.OwnerID)
+	var palette_manual int64
+	err := row.Scan(&palette_manual)
+	return palette_manual, err
+}
+
 const insertAssetColor = `-- name: InsertAssetColor :exec
 INSERT INTO asset_colors (asset_id, owner_id, ord, hex, l, a, b, weight)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -221,4 +240,107 @@ func (q *Queries) InsertAssetColor(ctx context.Context, arg InsertAssetColorPara
 		arg.Weight,
 	)
 	return err
+}
+
+const listAssetColorsFull = `-- name: ListAssetColorsFull :many
+SELECT ord, hex, l, a, b, weight FROM asset_colors
+WHERE asset_id = ? AND owner_id = ?
+ORDER BY ord ASC
+`
+
+type ListAssetColorsFullParams struct {
+	AssetID string
+	OwnerID string
+}
+
+type ListAssetColorsFullRow struct {
+	Ord    int64
+	Hex    string
+	L      float64
+	A      float64
+	B      float64
+	Weight float64
+}
+
+// Every swatch with its full Lab coordinates, ord-ascending. Used by the manual
+// delete path to re-insert the survivors with contiguous ords (0..N-1) without
+// recomputing Lab, and to locate the target ord before deleting.
+func (q *Queries) ListAssetColorsFull(ctx context.Context, arg ListAssetColorsFullParams) ([]ListAssetColorsFullRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAssetColorsFull, arg.AssetID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAssetColorsFullRow{}
+	for rows.Next() {
+		var i ListAssetColorsFullRow
+		if err := rows.Scan(
+			&i.Ord,
+			&i.Hex,
+			&i.L,
+			&i.A,
+			&i.B,
+			&i.Weight,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setPaletteManual = `-- name: SetPaletteManual :exec
+UPDATE assets SET palette_manual = ? WHERE id = ? AND owner_id = ?
+`
+
+type SetPaletteManualParams struct {
+	PaletteManual int64
+	ID            string
+	OwnerID       string
+}
+
+// Flips an asset's palette_manual flag; set to 1 by every manual edit so a later
+// scan/thumb re-extract leaves the curated asset_colors rows untouched.
+func (q *Queries) SetPaletteManual(ctx context.Context, arg SetPaletteManualParams) error {
+	_, err := q.db.ExecContext(ctx, setPaletteManual, arg.PaletteManual, arg.ID, arg.OwnerID)
+	return err
+}
+
+const updateAssetColorAt = `-- name: UpdateAssetColorAt :execrows
+UPDATE asset_colors SET hex = ?, l = ?, a = ?, b = ?
+WHERE asset_id = ? AND owner_id = ? AND ord = ?
+`
+
+type UpdateAssetColorAtParams struct {
+	Hex     string
+	L       float64
+	A       float64
+	B       float64
+	AssetID string
+	OwnerID string
+	Ord     int64
+}
+
+// Repoints one swatch (by ord) at a new color; l/a/b are recomputed by the
+// caller. :execrows so a missing ord reports 0 rows -> the handler answers 404.
+func (q *Queries) UpdateAssetColorAt(ctx context.Context, arg UpdateAssetColorAtParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateAssetColorAt,
+		arg.Hex,
+		arg.L,
+		arg.A,
+		arg.B,
+		arg.AssetID,
+		arg.OwnerID,
+		arg.Ord,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

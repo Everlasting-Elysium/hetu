@@ -43,6 +43,7 @@ v0 仅有一条系统用户记录。
 | color | TEXT | 用户颜色标签（如 `#FF5733`），空串表示无 |
 | favorite | INTEGER | 用户收藏标记（issue #62），DB 存 0/1，默认 0；Go 侧映射为 `bool`（`domain.Asset.Favorite`），转换见 `internal/store/sqlite.go` 的 `boolToInt64` / `rowToAsset` |
 | current_version_id | TEXT | 当前版本指针 → `asset_versions.id`；空字符串表示无显式版本（锚点行自身即唯一隐式版本），详见 [asset_versions](#asset_versions) |
+| palette_manual | INTEGER | 手动调色板标记（issue #62），DB 存 0/1，默认 0；为 1 表示该资产的 `asset_colors` 已被人工整理，`writePaletteTx` 在重新扫描/缩略图重提取时整体跳过、不覆盖。风格比照 `favorite`（0/1 INTEGER + `migrate.go` 旧库迁移），详见 [asset_colors](#asset_colors) |
 
 > `rating` / `color` / `favorite` / `display_name` / `folder_id` 及回收站/丢失状态（`deleted_at` / `missing_at`）均为**用户元数据**：`UpsertAsset` 仅在首次插入时写入，重新扫描经 `ON CONFLICT` 只更新索引派生字段（kind/name/size/hash/缩略等），因此再次扫描不会覆盖用户的评分/颜色/收藏。完整列见 [schema.sql](../internal/store/schema.sql)。
 
@@ -198,9 +199,19 @@ DAM 提供多种正交的资产组织方式，四者边界清晰，实现者据�
 | l / a / b | REAL | CIE-Lab 坐标（D65），预计算用于距离排序 |
 | weight | REAL | 该色占图像像素的比例（0..1） |
 
-联合主键：`(asset_id, ord)`；`owner_id` 上有索引。重新索引时按 `asset_id` 整体删除后重写。
+联合主键：`(asset_id, ord)`；`owner_id` 上有索引。重新索引时按 `asset_id` 整体删除后重写（`palette_manual=1` 时整体跳过，见下文手动编辑）。
 
 检索接口：`GET /api/dam/search?color=<hex>&tol=<ΔE00>&limit=<n>`，按主色到查询色的 CIEDE2000 距离升序返回相近资产（`tol` 默认见 [search.go](../internal/plugins/dam/search.go) 的 `defaultColorTol`）。
+
+**手动编辑调色板（issue #62）**：三个端点直接增删改 `asset_colors` 本身（不新建表、主键不变），每次编辑都在**同一事务**内把 `assets.palette_manual` 置 1：
+
+- `POST /api/dam/assets/{id}/colors`，body `{hex}`：新增一个色卡，`ord = 当前最大 ord + 1`（空调色板则为 0）。
+- `PUT /api/dam/assets/{id}/colors/{ord}`，body `{hex}`：调整某色卡的颜色，用 [internal/color](../internal/color/color.go) 的 `ParseHex` / `RGB.Lab` 重算 `l/a/b` 一并写入。
+- `DELETE /api/dam/assets/{id}/colors/{ord}`：删除某色卡，删后把剩余色卡按原相对顺序重编号为连续的 `0..N-1`（不留空洞，保证 `ord=0` 恒为主色；删掉 `ord=0` 则原 `ord=1` 顶上成为新主色）。
+
+三端点均：校验资产属主（否则 404）、拒绝不支持调色板的 kind（`domain.AssetKind.SupportsColorPalette()` 为 false，如音频 #88，返回 400 而非 500）、hex 非法返回 400，成功返回更新后的完整调色板（`[{hex,weight}]`，与 `GET .../colors` 同构）。实现见 [store/palette_edit.go](../internal/store/palette_edit.go)、[plugins/dam/colors.go](../internal/plugins/dam/colors.go)。
+
+**非破坏保护**：`writePaletteTx`（[store/palette.go](../internal/store/palette.go)）在写入前读 `palette_manual`——为 1 时**整体跳过**（既不重写 `annotations` 的 `palette` / `dominant`，也不重写 `asset_colors`，避免出现「注释被覆盖但色卡没被覆盖」的半吊子状态），因此扫描（`IndexPalette`）与缩略图重提取（`IndexPaletteByID`，#88）都不会覆盖用户手动整理的调色板。此保护与既有的[分层元数据非破坏](./ai-and-3d.md)（manual > ai > extracted）一脉相承：用户意图（manual）优先于自动提取（extracted）。
 
 ---
 

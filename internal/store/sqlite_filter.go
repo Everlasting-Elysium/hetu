@@ -20,7 +20,7 @@ const assetColumns = `a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.na
 	`COALESCE(cv.width, a.width) AS width, ` +
 	`COALESCE(cv.height, a.height) AS height, a.created_at, ` +
 	`a.indexed_at, a.deleted_at, a.rating, a.color, a.favorite, a.display_name, a.folder_id, ` +
-	`a.missing_at, a.current_version_id`
+	`a.missing_at, a.current_version_id, a.palette_manual`
 
 // currentVersionJoin resolves an asset's current version for display-field
 // COALESCE. current_version_id is empty for un-versioned assets, so cv is NULL and
@@ -273,7 +273,7 @@ func scanAssetRows(rows *sql.Rows) ([]db.Asset, error) {
 			&r.ID, &r.OwnerID, &r.Kind, &r.Provider, &r.StoragePath, &r.Name,
 			&r.Ext, &r.Size, &r.Hash, &r.ThumbPath, &r.Width, &r.Height,
 			&r.CreatedAt, &r.IndexedAt, &r.DeletedAt, &r.Rating, &r.Color, &r.Favorite,
-			&r.DisplayName, &r.FolderID, &r.MissingAt, &r.CurrentVersionID,
+			&r.DisplayName, &r.FolderID, &r.MissingAt, &r.CurrentVersionID, &r.PaletteManual,
 		); err != nil {
 			return nil, fmt.Errorf("scan asset row: %w", err)
 		}
