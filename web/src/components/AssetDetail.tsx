@@ -6,6 +6,7 @@ import { IconClose, KindIcon } from "./icons";
 import { VideoPlayer } from "./VideoPlayer";
 import { AudioPlayer } from "./AudioPlayer";
 import { DocumentPager } from "./DocumentPager";
+import { SequenceViewer } from "./SequenceViewer";
 import { PaletteEditor } from "./PaletteEditor";
 import styles from "./AssetDetail.module.css";
 
@@ -64,17 +65,11 @@ export function AssetMedia({
   const label = asset.display_name || asset.name;
   switch (asset.kind) {
     case "image":
-      return (
-        <a
-          className={styles.imageLink}
-          href={fileUrl(asset.id)}
-          target="_blank"
-          rel="noreferrer"
-          title="查看原图"
-        >
-          <img className={styles.imagePreview} src={thumbUrl(asset.id)} alt={label} />
-        </a>
-      );
+      // A single image renders inline; a run of consecutively-numbered images is
+      // one sequence asset whose frames step here (issue #62). The viewer
+      // degrades to the same single-image preview when the asset has < 2 frames,
+      // so an ordinary image detail is unchanged.
+      return <SequenceViewer key={asset.id} asset={asset} />;
     case "video":
       return <VideoPlayer asset={asset} toggleRef={toggleRef} />;
     case "audio":

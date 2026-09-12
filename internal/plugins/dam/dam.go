@@ -89,6 +89,13 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodGet, Pattern: "/assets/{id}/pages", Handler: p.listAssetPages},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/pages/{pageNo}/thumb", Handler: p.servePageThumb},
 
+		// Image sequence frames (issue #62): list a sequence's frames, and stream
+		// one frame's original bytes on demand (no per-frame thumbnail). An asset
+		// that is not a sequence returns [] from /frames, so the detail view only
+		// shows its step viewer when there are >= 2 frames.
+		{Method: http.MethodGet, Pattern: "/assets/{id}/frames", Handler: p.listAssetFrames},
+		{Method: http.MethodGet, Pattern: "/assets/{id}/frames/{frameNo}", Handler: p.serveFrame},
+
 		// Version / revision history (issue #58): list, upload a new current
 		// version, roll back to an existing version, delete an old version.
 		{Method: http.MethodGet, Pattern: "/assets/{id}/versions", Handler: p.listVersions},

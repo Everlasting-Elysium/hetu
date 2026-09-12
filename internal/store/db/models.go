@@ -54,6 +54,14 @@ type AssetColor struct {
 	Weight  float64
 }
 
+type AssetFrame struct {
+	AssetID     string
+	OwnerID     string
+	FrameNo     int64
+	StoragePath string
+	Name        string
+}
+
 type AssetTag struct {
 	AssetID string
 	TagID   string

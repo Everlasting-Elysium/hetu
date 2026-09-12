@@ -254,6 +254,16 @@ export interface DocumentPage {
   height: number;
 }
 
+// One frame of an image sequence (GET /assets/{id}/frames, issue #62), ordered
+// by frame_no (1-based). A list with >= 2 frames marks the asset a sequence and
+// drives the detail-view step viewer; each frame's bytes load from
+// /assets/{id}/frames/{frame_no}. Field names match assetFrameDTO's json tags in
+// internal/plugins/dam/frames.go.
+export interface SequenceFrame {
+  frame_no: number;
+  name: string;
+}
+
 // One swatch from an asset's extracted palette (GET /assets/{id}/colors).
 // Not to be confused with Asset.color, which is the manual Finder-style label.
 export interface Swatch {

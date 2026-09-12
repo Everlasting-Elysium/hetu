@@ -242,6 +242,33 @@ DAM 提供多种正交的资产组织方式，四者边界清晰，实现者据�
 
 ---
 
+### asset_frames
+
+图片**序列帧索引**（[#62](https://github.com/Everlasting-Elysium/hetu/issues/62)）：一组连号图片（`explosion_0001.png`、`explosion_0002.png`…）被识别为**单个序列资产**，锚定在数字最小的那一帧（该帧照常走正常的资产/缩略图/调色板链路），其余帧被吸收进本表而**不各自成为资产**。每帧一行（含锚点帧 `frame_no=1`），`storage_path` 指向原始文件——**不为每帧生成缩略图**（详情页步进器按需 serve 原帧字节，避免一个 240 帧序列撑爆缩略图目录）。DDL 与实现见 [schema.sql](../internal/store/schema.sql)、[queries/asset_frame.sql](../internal/store/queries/asset_frame.sql)、[store/sqlite_asset_frames.go](../internal/store/sqlite_asset_frames.go)、[index/sequence.go](../internal/index/sequence.go)。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| asset_id | TEXT | 外键 → assets.id（序列锚点资产） |
+| owner_id | TEXT | 外键 → users.id，按库主检索 |
+| frame_no | INTEGER | 帧序号（从 1 开始，按帧文件名末尾数字升序递增） |
+| storage_path | TEXT | 该帧原始文件的存储路径（不外泄，仅供服务端 serve） |
+| name | TEXT | 该帧文件名（前端展示用） |
+
+联合主键：`(asset_id, frame_no)`；`idx_asset_frames_owner` 覆盖 `owner_id`。
+
+**识别规则**（纯文件名启发式，纯函数 `groupSequences`，见 [index/sequence.go](../internal/index/sequence.go)）：同目录 + 同 stem（去掉末尾连续数字与扩展名后的前缀）+ 同扩展名（大小写不敏感）+ 末尾数字部分能解析为整数、且构成**无断号的连续段**、组内 ≥ `minSequenceFrames`（=2）帧，才算一个序列。数字按值解析而非按字符串比较，故补零（`0001`）与非补零（`1,2,…,10`）都能正确排序；断号切成多段，孤立号与非图片文件回退为独立资产。**已知局限**：该规则无法区分「动画序列帧」与「连号的相机照片」（`IMG_1234.jpg`、`IMG_1235.jpg`…会被并成一个序列资产）——当前"基础可用"范围内接受此取舍，后续可加配置开关或手动拆分。
+
+**重建语义**：索引流水线在锚点 upsert 之后经 `ReplaceAssetFrames` 整表重建该资产的帧行——事务内先按 asset 删旧帧再批量插入，并按自然键 `(owner, provider, storage_path)` 解析 canonical id（与 `document_pages`/调色板/元数据写入一致）。故序列增/减帧后不残留旧行；当一个序列缩到只剩单文件（跌破 2 帧阈值）时，该文件回退为普通图片资产，其残留帧行被清空（`indexEntry` 对单张图片调 `clearFrames`）。序列的非锚点帧是磁盘上真实存在但"不是 asset"的文件，不会出现在 live-asset 列表里，故 detectMissing 不会误标、去重也不受影响。
+
+**HTTP 接口**（[internal/plugins/dam/frames.go](../internal/plugins/dam/frames.go)）：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/dam/assets/{id}/frames` | 列出各帧 `{frame_no, name}`（按帧号升序；非序列资产返回 `[]`；资产不存在/跨库主 404） |
+| GET | `/api/dam/assets/{id}/frames/{frameNo}` | 流式返回第 N 帧原始字节（`http.ServeContent`，`Cache-Control: private, max-age=3600`；帧/文件不存在 404，帧号非法/越界 400/404） |
+
+---
+
 ### asset_versions
 
 资产的**版本/修订历史**（[#58](https://github.com/Everlasting-Elysium/hetu/issues/58)）。同一资产的多次迭代（设计稿 v1/v2…）成组管理，可列出/切换当前/删除旧版；缩略/搜索反映当前版本。DDL 与实现见 [schema.sql](../internal/store/schema.sql)、[queries/version.sql](../internal/store/queries/version.sql)、[store/sqlite_versions.go](../internal/store/sqlite_versions.go)、[plugins/dam/versions.go](../internal/plugins/dam/versions.go)。

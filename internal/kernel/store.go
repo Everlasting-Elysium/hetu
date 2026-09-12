@@ -76,6 +76,17 @@ type Store interface {
 	ReplaceDocumentPages(ctx context.Context, owner domain.OwnerID, provider, path string, pages []domain.DocumentPage) error
 	ListDocumentPages(ctx context.Context, owner domain.OwnerID, id domain.AssetID) ([]domain.DocumentPage, error)
 
+	// ReplaceAssetFrames rebuilds an image sequence's per-frame index (issue
+	// #62): it clears the asset's asset_frames rows and inserts the given frames
+	// in one transaction. Like ReplaceDocumentPages the asset is addressed by its
+	// natural key so a re-scan resolves the durable id even after UpsertAsset
+	// discarded a freshly generated one; an empty frames slice clears the index
+	// (the file is no longer part of a sequence). ListAssetFrames reads them back
+	// by row id, ordered by frame number, returning an empty slice for a
+	// non-sequence asset.
+	ReplaceAssetFrames(ctx context.Context, owner domain.OwnerID, provider, path string, frames []domain.AssetFrame) error
+	ListAssetFrames(ctx context.Context, owner domain.OwnerID, id domain.AssetID) ([]domain.AssetFrame, error)
+
 	// UpsertAnnotation writes a single layered annotation for an asset, keyed by
 	// (asset_id, layer, key). Used by the import/migration path to persist a
 	// source URL (extracted layer) or a migrated note (manual layer). Value is a
