@@ -7,10 +7,12 @@ Implements the versioned contract the Go core speaks (internal/ai/types.go):
     POST /tag    -> {"tags": [...], "caption": "", "model": "..."}
     POST /caption-> {"caption": "...", "model": "..."}
     POST /ocr    -> {"text": "...", "blocks": [...], "model": "..."}
+    POST /compare-> {"summary": "...", "dimensions": {...}, "model": "..."}
 
-Every POST body is an [AssetRef] the sidecar resolves locally. Models load
-lazily on first use, so ``/health`` is ready as soon as the process is up.
-Inference runs off the event loop, bounded by [runtime.run_inference].
+Every inference POST body is an [AssetRef] the sidecar resolves locally (``/compare``
+carries two refs). Models load lazily on first use, so ``/health`` is ready as soon
+as the process is up. Inference runs off the event loop, bounded by
+[runtime.run_inference].
 """
 
 from __future__ import annotations
@@ -18,17 +20,27 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
 import caption
 import embed
 import ocr
 import tagger
-from config import apply_runtime_env
+import vlm_critic
+from config import apply_runtime_env, settings
 from resolver import RefResolveError
 from runtime import run_inference
-from schemas import AssetRef, CaptionResult, EmbedResult, Health, OCRResult, TagResult
+from schemas import (
+    AssetRef,
+    CaptionResult,
+    CompareRequest,
+    CompareResult,
+    EmbedResult,
+    Health,
+    OCRResult,
+    TagResult,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -77,3 +89,21 @@ async def caption_asset(req: AssetRef) -> CaptionResult:
 async def ocr_asset(req: AssetRef) -> OCRResult:
     """Extract text and per-block boxes from the referenced image."""
     return await run_inference(lambda: ocr.ocr_ref(req.ref))
+
+
+@app.post("/compare")
+async def compare_assets(req: CompareRequest) -> CompareResult:
+    """Critique two images across the requested dimensions with the VLM.
+
+    Returns 501 when no VLM is configured (empty [Settings.vlm_model]) — nothing
+    is loaded. A configured model whose load or inference fails propagates to a
+    500; an unresolvable ref is a 400 (handled by [on_ref_error]).
+    """
+    if not settings.vlm_model:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="HETU_AI_VLM_MODEL not configured",
+        )
+    return await run_inference(
+        lambda: vlm_critic.compare_refs(req.ref_a, req.ref_b, req.dimensions)
+    )

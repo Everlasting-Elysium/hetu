@@ -15,6 +15,7 @@
 //	POST /tag    -> 200 {"tags":[...],"caption":"","model":""} [TagResult]
 //	POST /caption-> 200 {"caption":"","model":""}           [CaptionResult]
 //	POST /ocr    -> 200 {"text":"","blocks":[...],"model":""} [OCRResult]
+//	POST /compare-> 200 {"summary":"","dimensions":{},"model":""} [CompareResult]
 //
 // The Phase 1 sidecar is a stub: /embed and /tag return 501 Not Implemented,
 // which the client maps to [ErrNotImplemented] (kind [KindInvalid], not
@@ -30,8 +31,10 @@
 package ai
 
 // ContractVersion is the AI HTTP contract version. Bump it on any
-// breaking change to a request or response shape.
-const ContractVersion = "v1"
+// breaking change to a request or response shape. v2 added POST /compare
+// (see [CompareRequest]/[CompareResult]); kept in lockstep with
+// ai/schemas.py CONTRACT_VERSION.
+const ContractVersion = "v2"
 
 // HeaderContractVersion is the request header carrying [ContractVersion].
 const HeaderContractVersion = "X-Hetu-AI-Contract"
@@ -87,4 +90,22 @@ type OCRResult struct {
 	Text   string     `json:"text"`
 	Blocks []OCRBlock `json:"blocks,omitempty"`
 	Model  string     `json:"model"`
+}
+
+// CompareRequest is the /compare body: two asset refs the sidecar resolves and
+// the dimension names to critique (color, tone, lighting, action, element).
+type CompareRequest struct {
+	RefA       string   `json:"ref_a"`
+	RefB       string   `json:"ref_b"`
+	Dimensions []string `json:"dimensions"`
+}
+
+// CompareResult is the /compare response: a VLM's overall summary, an optional
+// per-dimension actionable note keyed by dimension name, and the producing
+// model. The sidecar returns 501 when no VLM is configured (mapped to
+// [ErrNotImplemented]); callers degrade rather than fail.
+type CompareResult struct {
+	Summary    string            `json:"summary"`
+	Dimensions map[string]string `json:"dimensions"`
+	Model      string            `json:"model"`
 }

@@ -123,6 +123,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		ai.SubscribeEmbedding(k, client, st)
 		k.Embedder = ai.NewEmbedder(client)
 		k.Tagger = ai.NewTagger(client)
+		k.VisionCritic = ai.NewVisionCritic(client)
 		log.Info("registered AI orchestration", slog.String("addr", cfg.AIAddr))
 	}
 	return &App{Cfg: cfg, Kernel: k, Plugins: plugins, Owner: owner, store: st}, nil

@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     clip_model: str = "openai/clip-vit-base-patch32"
     tagger_repo: str = "SmilingWolf/wd-v1-4-moat-tagger-v2"
     caption_model: str = "Salesforce/blip-image-captioning-base"
+    # Interleaved-multi-image VLM for POST /compare. Empty = unconfigured, so the
+    # endpoint returns 501 (never loads a model); set HETU_AI_VLM_MODEL to enable,
+    # e.g. "HuggingFaceTB/SmolVLM-500M-Instruct".
+    vlm_model: str = ""
 
     # Tag selection thresholds; general labels are noisier than character labels.
     tag_threshold: float = 0.35

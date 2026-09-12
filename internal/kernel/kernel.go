@@ -21,6 +21,27 @@ type Tagger interface {
 	Tag(ctx context.Context, ref string) (map[string]float64, error)
 }
 
+// CritiqueResult is a VLM's natural-language comparison of two images: an
+// overall summary plus a per-dimension actionable note, and the model name
+// that produced it. Defined in kernel (not internal/ai) so VisionCritic's
+// return type needs no import of internal/ai, mirroring why ModelConverter
+// lives here instead of model3d.
+type CritiqueResult struct {
+	Summary    string
+	Dimensions map[string]string // dimension name -> actionable note
+	Model      string
+}
+
+// VisionCritic produces a natural-language critique comparing two images
+// across the requested dimensions. It is optionally set on the kernel when
+// an AI sidecar is configured; nil means critique is unavailable. Even when
+// non-nil, the sidecar itself may report the VLM specifically as not loaded
+// (see ai.ErrNotImplemented) — callers must treat both as "unavailable" and
+// degrade gracefully, never failing the surrounding request.
+type VisionCritic interface {
+	Critique(ctx context.Context, refA, refB string, dimensions []string) (CritiqueResult, error)
+}
+
 // ModelConverter converts a 3D model (identified by ext, lowercase no dot) to
 // GLB, streaming the result into w. It is defined here — not in the model3d
 // package — so the kernel can hold the abstraction without importing model3d
@@ -38,11 +59,12 @@ type Kernel struct {
 	Assets        *AssetRegistry
 	Events        *EventBus
 	Jobs          *JobQueue
-	ThumbDir      string   // directory where generated thumbnails are written
-	CompareDir    string   // directory where transient compare uploads are staged (issue #127)
-	ModelCacheDir string   // directory where web-friendly GLB conversions are cached
-	Embedder      Embedder // optional CLIP embedder; nil = semantic search disabled
-	Tagger        Tagger   // optional WD tagger; nil = synchronous tagging disabled
+	ThumbDir      string       // directory where generated thumbnails are written
+	CompareDir    string       // directory where transient compare uploads are staged (issue #127)
+	ModelCacheDir string       // directory where web-friendly GLB conversions are cached
+	Embedder      Embedder     // optional CLIP embedder; nil = semantic search disabled
+	Tagger        Tagger       // optional WD tagger; nil = synchronous tagging disabled
+	VisionCritic  VisionCritic // optional VLM critic; nil = image critique disabled
 	// ModelConverter converts non-web-friendly 3D models to GLB for the viewer.
 	// nil = conversion unavailable; the DAM plugin gates on it (see serveModel).
 	ModelConverter ModelConverter

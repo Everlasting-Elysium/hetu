@@ -10,7 +10,9 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 # Mirrors ai.ContractVersion / ai.HeaderContractVersion in internal/ai/types.go.
-CONTRACT_VERSION = "v1"
+# v2 added POST /compare (CompareRequest/CompareResult); kept in lockstep with
+# the Go ai.ContractVersion constant.
+CONTRACT_VERSION = "v2"
 CONTRACT_HEADER = "X-Hetu-AI-Contract"
 
 
@@ -85,4 +87,24 @@ class OCRResult(BaseModel):
 
     text: str
     blocks: list[OCRBlock] = Field(default_factory=list)
+    model: str
+
+
+class CompareRequest(BaseModel):
+    """`POST /compare` body: two refs and the dimensions to critique (Go: ai.CompareRequest)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    ref_a: str
+    ref_b: str
+    dimensions: list[str]
+
+
+class CompareResult(BaseModel):
+    """`POST /compare` response: a VLM critique of two images (Go: ai.CompareResult)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    summary: str
+    dimensions: dict[str, str]
     model: str
