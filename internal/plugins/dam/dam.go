@@ -182,6 +182,13 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodPost, Pattern: "/import", Handler: p.importAsset},
 		{Method: http.MethodPost, Pattern: "/import/migrate", Handler: p.migrate},
 		{Method: http.MethodGet, Pattern: "/jobs", Handler: p.listJobs},
+
+		// Image comparison (issue #127): score how closely a target reproduces a
+		// reference across five dimensions. Either side is a library asset_id or a
+		// transient multipart upload; uploads are staged (never indexed) and served
+		// back for overlay display via a one-shot reqID until the TTL sweep reaps them.
+		{Method: http.MethodPost, Pattern: "/compare", Handler: p.compareAssets},
+		{Method: http.MethodGet, Pattern: "/compare/{reqID}/overlay/{side}", Handler: p.compareOverlay},
 	}
 }
 

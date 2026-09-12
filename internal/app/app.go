@@ -63,6 +63,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		Log:           log,
 		Store:         st,
 		ThumbDir:      filepath.Join(cfg.DataDir, "thumbnails"),
+		CompareDir:    filepath.Join(cfg.DataDir, "compare"),
 		ModelCacheDir: filepath.Join(cfg.DataDir, "models"),
 		JobBuffer:     64,
 	})
@@ -121,6 +122,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		ai.Subscribe(k, client, st)
 		ai.SubscribeEmbedding(k, client, st)
 		k.Embedder = ai.NewEmbedder(client)
+		k.Tagger = ai.NewTagger(client)
 		log.Info("registered AI orchestration", slog.String("addr", cfg.AIAddr))
 	}
 	return &App{Cfg: cfg, Kernel: k, Plugins: plugins, Owner: owner, store: st}, nil
