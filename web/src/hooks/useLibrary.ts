@@ -14,6 +14,9 @@ export interface Library {
   deleteFolder: (id: string) => Promise<void>;
   createTag: (name: string) => Promise<void>;
   deleteTag: (id: string) => Promise<void>;
+  // Global tag merge (issue #62): fold fromId into toId across all assets and
+  // delete fromId, then refresh the tag list. Destructive; the UI confirms.
+  mergeTag: (fromId: string, toId: string) => Promise<void>;
 }
 
 // Owns sidebar data (folders + tags) and the trash badge count, plus their
@@ -65,5 +68,6 @@ export function useLibrary(onError: (msg: string) => void): Library {
     deleteFolder: (id) => guard(async () => { await api.deleteFolder(id); await loadFolders(); }),
     createTag: (name) => guard(async () => { await api.createTag({ name }); await loadTags(); }),
     deleteTag: (id) => guard(async () => { await api.deleteTag(id); await loadTags(); }),
+    mergeTag: (fromId, toId) => guard(async () => { await api.mergeTags(fromId, toId); await loadTags(); }),
   };
 }

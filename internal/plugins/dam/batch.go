@@ -76,6 +76,41 @@ func (p *Plugin) batchFavorite(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusOK, map[string]int{"updated": len(ids)})
 }
 
+// batchReplaceTag swaps from_tag_id for to_tag_id on the selected assets only
+// (issue #62), leaving from_tag_id itself intact for any assets outside the
+// selection. Unlike the global tags/merge, this is scoped to asset_ids. A
+// same-source-and-target request is a client error (400).
+func (p *Plugin) batchReplaceTag(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		AssetIDs  []string `json:"asset_ids"`
+		FromTagID string   `json:"from_tag_id"`
+		ToTagID   string   `json:"to_tag_id"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	ids, err := parseAssetIDs(req.AssetIDs)
+	if err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	fromID, err := domain.NewTagID(req.FromTagID)
+	if err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	toID, err := domain.NewTagID(req.ToTagID)
+	if err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := p.k.Store.BatchReplaceTag(r.Context(), p.owner, ids, fromID, toID); err != nil {
+		httpjson.WriteError(w, tagOpStatus(err), err)
+		return
+	}
+	httpjson.WriteJSON(w, http.StatusOK, map[string]int{"replaced": len(ids)})
+}
+
 func (p *Plugin) batchMove(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		AssetIDs []string `json:"asset_ids"`

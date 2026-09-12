@@ -103,6 +103,20 @@ type Store interface {
 	BatchAddTags(ctx context.Context, owner domain.OwnerID, assetIDs []domain.AssetID, tagIDs []domain.TagID) error
 	BatchRemoveTags(ctx context.Context, owner domain.OwnerID, assetIDs []domain.AssetID, tagID domain.TagID) error
 	ListAssetTags(ctx context.Context, assetID domain.AssetID) ([]domain.Tag, error)
+	// MergeTags folds fromTagID into intoTagID globally (issue #62): every asset
+	// carrying fromTagID is re-hung onto intoTagID (dedup via the asset_tags
+	// primary key), fromTagID's direct children are promoted to fromTagID's own
+	// parent so no dangling parent_id remains, then fromTagID is deleted — all in
+	// one transaction. Both tags must exist and belong to owner (else
+	// domain.ErrNotFound); they must differ (else domain.ErrSameTag). Affects all
+	// assets, not a selection.
+	MergeTags(ctx context.Context, owner domain.OwnerID, fromTagID, intoTagID domain.TagID) error
+	// BatchReplaceTag swaps fromTagID for toTagID only on the given assets (issue
+	// #62): those assets' fromTagID rows are re-hung onto toTagID (dedup via the
+	// asset_tags primary key) and then removed, in one transaction. fromTagID
+	// itself is not deleted (assets outside the selection may still use it). The
+	// two tags must differ (else domain.ErrSameTag).
+	BatchReplaceTag(ctx context.Context, owner domain.OwnerID, assetIDs []domain.AssetID, fromTagID, toTagID domain.TagID) error
 
 	// Folders: virtual organization tree. ListFolders resolves each folder's
 	// effective cover (explicit override, else the earliest-indexed live asset,

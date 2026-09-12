@@ -100,7 +100,14 @@ v0 仅有一条系统用户记录。
 | tag_id | TEXT | 外键 → tags.id |
 | source | TEXT | 来源：`manual`（用户手动）或 `ai`（AI 打标） |
 
-联合主键：`(asset_id, tag_id)`。
+联合主键：`(asset_id, tag_id)`——天然保证一个资产对同一标签至多一行，是下述合并/替换去重语义的基础。
+
+**标签合并 / 批量替换（[#62](https://github.com/Everlasting-Elysium/hetu/issues/62)）**：两个互补且独立的操作，DDL/实现见 [queries/tag.sql](../internal/store/queries/tag.sql)、[store/sqlite_tags.go](../internal/store/sqlite_tags.go)、[plugins/dam/tags.go](../internal/plugins/dam/tags.go)、[plugins/dam/batch.go](../internal/plugins/dam/batch.go)。
+
+- **合并（全局）**：`MergeTags` 把标签 A 折进标签 B 并删除 A，**作用于全部素材**（非选中集）。事务内一次完成：① 用 `INSERT OR IGNORE ... SELECT`（`ReattachAssetTags`）把 `tag_id = A` 的资产改挂到 B，`(asset_id, tag_id)` 主键天然去重——同时带 A、B 的资产合并后只保留一条 B 行，不会因主键冲突报错；② `DeleteAssetTagsByTag` 删除残余的 A 行；③ 删除 `tags` 表里的 A。校验：A、B 都须存在且属于同一 owner（否则 `domain.ErrNotFound`→404），且不得相同（否则 `domain.ErrSameTag`→400，防止把标签合并进自己）。**子标签策略**：A 的直接子标签（`tags.parent_id = A`）在删除 A 前经 `ReparentTagChildren` **上提一级**到 A 原来的父级（顶级标签则提为顶级），避免留下指向已删除标签的悬空 `parent_id`；该策略对「合并目标 B 本身就是 A 的子标签」这一棘手情形同样安全——B 会像其他子标签一样被上提，绝不会指向已删除的 A 或指向自己。端点 `POST /api/dam/tags/merge`，body `{from_tag_id, to_tag_id}`；破坏性且不可逆，前端以确认弹窗兜底（拖拽标签到目标标签触发）。
+- **批量替换（子集）**：`BatchReplaceTag` 只在**给定 `asset_ids` 子集**内把标签 X 换成 Y，**不删除标签 X 本身**（选中集之外的资产可能仍在用）。事务内：① `ReattachAssetTagsForAssets`（`INSERT OR IGNORE ... SELECT ... WHERE tag_id = X AND asset_id IN (...)`）把子集内 X 改挂到 Y，同一 `(asset_id, tag_id)` 主键去重；② 复用 `BatchRemoveTags` 删除子集内的 X 行。X == Y 时报 `domain.ErrSameTag`→400（否则「自复制后再删」会误把该标签从选中资产上抹掉）。端点 `POST /api/dam/batch/replace-tag`，body `{asset_ids, from_tag_id, to_tag_id}`，写法/错误处理对齐 `/batch/rate`、`/batch/color`、`/batch/favorite`。
+
+> 两者的 `INSERT OR IGNORE` + 范围内 `DELETE` 去重语义一致，唯一区别是**作用域**（全局 vs 选中集）与**是否删除源标签**（合并删、替换留）。`asset_tags` 的增删经 `trg_asset_tags_ai`/`trg_asset_tags_ad` 触发器自动同步到 FTS 的 `tags` 列，故合并/替换后全文检索无需额外处理。
 
 ---
 

@@ -103,3 +103,21 @@
 .rateRow {
   padding: var(--sp-2);
 }
+
+/* Replace-tag form (issue #62): two tag selects + an apply button, stacked. */
+.replaceForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+}
+.replaceField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.replaceField select {
+  height: 30px;
+}

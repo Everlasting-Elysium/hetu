@@ -54,6 +54,7 @@ type Querier interface {
 	CreateVersion(ctx context.Context, arg CreateVersionParams) error
 	DeleteAnnotation(ctx context.Context, arg DeleteAnnotationParams) error
 	DeleteAssetColors(ctx context.Context, assetID string) error
+	DeleteAssetTagsByTag(ctx context.Context, tagID string) error
 	DeleteBoard(ctx context.Context, arg DeleteBoardParams) error
 	DeleteBoardItem(ctx context.Context, arg DeleteBoardItemParams) error
 	DeleteBoardItemsByBoard(ctx context.Context, boardID string) error
@@ -91,6 +92,7 @@ type Querier interface {
 	// effective cover is a read-only concern of ListFoldersWithCover.
 	GetFolder(ctx context.Context, arg GetFolderParams) (Folder, error)
 	GetShareByToken(ctx context.Context, token string) (Share, error)
+	GetTag(ctx context.Context, arg GetTagParams) (Tag, error)
 	// Resolves an owner's tag id by name so the AI pipeline can reuse an existing
 	// (possibly manual) tag instead of creating a duplicate. Returns sql.ErrNoRows
 	// when absent, signalling the caller to create it.
@@ -154,6 +156,18 @@ type Querier interface {
 	// max(ord)+1 for the next appended member; 0 for an empty collection.
 	NextCollectionItemOrd(ctx context.Context, collectionID string) (int64, error)
 	PurgeTrash(ctx context.Context, arg PurgeTrashParams) error
+	// Re-hang every asset carrying from_tag_id onto into_tag_id (global tag merge).
+	// INSERT OR IGNORE relies on the asset_tags (asset_id, tag_id) primary key to
+	// dedup: an asset already carrying both tags keeps its single into_tag_id row
+	// instead of failing on the conflict. The leftover from_tag_id rows are removed
+	// separately by DeleteAssetTagsByTag.
+	ReattachAssetTags(ctx context.Context, arg ReattachAssetTagsParams) error
+	// Subset variant of ReattachAssetTags for batch replace: re-hang from_tag_id
+	// onto into_tag_id only on the given assets. Same (asset_id, tag_id) primary-key
+	// dedup as the global merge. from_tag_id itself is never deleted here (assets
+	// outside the subset may still use it); the caller removes it only within the
+	// subset via BatchRemoveTags.
+	ReattachAssetTagsForAssets(ctx context.Context, arg ReattachAssetTagsForAssetsParams) error
 	// Batch-updates storage_path by replacing old_prefix with new_prefix for all
 	// assets whose path starts with old_prefix, and clears missing_at.
 	RebaseAssets(ctx context.Context, arg RebaseAssetsParams) error
@@ -161,6 +175,12 @@ type Querier interface {
 	// clears missing_at. Used for manual relocate and hash-based auto-reconnect.
 	RelocateAsset(ctx context.Context, arg RelocateAssetParams) error
 	RemoveCollectionItem(ctx context.Context, arg RemoveCollectionItemParams) error
+	// Promote a tag's direct children up one level to its own parent. Used by
+	// MergeTags before the merged-away tag is deleted so no child is left with a
+	// parent_id pointing at a now-deleted tag (a dangling ref). Safe even when the
+	// merge target is itself a child of the merged-away tag: it is promoted like any
+	// other child instead of pointing at the deleted parent or at itself.
+	ReparentTagChildren(ctx context.Context, arg ReparentTagChildrenParams) error
 	SetAssetCurrentVersion(ctx context.Context, arg SetAssetCurrentVersionParams) error
 	SetCollectionItemOrd(ctx context.Context, arg SetCollectionItemOrdParams) error
 	SetDisplayName(ctx context.Context, arg SetDisplayNameParams) error

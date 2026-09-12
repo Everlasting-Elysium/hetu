@@ -77,6 +77,15 @@ func (q *Queries) CreateTag(ctx context.Context, arg CreateTagParams) error {
 	return err
 }
 
+const deleteAssetTagsByTag = `-- name: DeleteAssetTagsByTag :exec
+DELETE FROM asset_tags WHERE tag_id = ?
+`
+
+func (q *Queries) DeleteAssetTagsByTag(ctx context.Context, tagID string) error {
+	_, err := q.db.ExecContext(ctx, deleteAssetTagsByTag, tagID)
+	return err
+}
+
 const deleteTag = `-- name: DeleteTag :exec
 DELETE FROM tags WHERE id = ? AND owner_id = ?
 `
@@ -89,6 +98,30 @@ type DeleteTagParams struct {
 func (q *Queries) DeleteTag(ctx context.Context, arg DeleteTagParams) error {
 	_, err := q.db.ExecContext(ctx, deleteTag, arg.ID, arg.OwnerID)
 	return err
+}
+
+const getTag = `-- name: GetTag :one
+SELECT id, owner_id, parent_id, name, color
+FROM tags
+WHERE id = ? AND owner_id = ?
+`
+
+type GetTagParams struct {
+	ID      string
+	OwnerID string
+}
+
+func (q *Queries) GetTag(ctx context.Context, arg GetTagParams) (Tag, error) {
+	row := q.db.QueryRowContext(ctx, getTag, arg.ID, arg.OwnerID)
+	var i Tag
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.ParentID,
+		&i.Name,
+		&i.Color,
+	)
+	return i, err
 }
 
 const listAssetTags = `-- name: ListAssetTags :many
@@ -162,4 +195,82 @@ func (q *Queries) ListTags(ctx context.Context, ownerID string) ([]Tag, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const reattachAssetTags = `-- name: ReattachAssetTags :exec
+INSERT OR IGNORE INTO asset_tags (asset_id, tag_id, source)
+SELECT src.asset_id, ?1, src.source
+FROM asset_tags AS src
+WHERE src.tag_id = ?2
+`
+
+type ReattachAssetTagsParams struct {
+	IntoTagID string
+	FromTagID string
+}
+
+// Re-hang every asset carrying from_tag_id onto into_tag_id (global tag merge).
+// INSERT OR IGNORE relies on the asset_tags (asset_id, tag_id) primary key to
+// dedup: an asset already carrying both tags keeps its single into_tag_id row
+// instead of failing on the conflict. The leftover from_tag_id rows are removed
+// separately by DeleteAssetTagsByTag.
+func (q *Queries) ReattachAssetTags(ctx context.Context, arg ReattachAssetTagsParams) error {
+	_, err := q.db.ExecContext(ctx, reattachAssetTags, arg.IntoTagID, arg.FromTagID)
+	return err
+}
+
+const reattachAssetTagsForAssets = `-- name: ReattachAssetTagsForAssets :exec
+INSERT OR IGNORE INTO asset_tags (asset_id, tag_id, source)
+SELECT src.asset_id, ?1, src.source
+FROM asset_tags AS src
+WHERE src.tag_id = ?2 AND src.asset_id IN (/*SLICE:asset_ids*/?)
+`
+
+type ReattachAssetTagsForAssetsParams struct {
+	IntoTagID string
+	FromTagID string
+	AssetIds  []string
+}
+
+// Subset variant of ReattachAssetTags for batch replace: re-hang from_tag_id
+// onto into_tag_id only on the given assets. Same (asset_id, tag_id) primary-key
+// dedup as the global merge. from_tag_id itself is never deleted here (assets
+// outside the subset may still use it); the caller removes it only within the
+// subset via BatchRemoveTags.
+func (q *Queries) ReattachAssetTagsForAssets(ctx context.Context, arg ReattachAssetTagsForAssetsParams) error {
+	query := reattachAssetTagsForAssets
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.IntoTagID)
+	queryParams = append(queryParams, arg.FromTagID)
+	if len(arg.AssetIds) > 0 {
+		for _, v := range arg.AssetIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:asset_ids*/?", strings.Repeat(",?", len(arg.AssetIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:asset_ids*/?", "NULL", 1)
+	}
+	_, err := q.db.ExecContext(ctx, query, queryParams...)
+	return err
+}
+
+const reparentTagChildren = `-- name: ReparentTagChildren :exec
+UPDATE tags SET parent_id = ?1
+WHERE parent_id = ?2 AND owner_id = ?3
+`
+
+type ReparentTagChildrenParams struct {
+	NewParentID string
+	OldParentID string
+	OwnerID     string
+}
+
+// Promote a tag's direct children up one level to its own parent. Used by
+// MergeTags before the merged-away tag is deleted so no child is left with a
+// parent_id pointing at a now-deleted tag (a dangling ref). Safe even when the
+// merge target is itself a child of the merged-away tag: it is promoted like any
+// other child instead of pointing at the deleted parent or at itself.
+func (q *Queries) ReparentTagChildren(ctx context.Context, arg ReparentTagChildrenParams) error {
+	_, err := q.db.ExecContext(ctx, reparentTagChildren, arg.NewParentID, arg.OldParentID, arg.OwnerID)
+	return err
 }

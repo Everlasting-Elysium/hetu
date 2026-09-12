@@ -201,3 +201,36 @@
   display: inline-grid;
   place-items: center;
 }
+
+/* Tag-merge confirmation (issue #62): a modal gate before the destructive,
+   global, irreversible merge fired by dragging one tag onto another. */
+.confirmBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+.confirmDialog {
+  width: min(360px, 90vw);
+  padding: var(--sp-4);
+  border-radius: var(--r-md);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-2);
+}
+.confirmTitle {
+  font-weight: var(--fw-semibold);
+  margin-bottom: var(--sp-2);
+}
+.confirmBody {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 var(--sp-4);
+}
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}

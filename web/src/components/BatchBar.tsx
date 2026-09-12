@@ -25,6 +25,9 @@ interface Props {
   boards: Board[];
   onClear: () => void;
   onTag: (tagId: string) => void;
+  // Swap fromTagId for toTagId on the selected assets only (issue #62); the
+  // source tag survives for assets outside the selection.
+  onReplaceTag: (fromTagId: string, toTagId: string) => void;
   onRate: (rating: number) => void;
   onColor: (hex: string) => void;
   onFavorite: (favorite: boolean) => void;
@@ -35,17 +38,21 @@ interface Props {
   onRestore: () => void;
 }
 
-type Menu = "tag" | "rate" | "color" | "favorite" | "move" | "board" | null;
+type Menu = "tag" | "replaceTag" | "rate" | "color" | "favorite" | "move" | "board" | null;
 
 // Floating action bar shown while assets are selected. Adapts to the current
 // view: library selections expose tag/rate/color/move/trash; trash selections
 // expose restore.
 export function BatchBar(p: Props) {
   const [menu, setMenu] = useState<Menu>(null);
+  // Replace-tag selects: which tag to swap out, and which to swap in.
+  const [replaceFrom, setReplaceFrom] = useState("");
+  const [replaceTo, setReplaceTo] = useState("");
   if (p.count === 0) return null;
 
   const toggle = (m: Menu) => setMenu((cur) => (cur === m ? null : m));
   const close = () => setMenu(null);
+  const canReplace = replaceFrom !== "" && replaceTo !== "" && replaceFrom !== replaceTo;
 
   return (
     <div className={styles.bar} onClick={(e) => e.stopPropagation()}>
@@ -77,6 +84,69 @@ export function BatchBar(p: Props) {
                     {t.name}
                   </button>
                 ))}
+              </div>
+            )}
+          </div>
+
+          <div className={styles.menuWrap}>
+            <button className="btn btn-ghost" onClick={() => toggle("replaceTag")}>
+              <IconTag width={14} height={14} /> 替换标签
+            </button>
+            {menu === "replaceTag" && (
+              <div className={styles.menu} data-testid="replace-tag-menu">
+                <div className={styles.menuTitle}>替换标签</div>
+                {p.tags.length === 0 ? (
+                  <div className={styles.menuEmpty}>暂无标签</div>
+                ) : (
+                  <div className={styles.replaceForm}>
+                    <label className={styles.replaceField}>
+                      从
+                      <select
+                        className="input"
+                        data-testid="replace-tag-from"
+                        value={replaceFrom}
+                        onChange={(e) => setReplaceFrom(e.target.value)}
+                      >
+                        <option value="">选择标签</option>
+                        {p.tags.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className={styles.replaceField}>
+                      换成
+                      <select
+                        className="input"
+                        data-testid="replace-tag-to"
+                        value={replaceTo}
+                        onChange={(e) => setReplaceTo(e.target.value)}
+                      >
+                        <option value="">选择标签</option>
+                        {p.tags.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      data-testid="replace-tag-apply"
+                      disabled={!canReplace}
+                      onClick={() => {
+                        p.onReplaceTag(replaceFrom, replaceTo);
+                        setReplaceFrom("");
+                        setReplaceTo("");
+                        close();
+                      }}
+                    >
+                      替换
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
