@@ -260,6 +260,12 @@ export default function App() {
   const color = (id: string, hex: string) => void run((t) => api.colorLabel(t, hex), [id])();
   const favorite = (id: string, fav: boolean) => void run((t) => api.favorite(t, fav), [id])();
   const openDetail = (id: string) => setDetail(assets.find((a) => a.id === id) ?? null);
+  // "Set as folder cover" (issue #62) only makes sense while browsing inside a
+  // folder; shared by every grid view so the prop-spread stays identical instead
+  // of duplicating the ternary at each call site.
+  const folderCoverProps = activeQuery.folderId
+    ? { onSetFolderCover: (id: string) => void lib.updateFolder(activeQuery.folderId as string, { cover: id }) }
+    : {};
 
   // App-level keyboard handler — single canonical path for shortcuts across all
   // views. Currently handles Space (detail/play) and Ctrl/Cmd+C (clipboard copy).
@@ -493,6 +499,7 @@ export default function App() {
                   onColor={color}
                   onFavorite={favorite}
                   onDetail={openDetail}
+                  {...folderCoverProps}
                 />
               ) : (
                 <AssetGrid
@@ -507,12 +514,7 @@ export default function App() {
                   onColor={color}
                   onFavorite={favorite}
                   onDetail={openDetail}
-                  {...(activeQuery.folderId
-                    ? {
-                        onSetFolderCover: (id: string) =>
-                          void lib.updateFolder(activeQuery.folderId as string, { cover: id }),
-                      }
-                    : {})}
+                  {...folderCoverProps}
                 />
               )}
             </div>
