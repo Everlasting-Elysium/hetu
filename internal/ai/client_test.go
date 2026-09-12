@@ -48,6 +48,13 @@ func newFakeSidecar(t *testing.T) *httptest.Server {
 	mux.HandleFunc("POST /ocr", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, OCRResult{Text: "hello", Model: "stub"})
 	})
+	mux.HandleFunc("POST /compare", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, CompareResult{
+			Summary:    "target is cooler and darker",
+			Dimensions: map[string]string{"color": "warm it up", "tone": "lift midtones"},
+			Model:      "stub-vlm",
+		})
+	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv

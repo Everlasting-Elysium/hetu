@@ -4,7 +4,7 @@
 **本地 CPU** 上运行,不产生云端调用;模型权重下载后缓存到磁盘,首次调用时按需加载。
 
 HTTP 契约由 Go 客户端 [internal/ai/types.go](../internal/ai/types.go) 定义(契约版本
-`v1`),本服务的请求/响应 JSON 必须与之逐字段一致。
+`v2`,见「issue #127」一节),本服务的请求/响应 JSON 必须与之逐字段一致。
 
 ## 端点
 
@@ -15,10 +15,19 @@ HTTP 契约由 Go 客户端 [internal/ai/types.go](../internal/ai/types.go) 定�
 | POST | `/tag`     | `{"ref": "..."}`  | `{"tags": [{"name","confidence"}], "caption": "", "model": ""}` | WD tagger |
 | POST | `/caption` | `{"ref": "..."}`  | `{"caption": "", "model": ""}` | BLIP |
 | POST | `/ocr`     | `{"ref": "..."}`  | `{"text": "", "blocks": [{"text","confidence","bbox"}], "model": ""}` | RapidOCR |
+| POST | `/compare` | `{"ref_a", "ref_b", "dimensions": [...]}` | `{"summary": "", "dimensions": {...}, "model": ""}` | VLM(见下) |
 
 `ref` 是本地存储路径或 `http(s)` URL,由 sidecar 本地解析为图像字节;解析失败返回
 `400`(Go 侧映射为终态 `KindInvalid`,不重试)。`/embed` 特殊:当 `ref` 无法解析为图像
 时,退化为把 `ref` 当作 CLIP **文本**查询编码,用于语义检索。
+
+### `/compare`(issue #127:图像对比 VLM 点评,契约 v2 新增)
+
+`ref_a`/`ref_b` 是参考图/对比图的 `ref`,`dimensions` 是 `internal/dam` 实际算出的维度名
+(如 `["color","tone"]`)。**`HETU_AI_VLM_MODEL` 未设置(默认空串)时直接返回 `501`,不
+加载任何模型**——这是「AI 已配置但 VLM 未启用」的正常状态,Go 侧 `kernel.VisionCritic`
+把它降级为 `critique.available=false`,不影响其余四个确定性对比维度。已配置但模型加载/
+推理失败返回 `500`(真错误,不伪装成未实现)。见 [vlm_critic.py](vlm_critic.py)。
 
 ## 模型来源与体积
 
@@ -31,6 +40,7 @@ HTTP 契约由 Go 客户端 [internal/ai/types.go](../internal/ai/types.go) 定�
 | 图像打标 | [`SmilingWolf/wd-v1-4-moat-tagger-v2`](https://huggingface.co/SmilingWolf/wd-v1-4-moat-tagger-v2) | onnxruntime | ~326 MB | — |
 | 图像描述 | [`Salesforce/blip-image-captioning-base`](https://huggingface.co/Salesforce/blip-image-captioning-base) | transformers + torch | ~990 MB | — |
 | OCR | RapidOCR 内置 PP-OCRv4(det+rec ONNX) | onnxruntime | ~15 MB(随 wheel 分发,无需下载) | — |
+| 图像对比点评(VLM) | 默认**未配置**(空串);设置 `HETU_AI_VLM_MODEL` 启用,如 [`HuggingFaceTB/SmolVLM-500M-Instruct`](https://huggingface.co/HuggingFaceTB/SmolVLM-500M-Instruct) | transformers + torch | 因模型而异 | — |
 
 ## 配置(环境变量,前缀 `HETU_AI_`,定义见 [config.py](config.py))
 
@@ -43,6 +53,7 @@ HTTP 契约由 Go 客户端 [internal/ai/types.go](../internal/ai/types.go) 定�
 | `HETU_AI_MAX_TAGS` | `30` | 单张图返回标签数上限 |
 | `HETU_AI_MAX_CONCURRENCY` | `2` | 并发推理上限(超出排队,防止内存打满) |
 | `HETU_AI_CAPTION_MAX_TOKENS` | `40` | caption 生成的最大新 token 数 |
+| `HETU_AI_VLM_MODEL` | `""`(未配置) | `/compare` 用的交错多图 VLM;留空则该端点恒返回 `501` |
 
 ## 架构
 
@@ -50,8 +61,10 @@ HTTP 契约由 Go 客户端 [internal/ai/types.go](../internal/ai/types.go) 定�
   在工作线程中执行,不阻塞事件循环。
 - [schemas.py](schemas.py) — 与 Go 契约逐字段对应的 pydantic v2 模型(**唯一事实来源**)。
 - [resolver.py](resolver.py) — 把 `ref` 解析为 `PIL.Image` 或文本查询。
-- [embed.py](embed.py) / [tagger.py](tagger.py) / [caption.py](caption.py) / [ocr.py](ocr.py)
-  — 各能力的模型加载与推理;模型经 `runtime.Lazy` 单次惰性加载并缓存。
+- [embed.py](embed.py) / [tagger.py](tagger.py) / [caption.py](caption.py) / [ocr.py](ocr.py) /
+  [vlm_critic.py](vlm_critic.py) — 各能力的模型加载与推理;模型经 `runtime.Lazy` 单次惰性
+  加载并缓存。`vlm_critic.py` 一次推理同时看两张图(交错多图输入),而非分别 caption 后拼
+  模板——对齐"AI 真的同时对比两图"这个产品承诺。
 
 设计见 [../docs/ai-and-3d.md](../docs/ai-and-3d.md)。
 

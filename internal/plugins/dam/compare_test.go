@@ -52,6 +52,15 @@ type compareResp struct {
 // owner, store, and library dir for seeding library-asset sides.
 func compareFixture(t *testing.T) (*httptest.Server, domain.OwnerID, kernel.Store, string) {
 	t.Helper()
+	srv, owner, st, lib, _ := compareFixtureWithKernel(t)
+	return srv, owner, st, lib
+}
+
+// compareFixtureWithKernel is compareFixture plus the kernel, so a test can wire
+// an optional service (e.g. k.VisionCritic) before issuing requests. The default
+// kernel has a nil VisionCritic, matching production before an AI sidecar is set.
+func compareFixtureWithKernel(t *testing.T) (*httptest.Server, domain.OwnerID, kernel.Store, string, *kernel.Kernel) {
+	t.Helper()
 	ctx := context.Background()
 	lib := t.TempDir()
 	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "compare.db"))
@@ -75,7 +84,7 @@ func compareFixture(t *testing.T) (*httptest.Server, domain.OwnerID, kernel.Stor
 	}
 	srv := httptest.NewServer(api.NewRouter(k, []kernel.Plugin{p}, fstest.MapFS{}))
 	t.Cleanup(srv.Close)
-	return srv, owner, st, lib
+	return srv, owner, st, lib, k
 }
 
 // makeComparePNG encodes a solid-color w×h PNG (a real, decodable body).

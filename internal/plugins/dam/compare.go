@@ -62,11 +62,16 @@ type compareOverlays struct {
 	TargetURL    string `json:"target_url"`
 }
 
-// compareCritique is populated by a later PR (kernel.VisionCritic); this PR
-// always reports it unavailable so the response shape is already stable for the
-// frontend to integrate against.
+// compareCritique is the optional VLM critique of the two images: an overall
+// summary and per-dimension actionable notes, plus the producing model.
+// Available is false (and the rest omitted) when no VisionCritic is configured
+// or the sidecar reports its VLM unavailable — the surrounding request never
+// fails on a missing critique (see compareRun.critique).
 type compareCritique struct {
-	Available bool `json:"available"`
+	Available  bool              `json:"available"`
+	Summary    string            `json:"summary,omitempty"`
+	Dimensions map[string]string `json:"dimensions,omitempty"`
+	Model      string            `json:"model,omitempty"`
 }
 
 // compareAssets handles POST /api/dam/compare. Each side (reference/target) is

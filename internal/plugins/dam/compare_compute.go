@@ -109,6 +109,7 @@ func (p *Plugin) computeCompare(ctx context.Context, req compareRequest) compare
 	run.semantic(ctx)
 	run.resp.Dimensions = dimensionNames(run.scores)
 	run.resp.OverallScore = round2(imgcompare.Aggregate(run.scores))
+	run.critique(ctx)
 	return run.resp
 }
 

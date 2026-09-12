@@ -109,6 +109,15 @@ func (c *Client) OCR(ctx context.Context, ref AssetRef) (OCRResult, error) {
 	return out, err
 }
 
+// Compare returns a VLM critique of two images across the given dimensions
+// (POST /compare). A sidecar without a VLM configured returns 501, surfaced as
+// [ErrNotImplemented] so callers skip gracefully.
+func (c *Client) Compare(ctx context.Context, req CompareRequest) (CompareResult, error) {
+	var out CompareResult
+	err := c.do(ctx, request{op: "compare", method: http.MethodPost, path: "/compare", body: req}, &out)
+	return out, err
+}
+
 // do executes r, retrying retryable failures per the client's RetryPolicy, and
 // decodes a 2xx body into out. The returned error is always a [*Error] except
 // when ctx is cancelled, in which case it is the context error.

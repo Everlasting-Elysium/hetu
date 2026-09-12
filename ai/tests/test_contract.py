@@ -17,8 +17,19 @@ import embed
 import ocr
 import server
 import tagger
+import vlm_critic
+from config import Settings
 from resolver import RefResolveError
-from schemas import CaptionResult, EmbedResult, OCRBlock, OCRResult, Tag, TagResult
+from schemas import (
+    CONTRACT_VERSION,
+    CaptionResult,
+    CompareResult,
+    EmbedResult,
+    OCRBlock,
+    OCRResult,
+    Tag,
+    TagResult,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -97,3 +108,63 @@ def test_bad_ref_returns_400(client: TestClient, monkeypatch: pytest.MonkeyPatch
 
 def test_missing_ref_field_is_rejected(client: TestClient) -> None:
     assert client.post("/embed", json={}).status_code == 422
+
+
+def test_contract_version_is_v2() -> None:
+    # The Go side asserts its own ai.ContractVersion == "v2" independently; both
+    # must be bumped together (manual lockstep, no cross-language read).
+    assert CONTRACT_VERSION == "v2"
+
+
+def test_compare_matches_contract(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(server, "settings", Settings(vlm_model="fake-vlm"))
+    monkeypatch.setattr(
+        vlm_critic,
+        "compare_refs",
+        lambda _a, _b, _dims: CompareResult(
+            summary="cooler and darker",
+            dimensions={"color": "warm it up"},
+            model="fake-vlm",
+        ),
+    )
+    body = client.post(
+        "/compare", json={"ref_a": "a.png", "ref_b": "b.png", "dimensions": ["color"]}
+    ).json()
+    assert set(body) == {"summary", "dimensions", "model"}
+    assert body["summary"] == "cooler and darker"
+    assert body["dimensions"] == {"color": "warm it up"}
+    assert body["model"] == "fake-vlm"
+
+
+def test_compare_unconfigured_returns_501(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(server, "settings", Settings(vlm_model=""))
+    calls: list[bool] = []
+
+    def spy(_a: str, _b: str, _dims: list[str]) -> CompareResult:
+        calls.append(True)
+        return CompareResult(summary="", dimensions={}, model="")
+
+    monkeypatch.setattr(vlm_critic, "compare_refs", spy)
+    response = client.post(
+        "/compare", json={"ref_a": "a.png", "ref_b": "b.png", "dimensions": ["color"]}
+    )
+    assert response.status_code == 501
+    assert calls == []  # unconfigured must not attempt any model work
+
+
+def test_compare_load_failure_returns_500(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(server, "settings", Settings(vlm_model="fake-vlm"))
+
+    def boom(_a: str, _b: str, _dims: list[str]) -> CompareResult:
+        raise RuntimeError("model failed to load")
+
+    monkeypatch.setattr(vlm_critic, "compare_refs", boom)
+    # A configured model that fails is a real error (500), not "unimplemented"
+    # (501); raise_server_exceptions=False so the client returns the response.
+    with TestClient(server.app, raise_server_exceptions=False) as failing_client:
+        response = failing_client.post(
+            "/compare", json={"ref_a": "a.png", "ref_b": "b.png", "dimensions": ["color"]}
+        )
+    assert response.status_code == 500
