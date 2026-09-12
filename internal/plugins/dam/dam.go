@@ -115,8 +115,11 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodGet, Pattern: "/tags", Handler: p.listTags},
 		{Method: http.MethodDelete, Pattern: "/tags/{id}", Handler: p.deleteTag},
 
+		// Folders carry an optional cover override + color label (issue #62); the
+		// cover falls back to the folder's earliest-indexed live asset when unset.
 		{Method: http.MethodPost, Pattern: "/folders", Handler: p.createFolder},
 		{Method: http.MethodGet, Pattern: "/folders", Handler: p.listFolders},
+		{Method: http.MethodPatch, Pattern: "/folders/{id}", Handler: p.updateFolder},
 		{Method: http.MethodDelete, Pattern: "/folders/{id}", Handler: p.deleteFolder},
 
 		{Method: http.MethodGet, Pattern: "/duplicates", Handler: p.listDuplicates},

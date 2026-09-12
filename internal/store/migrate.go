@@ -6,42 +6,60 @@ import (
 	"fmt"
 )
 
-// migrateAssetColumns brings a pre-existing assets table up to the current
-// column set before schema.sql is applied. CREATE TABLE IF NOT EXISTS never adds
-// columns to an existing table, and schema.sql's indexes reference the newer
-// columns, so a database created before a column existed must gain it via
-// ALTER TABLE first. Each column is added only when the assets table exists but
-// lacks it: missing_at (issue #45), current_version_id (issue #58), and
-// favorite (issue #62). Fresh databases (no assets table yet) and already-
-// migrated ones are left untouched.
-func migrateAssetColumns(ctx context.Context, sqldb *sql.DB) error {
-	var cols int
-	if err := sqldb.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM pragma_table_info('assets')").Scan(&cols); err != nil {
-		return fmt.Errorf("inspect assets columns: %w", err)
+// columnAdd is one idempotent "add this column if the table lacks it" step.
+type columnAdd struct{ name, ddl string }
+
+// addMissingColumns brings a pre-existing table up to the current column set
+// before schema.sql is applied. CREATE TABLE IF NOT EXISTS never adds columns to
+// an existing table, so a database created before a column existed must gain it
+// via ALTER TABLE first. Each column is added only when the table exists but
+// lacks it, so the migration is idempotent across restarts. A fresh database
+// (the table not yet created) is left untouched — schema.sql creates it with the
+// full column set. The table name is a package-internal literal (never user
+// input), so it is safe to interpolate into the pragma query.
+func addMissingColumns(ctx context.Context, sqldb *sql.DB, table string, cols []columnAdd) error {
+	countAll := fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('%s')", table)
+	var existing int
+	if err := sqldb.QueryRowContext(ctx, countAll).Scan(&existing); err != nil {
+		return fmt.Errorf("inspect %s columns: %w", table, err)
 	}
-	if cols == 0 {
-		return nil // fresh database; schema.sql creates assets with all columns
+	if existing == 0 {
+		return nil // fresh database; schema.sql creates the table with all columns
 	}
-	// addColumns is applied in order; each entry is skipped when the column is
-	// already present, so the migration is idempotent across restarts.
-	addColumns := []struct{ name, ddl string }{
-		{"missing_at", "ALTER TABLE assets ADD COLUMN missing_at INTEGER"},
-		{"current_version_id", "ALTER TABLE assets ADD COLUMN current_version_id TEXT NOT NULL DEFAULT ''"},
-		{"favorite", "ALTER TABLE assets ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0"},
-	}
-	for _, c := range addColumns {
+	countOne := fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name = ?", table)
+	for _, c := range cols {
 		var has int
-		if err := sqldb.QueryRowContext(ctx,
-			"SELECT COUNT(*) FROM pragma_table_info('assets') WHERE name = ?", c.name).Scan(&has); err != nil {
-			return fmt.Errorf("inspect %s column: %w", c.name, err)
+		if err := sqldb.QueryRowContext(ctx, countOne, c.name).Scan(&has); err != nil {
+			return fmt.Errorf("inspect %s.%s column: %w", table, c.name, err)
 		}
 		if has > 0 {
 			continue
 		}
 		if _, err := sqldb.ExecContext(ctx, c.ddl); err != nil {
-			return fmt.Errorf("add %s column: %w", c.name, err)
+			return fmt.Errorf("add %s.%s column: %w", table, c.name, err)
 		}
 	}
 	return nil
+}
+
+// migrateAssetColumns adds columns introduced after the initial assets schema:
+// missing_at (issue #45), current_version_id (issue #58), and favorite (issue
+// #62). Its indexes reference the newer columns, so this must run before
+// schema.sql.
+func migrateAssetColumns(ctx context.Context, sqldb *sql.DB) error {
+	return addMissingColumns(ctx, sqldb, "assets", []columnAdd{
+		{"missing_at", "ALTER TABLE assets ADD COLUMN missing_at INTEGER"},
+		{"current_version_id", "ALTER TABLE assets ADD COLUMN current_version_id TEXT NOT NULL DEFAULT ''"},
+		{"favorite", "ALTER TABLE assets ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0"},
+	})
+}
+
+// migrateFolderColumns adds the cover/color columns introduced with folder
+// covers (issue #62) so ListFoldersWithCover's f.cover/f.color references resolve
+// on databases created before those columns existed.
+func migrateFolderColumns(ctx context.Context, sqldb *sql.DB) error {
+	return addMissingColumns(ctx, sqldb, "folders", []columnAdd{
+		{"cover", "ALTER TABLE folders ADD COLUMN cover TEXT NOT NULL DEFAULT ''"},
+		{"color", "ALTER TABLE folders ADD COLUMN color TEXT NOT NULL DEFAULT ''"},
+	})
 }

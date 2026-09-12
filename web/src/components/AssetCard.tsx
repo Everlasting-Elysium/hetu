@@ -4,7 +4,7 @@ import { fileUrl, thumbUrl } from "../api/client";
 import { RatingStars } from "./RatingStars";
 import { FavoriteButton } from "./FavoriteButton";
 import { ColorPopover } from "./ColorPicker";
-import { IconClose, KindIcon } from "./icons";
+import { IconClose, IconStar, KindIcon } from "./icons";
 import styles from "./AssetCard.module.css";
 
 interface Props {
@@ -18,13 +18,16 @@ interface Props {
   onColor: (hex: string) => void;
   onFavorite: (favorite: boolean) => void;
   onDetail: () => void;
+  // Set only when browsing inside a folder (issue #62): shows a hover "set as
+  // folder cover" pin that points the current folder's cover at this asset.
+  onSetFolderCover?: () => void;
   // When set (waterfall), the thumb renders at this natural ratio instead of 1:1.
   aspectRatio?: number;
 }
 
 const isMatch = (a: Asset | ColorMatch): a is ColorMatch => "match_hex" in a;
 
-export function AssetCard({ asset, selected, focused, onSelect, onToggleCheck, onRate, onColor, onFavorite, onDetail, aspectRatio }: Props) {
+export function AssetCard({ asset, selected, focused, onSelect, onToggleCheck, onRate, onColor, onFavorite, onDetail, onSetFolderCover, aspectRatio }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
@@ -119,6 +122,21 @@ export function AssetCard({ asset, selected, focused, onSelect, onToggleCheck, o
         >
           {selected && <IconClose width={12} height={12} style={{ transform: "rotate(45deg)" }} />}
         </button>
+
+        {onSetFolderCover && !isMatch(asset) && (
+          <button
+            type="button"
+            className={styles.coverBtn}
+            title="设为文件夹封面"
+            data-testid="set-folder-cover"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSetFolderCover();
+            }}
+          >
+            <IconStar width={13} height={13} />
+          </button>
+        )}
 
         {isMatch(asset) && (
           <div className={styles.distance} title={`ΔE ${asset.color_distance}`}>

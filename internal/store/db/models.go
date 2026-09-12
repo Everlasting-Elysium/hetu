@@ -142,6 +142,8 @@ type Folder struct {
 	ParentID string
 	Name     string
 	Path     string
+	Cover    string
+	Color    string
 }
 
 type Job struct {

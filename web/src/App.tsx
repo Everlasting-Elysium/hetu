@@ -369,6 +369,7 @@ export default function App() {
         onPickTag={view === "board" ? bpq.pickTag : lq.setTag}
         onViewBoards={() => changeView("boards")}
         onCreateFolder={(n) => void lib.createFolder(n)}
+        onSetFolderColor={(id, color) => void lib.updateFolder(id, { color })}
         onDeleteFolder={(id) => void lib.deleteFolder(id)}
         onCreateTag={(n) => void lib.createTag(n)}
         onDeleteTag={(id) => void lib.deleteTag(id)}
@@ -506,6 +507,12 @@ export default function App() {
                   onColor={color}
                   onFavorite={favorite}
                   onDetail={openDetail}
+                  {...(activeQuery.folderId
+                    ? {
+                        onSetFolderCover: (id: string) =>
+                          void lib.updateFolder(activeQuery.folderId as string, { cover: id }),
+                      }
+                    : {})}
                 />
               )}
             </div>

@@ -58,15 +58,21 @@ v0 仅有一条系统用户记录。
 
 ### folders
 
-文件夹层级结构，用于 DAM 插件的虚拟组织（与文件系统路径解耦）。
+文件夹层级结构，用于 DAM 插件的虚拟组织（与文件系统路径解耦）。封面/颜色见 [#62](https://github.com/Everlasting-Elysium/hetu/issues/62)，DDL 与实现见 [schema.sql](../internal/store/schema.sql)、[queries/folder.sql](../internal/store/queries/folder.sql)、[store/sqlite_folders.go](../internal/store/sqlite_folders.go)、[plugins/dam/folders.go](../internal/plugins/dam/folders.go)。
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | id | TEXT (UUID v7) | 主键 |
 | owner_id | TEXT | 外键 → users.id |
-| parent_id | TEXT | 外键 → folders.id，根文件夹为 NULL |
+| parent_id | TEXT | 外键 → folders.id，根文件夹为空字符串（`NOT NULL DEFAULT ''`） |
 | name | TEXT | 文件夹名称 |
 | path | TEXT | 从根到当前节点的完整路径（冗余存储，加速查询） |
+| cover | TEXT | 可选封面 asset_id 覆盖；空字符串表示自动取该文件夹最早入库的资产 |
+| color | TEXT | 颜色标识（如 `#FF5733`，风格对齐 `tags.color`），可为空 |
+
+唯一索引：`idx_folders_owner_path`（`owner_id, path`）。
+
+**有效封面解析**：`ListFolders`（经单条 `ListFoldersWithCover` query，用 `CASE`/子查询一次性算出，避免逐文件夹 N+1）返回**有效封面**——`cover` 非空则用它，否则回退到该文件夹下（`assets.folder_id = folders.id AND deleted_at IS NULL`）按 `indexed_at ASC` 排序的第一个（即最早入库）资产，文件夹为空则为空字符串；`GetFolder` 则返回**原始** `cover`，编辑路径据此区分显式覆盖与自动回退，不会把回退值误存为显式覆盖。`cover` 经 `UpdateFolderCover` 设置时在 store 层校验其为当前 owner 名下真实存在且未软删除的资产，否则返回 `domain.ErrNotFound`（防止挂空引用或跨 owner 引用 IDOR）。HTTP 层（`GET /api/dam/folders`）把有效封面 asset_id 解析为 `/api/dam/assets/{id}/thumb` 形式的 `cover_url`（资产不存在或无缩略图时省略），前端侧边栏文件夹行据此显示封面缩略图与颜色点。旧库经 [migrate.go](../internal/store/migrate.go) 的 `ALTER TABLE folders ADD COLUMN` 补齐 `cover`/`color` 两列。
 
 ---
 
@@ -142,7 +148,7 @@ DAM 提供多种正交的资产组织方式，四者边界清晰，实现者据�
 
 | 方式 | 归属 | 结构 | 成员排序 | 状态 | 表 |
 |------|------|------|----------|------|------|
-| **folder（文件夹）** | 单归属（一个资产恰属一个文件夹） | 嵌套树 + 物理路径（`path` 冗余存储） | 无 | 已实现 | `folders` + `assets.folder_id` |
+| **folder（文件夹）** | 单归属（一个资产恰属一个文件夹） | 嵌套树 + 物理路径（`path` 冗余存储） | 可指定封面 + 颜色（[#62](https://github.com/Everlasting-Elysium/hetu/issues/62)） | 已实现 | `folders` + `assets.folder_id` |
 | **tag（标签）** | 多对多（一个资产多个标签） | 扁平（`parent_id` 仅用于组织标签自身） | 无 | 已实现 | `tags` + `asset_tags` |
 | **collection（合集，[#55](https://github.com/Everlasting-Elysium/hetu/issues/55)）** | 多对多（一个资产多个合集） | 嵌套树（`parent_id`） | 手动排序（`ord`）+ 可指定封面 | 已实现 | `collections` + `collection_items` |
 | **smart-folder（智能文件夹，[#17](https://github.com/Everlasting-Elysium/hetu/issues/17)）** | 多对多（命中条件即属于） | 由保存的查询条件自动聚合，无显式成员 | 由查询决定 | **未实现** | 计划：仅存查询条件，不落地成员表 |

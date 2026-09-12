@@ -121,12 +121,19 @@ CREATE TABLE IF NOT EXISTS document_pages (
 );
 CREATE INDEX IF NOT EXISTS idx_document_pages_owner ON document_pages (owner_id);
 
+-- folders is the virtual folder tree: an asset's single physical home, keyed on
+-- a unique (owner_id, path). cover is an optional asset_id override (issue #62);
+-- when empty the effective cover is derived from the folder's earliest-indexed
+-- live asset (see queries/folder.sql ListFoldersWithCover). color is an optional
+-- label, e.g. '#FF5733', styled like tags.color.
 CREATE TABLE IF NOT EXISTS folders (
     id        TEXT PRIMARY KEY,
     owner_id  TEXT NOT NULL,
     parent_id TEXT NOT NULL DEFAULT '',
     name      TEXT NOT NULL,
-    path      TEXT NOT NULL
+    path      TEXT NOT NULL,
+    cover     TEXT NOT NULL DEFAULT '',  -- optional asset_id override; empty = auto-derive from earliest-indexed live asset
+    color     TEXT NOT NULL DEFAULT ''   -- color label, e.g. '#FF5733'
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_folders_owner_path ON folders (owner_id, path);
 

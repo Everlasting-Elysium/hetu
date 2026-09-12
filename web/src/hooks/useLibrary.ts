@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../api/client";
+import { api, type FolderPatch } from "../api/client";
 import type { Folder, Tag } from "../types";
 
 export interface Library {
@@ -10,6 +10,7 @@ export interface Library {
   missingCount: number;
   refreshMissing: () => void;
   createFolder: (name: string) => Promise<void>;
+  updateFolder: (id: string, data: FolderPatch) => Promise<void>;
   deleteFolder: (id: string) => Promise<void>;
   createTag: (name: string) => Promise<void>;
   deleteTag: (id: string) => Promise<void>;
@@ -60,6 +61,7 @@ export function useLibrary(onError: (msg: string) => void): Library {
     missingCount,
     refreshMissing,
     createFolder: (name) => guard(async () => { await api.createFolder({ name, path: name }); await loadFolders(); }),
+    updateFolder: (id, data) => guard(async () => { await api.updateFolder(id, data); await loadFolders(); }),
     deleteFolder: (id) => guard(async () => { await api.deleteFolder(id); await loadFolders(); }),
     createTag: (name) => guard(async () => { await api.createTag({ name }); await loadTags(); }),
     deleteTag: (id) => guard(async () => { await api.deleteTag(id); await loadTags(); }),
