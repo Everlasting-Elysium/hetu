@@ -35,6 +35,7 @@ type Asset struct {
 	DeletedAt        sql.NullInt64
 	Rating           int64
 	Color            string
+	Favorite         int64
 	DisplayName      string
 	FolderID         string
 	MissingAt        sql.NullInt64

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Asset, ColorMatch } from "../types";
 import { fileUrl, thumbUrl } from "../api/client";
 import { RatingStars } from "./RatingStars";
+import { FavoriteButton } from "./FavoriteButton";
 import { ColorPopover } from "./ColorPicker";
 import { IconClose, KindIcon } from "./icons";
 import styles from "./AssetCard.module.css";
@@ -15,6 +16,7 @@ interface Props {
   onToggleCheck: () => void;
   onRate: (rating: number) => void;
   onColor: (hex: string) => void;
+  onFavorite: (favorite: boolean) => void;
   onDetail: () => void;
   // When set (waterfall), the thumb renders at this natural ratio instead of 1:1.
   aspectRatio?: number;
@@ -22,7 +24,7 @@ interface Props {
 
 const isMatch = (a: Asset | ColorMatch): a is ColorMatch => "match_hex" in a;
 
-export function AssetCard({ asset, selected, focused, onSelect, onToggleCheck, onRate, onColor, onDetail, aspectRatio }: Props) {
+export function AssetCard({ asset, selected, focused, onSelect, onToggleCheck, onRate, onColor, onFavorite, onDetail, aspectRatio }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
@@ -132,6 +134,7 @@ export function AssetCard({ asset, selected, focused, onSelect, onToggleCheck, o
         </div>
         <div className={styles.row}>
           <RatingStars value={asset.rating} onChange={onRate} />
+          <FavoriteButton value={asset.favorite} onChange={onFavorite} />
           <ColorPopover
             open={colorOpen}
             value={asset.color}

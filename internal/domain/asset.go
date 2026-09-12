@@ -85,6 +85,7 @@ type Asset struct {
 	MissingAt   *time.Time // nil = file found; set = file missing from storage
 	Rating      int        // 0-5 stars
 	Color       string     // color label, e.g. "#FF5733"; empty = none
+	Favorite    bool       // user favorite flag (DB stores 0/1); false = not favorited
 	DisplayName string     // user-facing rename; empty = use Name
 	FolderID    string     // virtual folder; empty = root
 

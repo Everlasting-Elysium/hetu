@@ -149,6 +149,34 @@ func (q *Queries) BatchUpdateDisplayName(ctx context.Context, arg BatchUpdateDis
 	return err
 }
 
+const batchUpdateFavorite = `-- name: BatchUpdateFavorite :exec
+UPDATE assets SET favorite = ?
+WHERE id IN (/*SLICE:ids*/?) AND owner_id = ? AND deleted_at IS NULL
+`
+
+type BatchUpdateFavoriteParams struct {
+	Favorite int64
+	Ids      []string
+	OwnerID  string
+}
+
+func (q *Queries) BatchUpdateFavorite(ctx context.Context, arg BatchUpdateFavoriteParams) error {
+	query := batchUpdateFavorite
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.Favorite)
+	if len(arg.Ids) > 0 {
+		for _, v := range arg.Ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(arg.Ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.OwnerID)
+	_, err := q.db.ExecContext(ctx, query, queryParams...)
+	return err
+}
+
 const batchUpdateRating = `-- name: BatchUpdateRating :exec
 UPDATE assets SET rating = ?
 WHERE id IN (/*SLICE:ids*/?) AND owner_id = ? AND deleted_at IS NULL
@@ -180,7 +208,7 @@ func (q *Queries) BatchUpdateRating(ctx context.Context, arg BatchUpdateRatingPa
 const listTrashedAssets = `-- name: ListTrashedAssets :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at,
+       deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
        current_version_id
 FROM assets
 WHERE owner_id = ? AND deleted_at IS NOT NULL
@@ -221,6 +249,7 @@ func (q *Queries) ListTrashedAssets(ctx context.Context, arg ListTrashedAssetsPa
 			&i.DeletedAt,
 			&i.Rating,
 			&i.Color,
+			&i.Favorite,
 			&i.DisplayName,
 			&i.FolderID,
 			&i.MissingAt,

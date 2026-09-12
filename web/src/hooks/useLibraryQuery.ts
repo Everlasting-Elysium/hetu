@@ -9,6 +9,7 @@ export interface LibraryQuery {
   setTag: (tagId: string | null) => void;
   toggleKind: (kind: AssetKind) => void;
   setRating: (rating: number) => void;
+  setFavorite: (favorite: boolean) => void;
   toggleShape: (shape: AssetShape) => void;
   setDimensions: (minWidth: number, maxWidth: number, minHeight: number, maxHeight: number) => void;
   setFileSize: (minSize: number, maxSize: number) => void;
@@ -64,6 +65,10 @@ export function useLibraryQuery(onFilter: () => void): LibraryQuery {
     (minRating: number) => filter((q) => ({ ...q, minRating })),
     [filter],
   );
+  const setFavorite = useCallback(
+    (favorite: boolean) => filter((q) => ({ ...q, favorite })),
+    [filter],
+  );
   const toggleShape = useCallback(
     (shape: AssetShape) =>
       filter((q) => ({
@@ -116,6 +121,7 @@ export function useLibraryQuery(onFilter: () => void): LibraryQuery {
       query.tagId ||
       query.kind.length > 0 ||
       query.minRating > 0 ||
+      query.favorite ||
       query.shapes.length > 0 ||
       query.minWidth > 0 ||
       query.maxWidth > 0 ||
@@ -139,6 +145,7 @@ export function useLibraryQuery(onFilter: () => void): LibraryQuery {
     setTag,
     toggleKind,
     setRating,
+    setFavorite,
     toggleShape,
     setDimensions,
     setFileSize,

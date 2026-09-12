@@ -30,6 +30,7 @@ func parseAssetFilter(r *http.Request) domain.AssetFilter {
 		FolderID:      r.URL.Query().Get("folder"),
 		TagID:         r.URL.Query().Get("tag"),
 		MinRating:     httpjson.QueryInt(r, "rating", 0),
+		Favorite:      httpjson.QueryBool(r, "favorite", false),
 		Kinds:         domain.ParseKinds(r.URL.Query().Get("kind")),
 		Status:        r.URL.Query().Get("status"),
 		MinSize:       minSize,

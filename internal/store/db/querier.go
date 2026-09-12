@@ -23,6 +23,7 @@ type Querier interface {
 	BatchTrash(ctx context.Context, arg BatchTrashParams) error
 	BatchUpdateColor(ctx context.Context, arg BatchUpdateColorParams) error
 	BatchUpdateDisplayName(ctx context.Context, arg BatchUpdateDisplayNameParams) error
+	BatchUpdateFavorite(ctx context.Context, arg BatchUpdateFavoriteParams) error
 	BatchUpdateRating(ctx context.Context, arg BatchUpdateRatingParams) error
 	// Removes only ai-layer annotations for the owner's assets. Manual and
 	// extracted layers are never touched.

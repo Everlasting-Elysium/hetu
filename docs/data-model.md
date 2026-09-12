@@ -39,7 +39,12 @@ v0 仅有一条系统用户记录。
 | height | INTEGER | 图片/视频高度（像素），非图像类型为 NULL |
 | created_at | DATETIME | 文件创建时间（来自文件系统或 EXIF） |
 | indexed_at | DATETIME | hetu 最后一次索引该文件的时间 |
+| rating | INTEGER | 用户评分，0–5 星，默认 0 |
+| color | TEXT | 用户颜色标签（如 `#FF5733`），空串表示无 |
+| favorite | INTEGER | 用户收藏标记（issue #62），DB 存 0/1，默认 0；Go 侧映射为 `bool`（`domain.Asset.Favorite`），转换见 `internal/store/sqlite.go` 的 `boolToInt64` / `rowToAsset` |
 | current_version_id | TEXT | 当前版本指针 → `asset_versions.id`；空字符串表示无显式版本（锚点行自身即唯一隐式版本），详见 [asset_versions](#asset_versions) |
+
+> `rating` / `color` / `favorite` / `display_name` / `folder_id` 及回收站/丢失状态（`deleted_at` / `missing_at`）均为**用户元数据**：`UpsertAsset` 仅在首次插入时写入，重新扫描经 `ON CONFLICT` 只更新索引派生字段（kind/name/size/hash/缩略等），因此再次扫描不会覆盖用户的评分/颜色/收藏。完整列见 [schema.sql](../internal/store/schema.sql)。
 
 **版本解析（issue #58）**：`storage_path` / `hash` 始终锚定最初被索引的原始文件（扫描、去重、relocate 均以其为准，因此版本功能不影响这些链路）。而读取接口（`GetAsset` / `ListAssets` / `ListAssetsFiltered` / `SearchAssets`）通过 `LEFT JOIN asset_versions` + `COALESCE` 将 `thumb_path` / `width` / `height` 解析为**当前版本**的值，使缩略/搜索反映当前版本，无需把版本数据写回 `assets`（否则会被下次扫描的 `UpsertAsset` 覆盖）。
 
@@ -323,6 +328,8 @@ SQLite FTS5 全文检索虚拟表，为**工作区级**全文检索提供支撑�
 - HTTP 接口 `GET /api/dam/search?q=`（`internal/plugins/dam/search.go`），空查询/非法查询返回 400，`limit` 限制在 `[1,200]`。
 
 **格式 / 星级 facet（issue #75）**：`GET /api/dam/assets` 与 `GET /api/dam/search` 均接受 `?kind=<a,b>`（逗号分隔，仅 `AssetKind` 枚举值，经 `domain.ValidKind` 白名单 + 参数化 `a.kind IN (...)` 防注入），与 `?folder=`/`?tag=`/`?rating=<最低星级>` 在服务端叠加过滤（AND 组合）。`ListAssetsFiltered` 与 `SearchAssets` 共用 `appendFacetConds`（`internal/store/sqlite_filter.go`）保证两条链路语义一致，前端不再内存过滤。新增 `GET /api/dam/facets`（`internal/plugins/dam/facets.go`）返回各 `kind` 的存量计数，受 `?folder=`/`?tag=`/`?rating=` 约束但忽略 `?kind=` 自身，供多选格式 facet 稳定驱动。
+
+**收藏 facet（issue #62）**：`GET /api/dam/assets` 与 `GET /api/dam/search` 均接受 `?favorite=true`（经 `httpjson.QueryBool` 解析，接受 `strconv.ParseBool` 形式），只保留 `assets.favorite = 1` 的资产，与 `?rating=`/`?kind=` 等同经 `appendFacetConds` 服务端叠加（AND）；**不传该参数（或传 false）时零约束**，既有列表/搜索行为不变。收藏是 `assets` 表自身的直接列（非 annotations 分层字段），因此不需要额外 JOIN。置位/取消经 `POST /api/dam/batch/favorite`（body `{asset_ids, favorite}`，`favorite=true` 收藏、`false` 取消——一个端点覆盖两个方向，与 `/batch/rate`、`/batch/color` 取值同构；单卡片收藏即以单元素 `asset_ids` 调用该端点）。
 
 **形状 / 尺寸 / 文件大小 facet（issue #101，#75 的直接延伸）**：在格式/星级之上再叠三维，零 DB 迁移（`assets.size`/`width`/`height` 早已入库），同样经 `appendFacetConds` 同时作用于列表与搜索。`?minSize=`/`?maxSize=`（字节，`int64`——文件可 >2GB，新增 `httpjson.QueryInt64`）narrow 在 `a.size`（**锚点值，不做当前版本解析**，与展示的 `a.size` 保持一致）；`?minWidth=`/`?maxWidth=`/`?minHeight=`/`?maxHeight=`（像素）与 `?shape=<a,b>`（逗号分隔，枚举 `landscape`/`portrait`/`square`，经 `domain.ValidShape` 白名单）narrow 在 `COALESCE(cv.width/height, a.width/height)`——即**当前版本**解析值（issue #58），与展示的宽高保持一致；「size 用锚点、width/height 走版本解析」的不对称是刻意保留，并非需要修正的不一致。形状按宽高比 `r = 宽/高` 分桶（命名常量见 `internal/domain/shape.go`）：`r ≥ 1.1` 横向、`r ≤ 0.9` 纵向、其余方形；宽或高为 `0`（音频/文档/多数 3D）不落入任何形状桶。范围参数负值按 `0`（不限）处理，`max>0 且 max<min` 时 `max` 视为不限（而非交换）。`GET /api/dam/facets` 的 `KindCounts` 补了 `LEFT JOIN asset_versions cv`（`ListAssetsFiltered`/`SearchAssets` 已有，facets 端点此前缺失）以支持新增条件联动格式计数，`cv.id` 是主键的 `LEFT JOIN` 不放大行数。
 

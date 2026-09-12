@@ -33,8 +33,10 @@ interface Props {
   kindCounts: KindCount[];
   activeKinds: AssetKind[];
   minRating: number;
+  favorite: boolean;
   onToggleKind: (kind: AssetKind) => void;
   onSetRating: (rating: number) => void;
+  onSetFavorite: (favorite: boolean) => void;
   activeShapes: AssetShape[];
   onToggleShape: (shape: AssetShape) => void;
   minWidth: number;
@@ -58,7 +60,8 @@ export function Sidebar(p: Props) {
     !p.boardsActive &&
     !p.activeMissing &&
     p.activeKinds.length === 0 &&
-    p.minRating === 0;
+    p.minRating === 0 &&
+    !p.favorite;
 
   return (
     <aside className={styles.side}>
@@ -183,8 +186,10 @@ export function Sidebar(p: Props) {
         counts={p.kindCounts}
         activeKinds={p.activeKinds}
         minRating={p.minRating}
+        favorite={p.favorite}
         onToggleKind={p.onToggleKind}
         onSetRating={p.onSetRating}
+        onSetFavorite={p.onSetFavorite}
         activeShapes={p.activeShapes}
         onToggleShape={p.onToggleShape}
         minWidth={p.minWidth}

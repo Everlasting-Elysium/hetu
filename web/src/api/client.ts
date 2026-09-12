@@ -30,6 +30,7 @@ export interface AssetFilterParams {
   tag?: string | null;
   kind?: AssetKind[];
   rating?: number;
+  favorite?: boolean;
   shape?: AssetShape[];
   minWidth?: number;
   maxWidth?: number;
@@ -71,6 +72,7 @@ export function queryFilter(q: Query): AssetFilterParams {
     tag: q.tagId,
     kind: q.kind,
     rating: q.minRating,
+    favorite: q.favorite,
     shape: q.shapes,
     minWidth: q.minWidth,
     maxWidth: q.maxWidth,
@@ -99,6 +101,7 @@ function filterParams(f: AssetFilterParams): string {
   if (f.tag) p.set("tag", f.tag);
   if (f.kind && f.kind.length > 0) p.set("kind", f.kind.join(","));
   if (f.rating && f.rating > 0) p.set("rating", String(f.rating));
+  if (f.favorite) p.set("favorite", "true");
   if (f.shape && f.shape.length > 0) p.set("shape", f.shape.join(","));
   if (f.minWidth) p.set("minWidth", String(f.minWidth));
   if (f.maxWidth) p.set("maxWidth", String(f.maxWidth));
@@ -223,6 +226,10 @@ export const api = {
     req<{ updated: number }>("/batch/rate", body({ asset_ids, rating })),
   colorLabel: (asset_ids: string[], color: string) =>
     req<{ updated: number }>("/batch/color", body({ asset_ids, color })),
+  // Favorites (favorite=true) or unfavorites (false) every id (issue #62). A
+  // per-card toggle sends a one-id list, the same way rate/colorLabel do.
+  favorite: (asset_ids: string[], favorite: boolean) =>
+    req<{ updated: number }>("/batch/favorite", body({ asset_ids, favorite })),
   move: (asset_ids: string[], folder_id: string) =>
     req<{ moved: number }>("/batch/move", body({ asset_ids, folder_id })),
   trash: (asset_ids: string[]) =>

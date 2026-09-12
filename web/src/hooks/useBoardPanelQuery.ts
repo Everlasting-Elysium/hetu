@@ -8,6 +8,7 @@ export interface BoardPanelQuery {
   pickTag: (tagId: string | null) => void;
   toggleKind: (kind: AssetKind) => void;
   setRating: (rating: number) => void;
+  setFavorite: (favorite: boolean) => void;
   toggleShape: (shape: AssetShape) => void;
   setDimensions: (minWidth: number, maxWidth: number, minHeight: number, maxHeight: number) => void;
   setFileSize: (minSize: number, maxSize: number) => void;
@@ -54,6 +55,10 @@ export function useBoardPanelQuery(): BoardPanelQuery {
     (rating: number) => setBoardQuery((q) => ({ ...q, minRating: rating })),
     [],
   );
+  const setFavorite = useCallback(
+    (favorite: boolean) => setBoardQuery((q) => ({ ...q, favorite })),
+    [],
+  );
   const toggleShape = useCallback(
     (shape: AssetShape) =>
       setBoardQuery((q) => ({
@@ -92,6 +97,7 @@ export function useBoardPanelQuery(): BoardPanelQuery {
     pickTag,
     toggleKind,
     setRating,
+    setFavorite,
     toggleShape,
     setDimensions,
     setFileSize,

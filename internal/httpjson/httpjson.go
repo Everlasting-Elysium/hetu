@@ -67,6 +67,22 @@ func QueryFloat64(r *http.Request, key string, def float64) float64 {
 	return n
 }
 
+// QueryBool reads a bool query parameter, returning def when absent or invalid.
+// It accepts strconv.ParseBool's forms (1/t/true, 0/f/false), so ?favorite=true
+// (issue #62) reads as a favorite-only narrowing while its absence keeps the
+// pre-existing behavior via def.
+func QueryBool(r *http.Request, key string, def bool) bool {
+	s := r.URL.Query().Get(key)
+	if s == "" {
+		return def
+	}
+	b, err := strconv.ParseBool(s)
+	if err != nil {
+		return def
+	}
+	return b
+}
+
 // NormalizeRange clamps a min/max pair to hetu's range-filter contract:
 // negative values collapse to 0 (unbounded on that side), and an inverted range
 // (max>0 AND max<min) drops max back to 0 (unbounded) rather than swapping the

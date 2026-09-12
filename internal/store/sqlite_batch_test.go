@@ -42,6 +42,42 @@ func TestSQLite_BatchUpdateColor(t *testing.T) {
 	}
 }
 
+func TestSQLite_BatchUpdateFavorite(t *testing.T) {
+	ctx, st, owner := mustOpen(t)
+	a1 := seedAsset(t, ctx, st, owner, "a1", "1.png")
+	a2 := seedAsset(t, ctx, st, owner, "a2", "2.png")
+	other := seedAsset(t, ctx, st, owner, "a3", "3.png")
+
+	// Fresh assets default to not favorited.
+	if got := getAsset(t, ctx, st, owner, a1); got.Favorite {
+		t.Errorf("a1 favorite on insert = true, want false")
+	}
+
+	// Favorite two, leave the third untouched.
+	if err := st.BatchUpdateFavorite(ctx, owner, []domain.AssetID{a1, a2}, true); err != nil {
+		t.Fatalf("batch favorite: %v", err)
+	}
+	for _, id := range []domain.AssetID{a1, a2} {
+		if got := getAsset(t, ctx, st, owner, id); !got.Favorite {
+			t.Errorf("asset %s favorite = false, want true", id)
+		}
+	}
+	if got := getAsset(t, ctx, st, owner, other); got.Favorite {
+		t.Errorf("excluded asset favorite = true, want false")
+	}
+
+	// Unfavorite a1 again; a2 stays favorited (both directions via one method).
+	if err := st.BatchUpdateFavorite(ctx, owner, []domain.AssetID{a1}, false); err != nil {
+		t.Fatalf("batch unfavorite: %v", err)
+	}
+	if got := getAsset(t, ctx, st, owner, a1); got.Favorite {
+		t.Errorf("a1 favorite after unfavorite = true, want false")
+	}
+	if got := getAsset(t, ctx, st, owner, a2); !got.Favorite {
+		t.Errorf("a2 favorite = false, want true (unchanged)")
+	}
+}
+
 func TestSQLite_BatchUpdateDisplayName(t *testing.T) {
 	ctx, st, owner := mustOpen(t)
 	a1 := seedAsset(t, ctx, st, owner, "a1", "1.png")

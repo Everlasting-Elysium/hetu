@@ -24,7 +24,7 @@ ORDER BY ord ASC;
 -- scan time, so these discovery surfaces are anchor-scoped by construction.
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at,
+       deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
        current_version_id
 FROM assets
 WHERE owner_id = ? AND id IN (sqlc.slice('ids'));

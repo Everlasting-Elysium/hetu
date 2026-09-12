@@ -52,6 +52,30 @@ func (p *Plugin) batchColor(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusOK, map[string]int{"updated": len(ids)})
 }
 
+// batchFavorite favorites (favorite=true) or unfavorites (false) every asset in
+// asset_ids (issue #62). One endpoint covers both directions, mirroring
+// batchRate/batchColor taking a value; a single-asset toggle from a card just
+// posts a one-id list, the same way per-card rating/color updates do.
+func (p *Plugin) batchFavorite(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		AssetIDs []string `json:"asset_ids"`
+		Favorite bool     `json:"favorite"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	ids, err := parseAssetIDs(req.AssetIDs)
+	if err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := p.k.Store.BatchUpdateFavorite(r.Context(), p.owner, ids, req.Favorite); err != nil {
+		httpjson.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+	httpjson.WriteJSON(w, http.StatusOK, map[string]int{"updated": len(ids)})
+}
+
 func (p *Plugin) batchMove(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		AssetIDs []string `json:"asset_ids"`

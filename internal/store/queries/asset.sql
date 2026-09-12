@@ -5,8 +5,8 @@
 INSERT INTO assets (
     id, owner_id, kind, provider, storage_path, name, ext, size, hash,
     thumb_path, width, height, created_at, indexed_at,
-    deleted_at, rating, color, display_name, folder_id, missing_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    deleted_at, rating, color, favorite, display_name, folder_id, missing_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(owner_id, provider, storage_path) DO UPDATE SET
     kind       = excluded.kind,
     name       = excluded.name,
@@ -28,7 +28,7 @@ SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext, a.si
        COALESCE(cv.width, a.width) AS width,
        COALESCE(cv.height, a.height) AS height,
        a.created_at, a.indexed_at,
-       a.deleted_at, a.rating, a.color, a.display_name, a.folder_id, a.missing_at,
+       a.deleted_at, a.rating, a.color, a.favorite, a.display_name, a.folder_id, a.missing_at,
        a.current_version_id
 FROM assets a
 LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
@@ -45,7 +45,7 @@ SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext, a.si
        COALESCE(cv.width, a.width) AS width,
        COALESCE(cv.height, a.height) AS height,
        a.created_at, a.indexed_at,
-       a.deleted_at, a.rating, a.color, a.display_name, a.folder_id, a.missing_at,
+       a.deleted_at, a.rating, a.color, a.favorite, a.display_name, a.folder_id, a.missing_at,
        a.current_version_id
 FROM assets a
 LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
@@ -58,7 +58,7 @@ SELECT a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.name, a.ext, a.si
        COALESCE(cv.width, a.width) AS width,
        COALESCE(cv.height, a.height) AS height,
        a.created_at, a.indexed_at,
-       a.deleted_at, a.rating, a.color, a.display_name, a.folder_id, a.missing_at,
+       a.deleted_at, a.rating, a.color, a.favorite, a.display_name, a.folder_id, a.missing_at,
        a.current_version_id
 FROM assets a
 LEFT JOIN asset_versions cv ON cv.id = a.current_version_id
@@ -80,7 +80,7 @@ LIMIT ? OFFSET ?;
 -- Returns all live assets with the given hash for the owner.
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at,
+       deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
        current_version_id
 FROM assets
 WHERE owner_id = ? AND hash = ? AND deleted_at IS NULL
@@ -89,7 +89,7 @@ ORDER BY indexed_at ASC;
 -- name: ListMissingAssets :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at,
+       deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
        current_version_id
 FROM assets
 WHERE owner_id = ? AND missing_at IS NOT NULL AND deleted_at IS NULL
@@ -101,7 +101,7 @@ LIMIT ? OFFSET ?;
 -- the missing-file detector to check which indexed paths still exist on disk.
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at,
+       deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
        current_version_id
 FROM assets
 WHERE owner_id = ? AND provider = ? AND deleted_at IS NULL AND missing_at IS NULL
@@ -112,7 +112,7 @@ ORDER BY storage_path ASC;
 -- Used by hash-based auto-reconnect during scan.
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
-       deleted_at, rating, color, display_name, folder_id, missing_at,
+       deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
        current_version_id
 FROM assets
 WHERE owner_id = ? AND hash = ? AND missing_at IS NOT NULL AND deleted_at IS NULL

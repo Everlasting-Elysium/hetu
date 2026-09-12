@@ -180,6 +180,7 @@ func (s *SQLite) UpsertAsset(ctx context.Context, a domain.Asset) error {
 		MissingAt:   timeToNullUnix(a.MissingAt),
 		Rating:      int64(a.Rating),
 		Color:       a.Color,
+		Favorite:    boolToInt64(a.Favorite),
 		DisplayName: a.DisplayName,
 		FolderID:    a.FolderID,
 	}); err != nil {
@@ -282,28 +283,38 @@ func rowToAsset(r db.Asset) (domain.Asset, error) {
 		return domain.Asset{}, fmt.Errorf("row owner id: %w", err)
 	}
 	return domain.Asset{
-		ID:          id,
-		Owner:       owner,
-		Kind:        domain.AssetKind(r.Kind),
-		Provider:    r.Provider,
-		StoragePath: r.StoragePath,
-		Name:        r.Name,
-		Ext:         r.Ext,
-		Size:        r.Size,
-		Hash:        r.Hash,
-		ThumbPath:   r.ThumbPath,
-		Width:       int(r.Width),
-		Height:      int(r.Height),
-		CreatedAt:   time.Unix(r.CreatedAt, 0).UTC(),
-		IndexedAt:   time.Unix(r.IndexedAt, 0).UTC(),
-		DeletedAt:   nullUnixToTime(r.DeletedAt),
-		MissingAt:   nullUnixToTime(r.MissingAt),
+		ID:               id,
+		Owner:            owner,
+		Kind:             domain.AssetKind(r.Kind),
+		Provider:         r.Provider,
+		StoragePath:      r.StoragePath,
+		Name:             r.Name,
+		Ext:              r.Ext,
+		Size:             r.Size,
+		Hash:             r.Hash,
+		ThumbPath:        r.ThumbPath,
+		Width:            int(r.Width),
+		Height:           int(r.Height),
+		CreatedAt:        time.Unix(r.CreatedAt, 0).UTC(),
+		IndexedAt:        time.Unix(r.IndexedAt, 0).UTC(),
+		DeletedAt:        nullUnixToTime(r.DeletedAt),
+		MissingAt:        nullUnixToTime(r.MissingAt),
 		Rating:           int(r.Rating),
 		Color:            r.Color,
+		Favorite:         r.Favorite != 0,
 		DisplayName:      r.DisplayName,
 		FolderID:         r.FolderID,
 		CurrentVersionID: r.CurrentVersionID,
 	}, nil
+}
+
+// boolToInt64 maps a Go bool to the 0/1 INTEGER a favorite-style column stores,
+// the write-side counterpart of the "r.Favorite != 0" read in rowToAsset.
+func boolToInt64(b bool) int64 {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // idStrings maps a slice of stringer IDs to their raw string values.
