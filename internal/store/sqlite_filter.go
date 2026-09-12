@@ -23,7 +23,7 @@ const assetColumns = `a.id, a.owner_id, a.kind, a.provider, a.storage_path, a.na
 	`a.missing_at, a.current_version_id`
 
 // currentVersionJoin resolves an asset's current version for display-field
-// COALESCE. current_version_id is '' for un-versioned assets, so cv is NULL and
+// COALESCE. current_version_id is empty for un-versioned assets, so cv is NULL and
 // COALESCE falls back to the anchor's own thumb_path/width/height.
 const currentVersionJoin = ` LEFT JOIN asset_versions cv ON cv.id = a.current_version_id `
 
