@@ -66,3 +66,40 @@ func QueryFloat64(r *http.Request, key string, def float64) float64 {
 	}
 	return n
 }
+
+// NormalizeRange clamps a min/max pair to hetu's range-filter contract:
+// negative values collapse to 0 (unbounded on that side), and an inverted range
+// (max>0 AND max<min) drops max back to 0 (unbounded) rather than swapping the
+// two — a confused range widens instead of silently reinterpreting the caller's
+// numbers in swapped roles. Shared by the DAM facet parser and the wallpaper
+// filter (issue #114); it lives here alongside the QueryInt/QueryFloat64
+// helpers because normalizing query-derived ranges is the same concern.
+func NormalizeRange(min, max int64) (int64, int64) {
+	if min < 0 {
+		min = 0
+	}
+	if max < 0 {
+		max = 0
+	}
+	if max > 0 && max < min {
+		max = 0
+	}
+	return min, max
+}
+
+// NormalizeRangeFloat is NormalizeRange for float64 ranges (the duration facet,
+// seconds — which may be fractional, so it cannot reuse the int64 version). Same
+// contract: negative -> 0 (unbounded), inverted max<min -> drop max to unbounded
+// rather than swapping.
+func NormalizeRangeFloat(min, max float64) (float64, float64) {
+	if min < 0 {
+		min = 0
+	}
+	if max < 0 {
+		max = 0
+	}
+	if max > 0 && max < min {
+		max = 0
+	}
+	return min, max
+}
