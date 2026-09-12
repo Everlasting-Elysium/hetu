@@ -7,6 +7,7 @@ import { ReplaceTagMenu } from "./ReplaceTagMenu";
 import {
   IconBoard,
   IconClose,
+  IconCompare,
   IconDownload,
   IconDroplet,
   IconFolder,
@@ -36,6 +37,9 @@ interface Props {
   onMove: (folderId: string) => void;
   onAddToBoard: (boardId: string, boardName: string) => void;
   onAddToNewBoard: () => void;
+  // Open the two-image comparison page (issue #127). Shown only for a library
+  // selection of exactly two assets — comparison is inherently binary.
+  onCompare: () => void;
   // Package the current selection into a zip download (issue #62). A single
   // action with no options, so it is a direct button, not a menu.
   onExport: () => void;
@@ -64,6 +68,19 @@ export function BatchBar(p: Props) {
 
       {isLibraryView(p.view) ? (
         <>
+          {p.count === 2 && (
+            <>
+              <button
+                className="btn btn-ghost"
+                data-testid="compare-button"
+                onClick={p.onCompare}
+              >
+                <IconCompare width={14} height={14} /> 对比
+              </button>
+              <div className={styles.sep} />
+            </>
+          )}
+
           <div className={styles.menuWrap}>
             <button className="btn btn-ghost" onClick={() => toggle("tag")}>
               <IconTag width={14} height={14} /> 标签

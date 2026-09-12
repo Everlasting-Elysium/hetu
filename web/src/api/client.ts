@@ -10,6 +10,8 @@ import type {
   Collection,
   CollectionItem,
   ColorMatch,
+  CompareInput,
+  CompareResponse,
   DocumentPage,
   Facets,
   Folder,
@@ -137,7 +139,11 @@ interface ApiError {
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const headers = init?.body ? { "Content-Type": "application/json" } : {};
+  // FormData bodies (multipart uploads like /compare) must NOT carry an explicit
+  // Content-Type — the browser sets the multipart boundary itself. JSON bodies
+  // still get the header; a bodyless request gets neither.
+  const headers =
+    init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {};
   const res = await fetch(BASE + path, { ...init, headers });
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`;
@@ -208,6 +214,21 @@ export const api = {
     req<ColorMatch[]>(
       `/search?color=${encodeURIComponent(hex.replace("#", ""))}&tol=${tol}&limit=${limit}`,
     ),
+
+  // Image comparison (issue #127): scores how closely `target` reproduces
+  // `reference` across five dimensions. Either side is a library asset or a
+  // transient local upload — a raw FormData (never body(), which is JSON only) so
+  // the browser sets the multipart boundary; req skips its JSON content-type for
+  // FormData. Uploaded files go straight to /compare and are never imported.
+  compare: (input: CompareInput) => {
+    const form = new FormData();
+    if (input.reference.kind === "asset") form.append("reference_asset_id", input.reference.assetId);
+    else form.append("reference_file", input.reference.file, input.reference.file.name);
+    if (input.target.kind === "asset") form.append("target_asset_id", input.target.assetId);
+    else form.append("target_file", input.target.file, input.target.file.name);
+    if (input.dimensions?.length) form.append("dimensions", input.dimensions.join(","));
+    return req<CompareResponse>("/compare", { method: "POST", body: form });
+  },
 
   // Folders (issue #62): the cover is resolved server-side (explicit override,
   // else the folder's earliest-indexed live asset, else ""); PATCH cover to an

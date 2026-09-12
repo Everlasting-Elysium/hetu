@@ -18,6 +18,7 @@ import { useCollections } from "./hooks/useCollections";
 import { useSelection } from "./hooks/useSelection";
 import { useViewMode } from "./hooks/useViewMode";
 import { useImport } from "./hooks/useImport";
+import { useCompare } from "./hooks/useCompare";
 import { Sidebar } from "./components/Sidebar";
 import { SearchBar } from "./components/SearchBar";
 import { AssetGrid } from "./components/AssetGrid";
@@ -31,6 +32,7 @@ import { InspectorPanel } from "./components/InspectorPanel";
 import { BoardList } from "./components/BoardList";
 import { BoardCanvas } from "./components/BoardCanvas";
 import { CollectionView } from "./components/CollectionView";
+import { ComparePage } from "./components/compare/ComparePage";
 import { copyAssetsToClipboard } from "./lib/clipboard";
 import brand from "./components/Sidebar.module.css";
 import styles from "./App.module.css";
@@ -71,6 +73,9 @@ export default function App() {
   const lib = useLibrary(setError);
   const boards = useBoards(setError);
   const collections = useCollections(setError);
+  // Two-image comparison state (issue #127); seeded by the batch bar before
+  // switching to the "compare" view.
+  const cmp = useCompare();
   const { assets, loading, error: loadErr } = useAssets(view, lq.query, version);
   // The sidebar's facet controls act on whichever query is "active" for the
   // current view: the board panel's query on the board canvas, `lq` everywhere
@@ -98,9 +103,10 @@ export default function App() {
     ? assets.find((a) => a.id === inspectedId)
     : undefined;
 
-  // Board + collection detail views own their full-area chrome, so the search and
-  // batch bars hide there; every other view keeps the asset chrome.
-  const isAssetView = view !== "boards" && view !== "board" && view !== "collection";
+  // Board + collection + compare detail views own their full-area chrome, so the
+  // search and batch bars hide there; every other view keeps the asset chrome.
+  const isAssetView =
+    view !== "boards" && view !== "board" && view !== "collection" && view !== "compare";
 
   // The active collection (resolved from the tree list) — null while none is open
   // or after it (or an ancestor) was deleted, which the effect below navigates on.
@@ -206,6 +212,23 @@ export default function App() {
     sel.clear();
     setActiveCollectionId(id);
     setView("collection");
+  };
+  // "对比" from the batch bar (issue #127): seed the compare hook from the two
+  // selected assets (grid order = reference, target), clear the selection, and
+  // switch to the transient compare view.
+  const startCompare = () => {
+    const picked = assets.filter((a) => sel.selected.has(a.id));
+    if (picked.length !== 2) return;
+    cmp.seed(picked[0]!, picked[1]!);
+    sel.clear();
+    setFocusedId(null);
+    setView("compare");
+  };
+  // Leaving compare: release any object URLs the local-upload slots hold, then
+  // return to the last browse layout.
+  const exitCompare = () => {
+    cmp.reset();
+    setView(prevBrowse.current);
   };
   // Drop an asset (dragged from any grid card) onto a sidebar collection node.
   // Reuses the notice/error toasts; refetches the member grid if that collection
@@ -477,6 +500,8 @@ export default function App() {
             onMembersChanged={() => collections.reload()}
             onError={setError}
           />
+        ) : view === "compare" ? (
+          <ComparePage cmp={cmp} onError={setError} onExit={exitCompare} />
         ) : (
           <>
             {view === "trash" && (
@@ -574,6 +599,7 @@ export default function App() {
           onMove={(folderId) => void run((t) => api.move(t, folderId))()}
           onAddToBoard={(boardId, boardName) => void sendToBoard(boardId, boardName)}
           onAddToNewBoard={() => void sendToNewBoard()}
+          onCompare={startCompare}
           onExport={() => void exportSelection()}
           onTrash={() => void run((t) => api.trash(t))()}
           onRestore={() => void run((t) => api.restore(t))()}

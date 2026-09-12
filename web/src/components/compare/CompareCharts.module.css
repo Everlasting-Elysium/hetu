@@ -1,0 +1,157 @@
+/* Shared presentational primitives for the compare cards (issue #127): the card
+   shell, metric rows, chart bars, and tag chips used by CompareCharts.tsx and the
+   per-dimension cards. Feature/layout styles live in Compare.module.css; each
+   class is defined once and imported where needed. All values are design tokens. */
+
+/* Card shell ---------------------------------------------------------------- */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+.cardMuted {
+  border-style: dashed;
+}
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.cardTitle {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.scoreBadge {
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.muted {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+/* Metrics grid -------------------------------------------------------------- */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--sp-1) var(--sp-3);
+}
+.metric {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-1) 0;
+  border-bottom: 1px solid var(--border);
+}
+.metricLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.metricValue {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Charts -------------------------------------------------------------------- */
+.chartRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.rowLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.palette {
+  display: flex;
+  height: 24px;
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.paletteSwatch {
+  min-width: 6px;
+}
+.histogram {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 56px;
+  padding: var(--sp-1);
+  background: var(--bg-inset);
+  border-radius: var(--r-md);
+}
+.histBar {
+  flex: 1;
+  min-height: 1px;
+  background: var(--accent);
+  border-radius: 1px 1px 0 0;
+}
+.zoneBar {
+  display: flex;
+  height: 20px;
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.zoneShadow {
+  background: var(--bg-elevated);
+}
+.zoneMid {
+  background: var(--text-muted);
+}
+.zoneHigh {
+  background: var(--text-dim);
+}
+
+/* Tag chips ----------------------------------------------------------------- */
+.chipGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.chip {
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-full);
+  background: var(--bg-elevated);
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+.chipCommon {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+.chipMissing {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.chipExtra {
+  color: var(--star);
+  border-color: var(--star);
+}
