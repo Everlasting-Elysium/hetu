@@ -40,6 +40,11 @@ export const IconRestore = (p: P) => (
     <path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5" />
   </svg>
 );
+export const IconDownload = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" />
+  </svg>
+);
 export const IconFolder = (p: P) => (
   <svg {...base(p)}>
     <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />

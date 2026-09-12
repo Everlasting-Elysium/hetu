@@ -116,6 +116,10 @@ func (p *Plugin) Routes() []kernel.Route {
 		// source tag survives for assets outside the selection. Global tag folding
 		// (deleting the source) is POST /tags/merge instead.
 		{Method: http.MethodPost, Pattern: "/batch/replace-tag", Handler: p.batchReplaceTag},
+		// Package the selected assets' current-version bytes into a zip download
+		// (issue #62). POST + JSON body (the owner's selection set), unlike
+		// wallpaper's anonymous GET /download/zip; packaging is shared via ziputil.
+		{Method: http.MethodPost, Pattern: "/batch/export", Handler: p.batchExport},
 
 		{Method: http.MethodGet, Pattern: "/trash", Handler: p.listTrash},
 		{Method: http.MethodDelete, Pattern: "/trash", Handler: p.emptyTrash},

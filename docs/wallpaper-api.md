@@ -192,7 +192,7 @@ wallpaper 插件把 DAM 已索引的资产以**公开、匿名、只读**的方�
 |------|------|------|
 | `ids` | query | 逗号分隔的 asset id 列表，按出现顺序去重 |
 
-- 上限 `maxZipItems`（当前 50，见 [`zip.go`](../internal/plugins/wallpaper/zip.go)）。
+- 上限 `maxZipItems`（当前 50；别名到共享包的 `ziputil.MaxItems`，见 [`zip.go`](../internal/plugins/wallpaper/zip.go) 与 [`ziputil`](../internal/ziputil/ziputil.go)）。
 - 解析失败/未找到/provider 未注册的 id 被静默跳过；下载中单个文件打开失败也跳过（不中断整体）。
 - entry 名用 `DisplayName`（为空则 `Name`），同名冲突时后者加 ` (2)`、` (3)` 序号（插在扩展名前）。
 
@@ -202,7 +202,7 @@ wallpaper 插件把 DAM 已索引的资产以**公开、匿名、只读**的方�
 - `400` — `ids` 为空 / 超过 `maxZipItems`
 - `404` — 所有 id 均无法解析（结果集为空）
 
-实现：[`zip.go`](../internal/plugins/wallpaper/zip.go) 的 `downloadZip` 方法，使用标准库 `archive/zip` 流式写出。
+实现：[`zip.go`](../internal/plugins/wallpaper/zip.go) 的 `downloadZip` 方法解析/校验 id，打包核心（流式写出、单项失败跳过、同名去重）由共享包 [`ziputil.Stream`](../internal/ziputil/ziputil.go) 用标准库 `archive/zip` 完成，与 DAM 的 `POST /api/dam/batch/export` 共用一份实现。
 
 ---
 

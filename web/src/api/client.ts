@@ -279,6 +279,34 @@ export const api = {
       "/batch/rename",
       body({ asset_ids, pattern: "", display_name }),
     ),
+  // Packages the selected assets into a zip and triggers a browser download
+  // (issue #62). POST + JSON body like every other /batch/* call (not
+  // wallpaper's anonymous GET ?ids=); the application/zip body is read as a blob
+  // and handed to a synthesized <a download> click, since a POST cannot be
+  // navigated to like a GET URL. The object URL is revoked right after the click.
+  exportZip: async (asset_ids: string[]): Promise<void> => {
+    const res = await fetch(`${BASE}/batch/export`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ asset_ids }),
+    });
+    if (!res.ok) {
+      let msg = `${res.status} ${res.statusText}`;
+      try {
+        const errBody = (await res.json()) as { error?: string };
+        if (errBody.error) msg = errBody.error;
+      } catch { /* non-JSON error body */ }
+      throw new Error(msg);
+    }
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "assets.zip";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
 
   listTrash: (limit = 200, offset = 0) =>
     req<Asset[]>(`/trash?limit=${limit}&offset=${offset}`),

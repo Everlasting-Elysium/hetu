@@ -7,6 +7,7 @@ import { ReplaceTagMenu } from "./ReplaceTagMenu";
 import {
   IconBoard,
   IconClose,
+  IconDownload,
   IconDroplet,
   IconFolder,
   IconHeart,
@@ -35,6 +36,9 @@ interface Props {
   onMove: (folderId: string) => void;
   onAddToBoard: (boardId: string, boardName: string) => void;
   onAddToNewBoard: () => void;
+  // Package the current selection into a zip download (issue #62). A single
+  // action with no options, so it is a direct button, not a menu.
+  onExport: () => void;
   onTrash: () => void;
   onRestore: () => void;
 }
@@ -225,6 +229,10 @@ export function BatchBar(p: Props) {
               </div>
             )}
           </div>
+
+          <button className="btn btn-ghost" data-testid="batch-export" onClick={p.onExport}>
+            <IconDownload width={14} height={14} /> 导出
+          </button>
 
           <div className={styles.sep} />
           <button className="btn btn-danger" onClick={p.onTrash}>
