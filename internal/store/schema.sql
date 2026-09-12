@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS assets (
     display_name TEXT NOT NULL DEFAULT '',         -- user rename; empty = use name
     folder_id    TEXT NOT NULL DEFAULT '',         -- FK -> folders.id; empty = root
     missing_at   INTEGER,                          -- NULL = found; unix ts = marked missing
-    current_version_id TEXT NOT NULL DEFAULT ''    -- FK -> asset_versions.id; '' = single implicit version (the anchor row itself)
+    current_version_id TEXT NOT NULL DEFAULT '',   -- FK -> asset_versions.id; '' = single implicit version (the anchor row itself)
+    palette_manual INTEGER NOT NULL DEFAULT 0      -- 0 = auto-extracted palette (issue #16); 1 = user-curated, protected from re-scan overwrite (issue #62)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_owner_path
@@ -90,6 +91,10 @@ CREATE TABLE IF NOT EXISTS annotations (
 -- asset_colors is the color-search index: one row per palette swatch with its
 -- CIE-Lab coordinates precomputed so a query only has to run CIEDE2000 over
 -- candidate rows. ord 0 is the dominant color; weight is the pixel fraction.
+-- Rows are (re)written wholesale by the scanner (see queries/color.sql), or
+-- edited swatch-by-swatch through the manual palette endpoints, which set
+-- assets.palette_manual = 1 so a later scan leaves the curated rows untouched
+-- (issue #62). ord stays contiguous 0..N-1 after every manual edit.
 CREATE TABLE IF NOT EXISTS asset_colors (
     asset_id TEXT NOT NULL,
     owner_id TEXT NOT NULL,

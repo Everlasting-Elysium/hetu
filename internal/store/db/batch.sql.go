@@ -209,7 +209,7 @@ const listTrashedAssets = `-- name: ListTrashedAssets :many
 SELECT id, owner_id, kind, provider, storage_path, name, ext, size, hash,
        thumb_path, width, height, created_at, indexed_at,
        deleted_at, rating, color, favorite, display_name, folder_id, missing_at,
-       current_version_id
+       current_version_id, palette_manual
 FROM assets
 WHERE owner_id = ? AND deleted_at IS NOT NULL
 ORDER BY deleted_at DESC
@@ -254,6 +254,7 @@ func (q *Queries) ListTrashedAssets(ctx context.Context, arg ListTrashedAssetsPa
 			&i.FolderID,
 			&i.MissingAt,
 			&i.CurrentVersionID,
+			&i.PaletteManual,
 		); err != nil {
 			return nil, err
 		}

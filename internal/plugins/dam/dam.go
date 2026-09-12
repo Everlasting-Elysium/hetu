@@ -66,6 +66,11 @@ func (p *Plugin) Routes() []kernel.Route {
 		{Method: http.MethodGet, Pattern: "/assets/{id}", Handler: p.getAsset},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/tags", Handler: p.assetTags},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/colors", Handler: p.assetColors},
+		// Manual palette editing (issue #62): add/adjust/remove a swatch. Each
+		// edit flags the palette user-curated so a re-scan won't overwrite it.
+		{Method: http.MethodPost, Pattern: "/assets/{id}/colors", Handler: p.addAssetColor},
+		{Method: http.MethodPut, Pattern: "/assets/{id}/colors/{ord}", Handler: p.updateAssetColor},
+		{Method: http.MethodDelete, Pattern: "/assets/{id}/colors/{ord}", Handler: p.deleteAssetColor},
 		{Method: http.MethodGet, Pattern: "/assets/{id}/thumb", Handler: p.serveThumb},
 		// Client-uploaded thumbnail (issue #78): the browser renders 3D previews
 		// and POSTs the PNG/JPEG, so hetu needs no Blender for model thumbnails.

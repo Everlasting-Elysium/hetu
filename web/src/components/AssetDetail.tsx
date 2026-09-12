@@ -1,11 +1,12 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import type React from "react";
-import type { Asset, AssetKind, Swatch } from "../types";
-import { api, fileUrl, thumbUrl } from "../api/client";
+import type { Asset, AssetKind } from "../types";
+import { fileUrl, thumbUrl } from "../api/client";
 import { IconClose, KindIcon } from "./icons";
 import { VideoPlayer } from "./VideoPlayer";
 import { AudioPlayer } from "./AudioPlayer";
 import { DocumentPager } from "./DocumentPager";
+import { PaletteEditor } from "./PaletteEditor";
 import styles from "./AssetDetail.module.css";
 
 // The 3D viewer bundles model-viewer + three.js (~1 MB). Load it lazily so it is
@@ -133,8 +134,6 @@ export function AssetMedia({
 }
 
 export function AssetDetail({ asset, onClose, toggleRef, onColorSearch }: Props) {
-  const [palette, setPalette] = useState<Swatch[]>([]);
-
   // Escape-to-close. Effect runs unconditionally (rules-of-hooks); the guard
   // keeps the listener off while no asset is open.
   useEffect(() => {
@@ -145,15 +144,6 @@ export function AssetDetail({ asset, onClose, toggleRef, onColorSearch }: Props)
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [asset, onClose]);
-
-  // Fetch extracted palette when the detail asset changes.
-  useEffect(() => {
-    setPalette([]);
-    if (!asset) return;
-    let stale = false;
-    api.assetColors(asset.id).then((s) => { if (!stale) setPalette(s); }).catch(() => {});
-    return () => { stale = true; };
-  }, [asset?.id]);
 
   if (!asset) return null;
 
@@ -176,20 +166,7 @@ export function AssetDetail({ asset, onClose, toggleRef, onColorSearch }: Props)
           <AssetMedia asset={asset} toggleRef={toggleRef} />
         </div>
 
-        {palette.length > 0 && (
-          <div className={styles.palette}>
-            {palette.map((s, i) => (
-              <button
-                key={`${s.hex}-${i}`}
-                type="button"
-                title={s.hex}
-                className={styles.paletteSwatch}
-                style={{ background: s.hex, flex: s.weight }}
-                onClick={() => onColorSearch?.(s.hex)}
-              />
-            ))}
-          </div>
-        )}
+        <PaletteEditor asset={asset} onColorSearch={onColorSearch} />
 
         <dl className={styles.info}>
           <dt>类型</dt>

@@ -47,6 +47,19 @@ type Store interface {
 	// (CIEDE2000) of target, nearest first, capped at limit.
 	SearchByColor(ctx context.Context, owner domain.OwnerID, target color.Lab, tol float64, limit int) ([]domain.ColorMatch, error)
 
+	// Manual palette editing (issue #62): hand-curate the swatches #16 extracted.
+	// Each call sets assets.palette_manual = 1 in the same transaction so a later
+	// scan/thumb re-extract (writePaletteTx) leaves the curated rows untouched,
+	// and returns the full updated palette (ord-ascending, dominant first).
+	// AddAssetColor appends rgb at the next ord (ord 0 on an empty palette).
+	AddAssetColor(ctx context.Context, owner domain.OwnerID, id domain.AssetID, rgb color.RGB) ([]color.Swatch, error)
+	// UpdateAssetColor repoints the swatch at ord to rgb (recomputing its Lab);
+	// domain.ErrNotFound if no swatch has that ord.
+	UpdateAssetColor(ctx context.Context, owner domain.OwnerID, id domain.AssetID, ord int, rgb color.RGB) ([]color.Swatch, error)
+	// DeleteAssetColor removes the swatch at ord and renumbers survivors to a
+	// contiguous 0..N-1; domain.ErrNotFound if no swatch has that ord.
+	DeleteAssetColor(ctx context.Context, owner domain.OwnerID, id domain.AssetID, ord int) ([]color.Swatch, error)
+
 	// IndexMetadata stores extracted file-embedded metadata (EXIF/IPTC/XMP)
 	// as extracted-layer annotations, and updates asset.created_at when the
 	// metadata contains an embedded capture time that predates the filesystem

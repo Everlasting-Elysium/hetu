@@ -1,0 +1,122 @@
+.wrap {
+  margin-bottom: var(--sp-5);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-2);
+}
+.heading {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+.toggle {
+  padding: 2px var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  transition: color var(--t-fast), border-color var(--t-fast);
+}
+.toggle:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+/* View mode: the read-only strip, weighted by pixel fraction (issue #88). */
+.palette {
+  display: flex;
+  height: 24px;
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.paletteSwatch {
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  min-width: 10px;
+  transition: opacity var(--t-fast);
+}
+.paletteSwatch:hover {
+  opacity: 0.75;
+}
+
+/* Edit mode: fixed-size chips, each a color picker with a delete affordance. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.chip {
+  position: relative;
+  width: 32px;
+  height: 32px;
+}
+.chipColor {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-md);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35) inset;
+  cursor: pointer;
+}
+/* The native color input fills its chip but stays invisible: the label's
+   background shows the swatch color, and clicking anywhere opens the picker. */
+.picker {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
+}
+.chipDelete {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 1;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  line-height: 0;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.chipDelete:hover {
+  background: var(--danger, #e5484d);
+  color: #fff;
+}
+.addChip {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-lg);
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: color var(--t-fast), border-color var(--t-fast);
+}
+.addChip:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+}
+
+.empty {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}

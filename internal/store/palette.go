@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -69,7 +71,20 @@ func (s *SQLite) IndexPaletteByID(ctx context.Context, owner domain.OwnerID, id 
 // palette and dominant-color annotations, then a full refresh of the asset's
 // asset_colors rows. Shared by the natural-key (IndexPalette) and row-id
 // (IndexPaletteByID) writers so both stay consistent.
+//
+// A palette the user has curated by hand (assets.palette_manual = 1, issue #62)
+// is left entirely untouched — neither the annotations nor the asset_colors rows
+// are rewritten — so a re-scan or a thumbnail re-extract never clobbers manual
+// edits. The guard is all-or-nothing on purpose: skipping only asset_colors
+// while overwriting the annotations would leave the two halves inconsistent.
 func writePaletteTx(ctx context.Context, q *db.Queries, owner domain.OwnerID, aid string, pal color.Palette) error {
+	manual, err := q.GetPaletteManual(ctx, db.GetPaletteManualParams{ID: aid, OwnerID: owner.String()})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("check palette_manual %s: %w", aid, err)
+	}
+	if manual != 0 {
+		return nil // curated by hand; a re-scan/re-extract must not overwrite it
+	}
 	if err := upsertPaletteAnnotations(ctx, q, aid, pal); err != nil {
 		return err
 	}
